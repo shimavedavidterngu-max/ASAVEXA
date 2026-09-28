@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environment / secrets — never commit real credentials
+.env
+.env.local
+*.env
+!.env.example
+
+# Node (dev-only test runner; no build artifacts expected, but just in case)
+node_modules/
+
+# OS/editor cruft
+.DS_Store
+*.log
+
+# Local Postgres data if ever run outside Docker
+*.sqlite3

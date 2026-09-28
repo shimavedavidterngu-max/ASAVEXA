@@ -1,0 +1,73 @@
+# ASAVEXA — full local stack: PostgreSQL + API + static frontend.
+#
+# NOT executed in the sandbox that produced this codebase (Docker
+# itself would need to pull base images over a network connection this
+# sandbox's egress proxy blocks — confirmed directly by attempting a
+# real `apt-get install postgresql`, which returned 403 Forbidden
+# against every Ubuntu mirror, the same result pip and npm gave
+# against their own registries). Written to be correct and runnable in
+# any environment with real network access. See
+# docs/runtime-verification.md for the full account of what remains
+# unexecuted here and exactly how to execute it for real.
+#
+# Usage once real network access exists:
+#   docker compose up --build
+#   open http://localhost:8080          (frontend)
+#   curl http://localhost:8000/health   (API liveness)
+#   curl http://localhost:8000/ready    (API readiness — real DB check)
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: asavexa
+      POSTGRES_PASSWORD: asavexa
+      POSTGRES_DB: asavexa
+    # No `ports:` mapping — found publicly exposed during the Phase 7
+    # audit (previously "5432:5432"), which would let anyone who can
+    # reach this host connect directly to PostgreSQL, bypassing every
+    # application-layer authentication, authorization, and audit
+    # control entirely (unlike the api service's exposed port below,
+    # which enforces the exact same protections whether reached
+    # directly or via nginx). The `api` service still reaches this
+    # over Docker's internal network via the service name `db` with no
+    # port mapping required — internal service-to-service DNS works
+    # regardless of whether a port is also published to the host. For
+    # local debugging with an external SQL client, temporarily add
+    # back `ports: ["5432:5432"]` in an override file
+    # (docker-compose.override.yml) — never in the committed default.
+    volumes:
+      - asavexa-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asavexa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://asavexa:asavexa@db:5432/asavexa
+      CORS_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  asavexa-postgres-data:

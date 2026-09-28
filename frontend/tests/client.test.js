@@ -1,0 +1,157 @@
+/**
+ * FRONTEND COMPONENT/UNIT TESTS — not real API integration tests.
+ *
+ * These run against a controlled, hand-written fetch fixture — never
+ * a real network call, never a real FastAPI server (unavailable in
+ * this environment; see docs/frontend-runtime-verification.md). Run
+ * with: node --test frontend/tests/
+ */
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+import { ApiClient, ApiError, NetworkError } from "../src/api/client.js";
+
+/** A minimal, honest fetch fixture: records every call it received and
+ * returns a pre-programmed response. Never simulates real HTTP/TCP
+ * behavior — just the Response-shaped object our client actually reads. */
+function makeFakeFetch(responder) {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    const { status, body } = responder(url, init);
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      text: async () => (body === undefined ? "" : JSON.stringify(body)),
+    };
+  };
+  fetchImpl.calls = calls;
+  return fetchImpl;
+}
+
+describe("ApiClient request construction", () => {
+  test("GET builds the correct URL with base path and no body", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 200, body: [{ id: "1" }] }));
+    const client = new ApiClient({ fetchImpl, getToken: () => null });
+    const result = await client.listAccounts();
+    assert.equal(fetchImpl.calls.length, 1);
+    assert.equal(fetchImpl.calls[0].url, "/api/accounts");
+    assert.equal(fetchImpl.calls[0].init.method, "GET");
+    assert.equal(fetchImpl.calls[0].init.body, undefined);
+    assert.deepEqual(result, [{ id: "1" }]);
+  });
+
+  test("GET with query parameters omits undefined/null values", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 200, body: { is_balanced: true } }));
+    const client = new ApiClient({ fetchImpl, getToken: () => null });
+    await client.trialBalance("period-123");
+    assert.equal(fetchImpl.calls[0].url, "/api/reports/trial-balance?period_id=period-123");
+  });
+
+  test("POST sends a JSON body and Content-Type header", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 201, body: { id: "j1" } }));
+    const client = new ApiClient({ fetchImpl, getToken: () => null });
+    await client.createDraftJournal({ date: "2026-01-01", description: "Test" });
+    const call = fetchImpl.calls[0];
+    assert.equal(call.init.method, "POST");
+    assert.equal(call.init.headers["Content-Type"], "application/json");
+    assert.deepEqual(JSON.parse(call.init.body), { date: "2026-01-01", description: "Test" });
+  });
+
+  test("a stored bearer token is attached to every request", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 200, body: {} }));
+    const client = new ApiClient({ fetchImpl, getToken: () => "secret-token-abc" });
+    await client.me();
+    assert.equal(fetchImpl.calls[0].init.headers.Authorization, "Bearer secret-token-abc");
+  });
+
+  test("no Authorization header is sent when there is no token", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 200, body: {} }));
+    const client = new ApiClient({ fetchImpl, getToken: () => null });
+    await client.health();
+    assert.equal(fetchImpl.calls[0].init.headers.Authorization, undefined);
+  });
+});
+
+describe("ApiClient error mapping", () => {
+  test("a 404 response raises ApiError with kind 'not_found'", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 404, body: { detail: "Journal not found." } }));
+    const client = new ApiClient({ fetchImpl, getToken: () => null });
+    await assert.rejects(
+      () => client.getJournal("does-not-exist"),
+      (err) => {
+        assert.ok(err instanceof ApiError);
+        assert.equal(err.kind, "not_found");
+        assert.equal(err.message, "Journal not found.");
+        return true;
+      }
+    );
+  });
+
+  test("a 403 response raises ApiError with kind 'unauthorized'", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 403, body: { detail: "Permission denied." } }));
+    const client = new ApiClient({ fetchImpl, getToken: () => "tok" });
+    await assert.rejects(() => client.postJournal("j1"), (err) => {
+      assert.equal(err.kind, "unauthorized");
+      return true;
+    });
+  });
+
+  test("a 409 response raises ApiError with kind 'conflict'", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 409, body: { detail: "You cannot change your own role." } }));
+    const client = new ApiClient({ fetchImpl, getToken: () => "tok" });
+    await assert.rejects(() => client.changeMemberRole("org1", "user1", "OWNER"), (err) => {
+      assert.equal(err.kind, "conflict");
+      return true;
+    });
+  });
+
+  test("a 401 response triggers onUnauthenticated exactly once", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 401, body: { detail: "Invalid or expired session." } }));
+    let calledWith = 0;
+    const client = new ApiClient({ fetchImpl, getToken: () => "expired-token", onUnauthenticated: () => { calledWith += 1; } });
+    await assert.rejects(() => client.me());
+    assert.equal(calledWith, 1);
+  });
+
+  test("a network failure raises NetworkError, not ApiError", async () => {
+    const fetchImpl = async () => {
+      throw new Error("connection refused");
+    };
+    const client = new ApiClient({ fetchImpl, getToken: () => null });
+    await assert.rejects(() => client.health(), (err) => {
+      assert.ok(err instanceof NetworkError);
+      assert.ok(!(err instanceof ApiError));
+      return true;
+    });
+  });
+
+  test("a non-JSON error body still produces a usable ApiError", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 500, text: async () => "Internal Server Error" });
+    const client = new ApiClient({ fetchImpl, getToken: () => null });
+    await assert.rejects(() => client.health(), (err) => {
+      assert.equal(err.kind, "server_error");
+      assert.equal(err.message, "Internal Server Error");
+      return true;
+    });
+  });
+});
+
+describe("ApiClient route coverage sanity", () => {
+  test("every method call produces exactly the path documented in the router inventory", async () => {
+    const fetchImpl = makeFakeFetch(() => ({ status: 200, body: {} }));
+    const client = new ApiClient({ fetchImpl, getToken: () => "tok" });
+    const cases = [
+      [() => client.login("a@b.com", "pw"), "/api/auth/login"],
+      [() => client.listFindings(), "/api/compliance/findings"],
+      [() => client.getFinding("f1"), "/api/compliance/findings/f1"],
+      [() => client.verifyRemediation("r1"), "/api/compliance/remediations/r1/verify"],
+      [() => client.checkCloseReadiness("p1"), "/api/period-close/periods/p1/readiness"],
+      [() => client.evidenceStatus("j1"), "/api/evidence/status?journal_id=j1"],
+    ];
+    for (const [call, expectedUrl] of cases) {
+      fetchImpl.calls.length = 0;
+      await call();
+      assert.equal(fetchImpl.calls[0].url, expectedUrl);
+    }
+  });
+});

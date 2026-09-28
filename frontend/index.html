@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASAVEXA — Don't just report the number. Prove it.</title>
+  <link rel="stylesheet" href="./src/styles/design-system.css" />
+  <!--
+    No build step, no bundler, no npm dependency — every script below
+    is loaded as a native ES module directly by the browser. See
+    docs/frontend-runtime-verification.md for why (npm's registry is
+    unreachable in the sandbox this was built in — the same
+    network constraint documented throughout the backend's own
+    runtime-verification docs).
+  -->
+</head>
+<body>
+  <div id="app-root" role="main" aria-live="polite"></div>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

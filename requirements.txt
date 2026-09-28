@@ -1,0 +1,24 @@
+# Production API layer (src/asavexa/api/) — not required to run the
+# tested core engine or the test suite, which use only the standard
+# library. Install this only once you're running the API against a real
+# PostgreSQL database.
+#
+# Versions are given as lower bounds, not exact pins — check for current
+# releases before installing; this list was written without live
+# internet access and has not been resolved/locked against real PyPI.
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0
+psycopg[binary]>=3.1
+pydantic>=2.6
+email-validator>=2.1     # required for pydantic's EmailStr (auth schemas)
+python-multipart>=0.0.9  # required for FastAPI file uploads (evidence router)
+alembic>=1.13
+python-dotenv>=1.0
+
+# Testing the API layer once dependencies are installed (in addition to
+# the stdlib-only tests/test_accounting_engine.py, which need nothing
+# from this file)
+pytest>=8.0
+httpx>=0.27
