@@ -45,7 +45,7 @@ class SqlAlchemyOrganisationRepository:
     def __init__(self, session: OrmSession):
         self.session = session
 
-        def create(self, org: Organisation) -> Organisation:
+    def create(self, org: Organisation) -> Organisation:
         row = OrganisationORM(id=org.id, name=org.name, created_at=org.created_at)
         self.session.add(row)
         self.session.flush()
