@@ -33,7 +33,8 @@ import { Compliance } from "./pages/Compliance.js";
 import { Administration } from "./pages/Administration.js";
 
 const authStore = new AuthStore();
-const api = new ApiClient({
+const api = new ApiClient({   baseUrl: "https://asavexa.onrender.com",
+
   getToken: () => authStore.getToken(),
   onUnauthenticated: () => {
     authStore.clear();
