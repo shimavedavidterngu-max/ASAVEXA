@@ -24,6 +24,7 @@ import { PERMISSIONS } from "./lib/permissions.js";
 import { Login, OrganisationPicker } from "./pages/Login.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { AuditWorkspace, buildChainLinks } from "./pages/AuditWorkspace.js";
+import { DrilldownPanel } from "./components/DrilldownPanel.js";
 import { Accounting } from "./pages/Accounting.js";
 import { Evidence } from "./pages/Evidence.js";
 import { Reconciliation } from "./pages/Reconciliation.js";
@@ -33,8 +34,8 @@ import { Compliance } from "./pages/Compliance.js";
 import { Administration } from "./pages/Administration.js";
 
 const authStore = new AuthStore();
-const api = new ApiClient({   baseUrl: "https://asavexa.onrender.com",
-
+const api = new ApiClient({
+  baseUrl: "https://asavexa.onrender.com",
   getToken: () => authStore.getToken(),
   onUnauthenticated: () => {
     authStore.clear();
@@ -103,6 +104,15 @@ let uiState = {
   // Reporting
   reportType: "trial-balance", reportingError: null, reportResult: null, traceResult: null,
   selectedPeriodId: "", selectedAccountId: "",
+  traceCompleteness: null, traceReconciliation: null,
+
+  // Drilldown panel ("Why is this number here?" / "Show me the
+  // evidence" — Phase 1). Deliberately global (not nested under
+  // Reporting/Accounting/etc. state) since it can be opened from any
+  // page that shows a journal-backed number.
+  drilldownOpen: false, drilldownLoading: false, drilldownError: null, drilldownNote: null,
+  drilldownJournal: null, drilldownChain: null, drilldownAuditEvents: null, drilldownEvidence: null,
+  drilldownCompleteness: null, drilldownReconciliation: null,
 
   // Period Close
   selectedClosePeriodId: "", periodCloseError: null, closeReadiness: null, activeCloseProcess: null,
@@ -198,7 +208,15 @@ function renderShell(authState) {
           h("button", { className: "btn btn-secondary", onClick: handleLogout }, "Sign out")
         ),
         renderPage(matched, authState)
-      )
+      ),
+      DrilldownPanel({
+        open: uiState.drilldownOpen, loading: uiState.drilldownLoading, error: uiState.drilldownError,
+        note: uiState.drilldownNote, journal: uiState.drilldownJournal, chainLinks: uiState.drilldownChain,
+        completeness: uiState.drilldownCompleteness, reconciliationStatus: uiState.drilldownReconciliation,
+        auditEvents: uiState.drilldownAuditEvents,
+        onClose: closeDrilldown, onNavigate: (p) => { closeDrilldown(); router.navigate(p); },
+        onShowEvidence: handleShowEvidence,
+      })
     ),
     root
   );
@@ -304,6 +322,26 @@ function handleLogout() {
   });
 }
 
+/**
+ * Shared chain-loading logic — the exact same 1-2-3-4 sequence
+ * AuditWorkspace's own docstring describes (GET journal -> evidence
+ * status -> evidence detail -> journal audit-trail), now used by both
+ * the Audit Workspace search box (handleAuditSearch) and the new
+ * Phase 1 "Show me the evidence" / "Why is this number here?" entry
+ * points (openDrilldown) below, instead of being duplicated.
+ */
+async function loadChainForJournal(journalId) {
+  const journal = await api.getJournal(journalId);
+  const auditEvents = await api.journalAuditTrail(journalId).catch(() => []);
+  let evidence = null;
+  const status = await api.evidenceStatus(journalId).catch(() => null);
+  if (status && status.evidence_id) {
+    evidence = await api.getEvidence(status.evidence_id).catch(() => null);
+  }
+  const chain = buildChainLinks({ journal, evidence, auditEvents });
+  return { journal, chain, auditEvents, evidence };
+}
+
 async function handleAuditSearch(query) {
   uiState.auditQuery = query;
   uiState.auditError = null;
@@ -311,18 +349,75 @@ async function handleAuditSearch(query) {
   uiState.auditChain = null;
   render();
   try {
-    const journal = await api.getJournal(query);
-    const auditEvents = await api.journalAuditTrail(query).catch(() => []);
-    let evidence = null;
-    const status = await api.evidenceStatus(query).catch(() => null);
-    if (status && status.evidence_id) {
-      evidence = await api.getEvidence(status.evidence_id).catch(() => null);
-    }
+    const { journal, chain } = await loadChainForJournal(query);
     uiState.auditJournal = journal;
-    uiState.auditChain = buildChainLinks({ journal, evidence, auditEvents });
+    uiState.auditChain = chain;
   } catch (err) {
     uiState.auditError = err.message || "Could not find that journal.";
   } finally {
+    render();
+  }
+}
+
+// ==================================================================
+// Drilldown panel — Phase 1's "Why is this number here?" /
+// "Show me the evidence" (global: can be opened from any page that
+// shows a journal-backed number, not just Audit Workspace).
+// ==================================================================
+async function openDrilldown(journalId, { accountId, periodId } = {}) {
+  uiState.drilldownOpen = true;
+  uiState.drilldownLoading = true;
+  uiState.drilldownError = null;
+  uiState.drilldownNote = null;
+  uiState.drilldownJournal = null;
+  uiState.drilldownChain = null;
+  uiState.drilldownAuditEvents = null;
+  uiState.drilldownEvidence = null;
+  uiState.drilldownCompleteness = null;
+  uiState.drilldownReconciliation = null;
+  render();
+  try {
+    const { journal, chain, auditEvents, evidence } = await loadChainForJournal(journalId);
+    uiState.drilldownJournal = journal;
+    uiState.drilldownChain = chain;
+    uiState.drilldownAuditEvents = auditEvents;
+    uiState.drilldownEvidence = evidence;
+    // Best-effort context enrichment — only possible when the caller
+    // knows which account this number belongs to (the Trace tab
+    // always does; General Ledger does only when one specific account
+    // is selected). Never blocks showing the chain itself if it fails
+    // or isn't applicable.
+    if (accountId) {
+      uiState.drilldownCompleteness = await api.evidenceCompleteness(accountId, periodId || undefined).catch(() => null);
+      const recon = await api.reconciliationSummary(accountId).catch(() => null);
+      // An account that isn't actually a reconciled bank account still
+      // returns a summary with every count at zero — showing that
+      // would falsely imply "this account is reconciled and clean"
+      // rather than "reconciliation doesn't apply here". Only surface
+      // it when there is real reconciliation activity for this id.
+      uiState.drilldownReconciliation =
+        recon && (recon.reconciled_count || recon.outstanding_count || recon.exception_count) ? recon : null;
+    }
+  } catch (err) {
+    uiState.drilldownError = err.message || "Could not load this entry.";
+  } finally {
+    uiState.drilldownLoading = false;
+    render();
+  }
+}
+
+function closeDrilldown() {
+  uiState.drilldownOpen = false;
+  render();
+}
+
+function handleShowEvidence() {
+  if (uiState.drilldownEvidence) {
+    const evidenceId = uiState.drilldownEvidence.id;
+    closeDrilldown();
+    router.navigate(`/evidence/${evidenceId}`);
+  } else {
+    uiState.drilldownNote = "No evidence is linked to this entry yet — upload one from the Evidence page.";
     render();
   }
 }
@@ -743,12 +838,37 @@ function renderReporting(authState, nav) {
     role: authState.role, reportType: uiState.reportType, periods: uiState.periods, accounts: uiState.accounts,
     selectedPeriodId: uiState.selectedPeriodId, selectedAccountId: uiState.selectedAccountId,
     loading: uiState.reportingLoading, error: uiState.reportingError, result: uiState.reportResult, traceResult: uiState.traceResult,
-    onSelectReportType: (t) => { uiState.reportType = t; uiState.reportResult = null; uiState.traceResult = null; render(); },
+    completeness: uiState.traceCompleteness, reconciliationStatus: uiState.traceReconciliation,
+    onSelectReportType: (t) => {
+      uiState.reportType = t; uiState.reportResult = null; uiState.traceResult = null;
+      uiState.traceCompleteness = null; uiState.traceReconciliation = null; render();
+    },
     onSelectPeriod: (id) => { uiState.selectedPeriodId = id; render(); },
     onSelectAccount: (id) => { uiState.selectedAccountId = id; render(); },
     onGenerate: () => handleGenerateReport(),
     onRetry: () => handleGenerateReport(),
+    onDrillAccount: (accountId) => handleDrillAccount(accountId),
+    onOpenDrilldown: (journalId) => openDrilldown(journalId, {
+      accountId: uiState.selectedAccountId, periodId: uiState.selectedPeriodId,
+    }),
   });
+}
+
+/** A statement line's "account" row has no journal to open directly
+ * (a trial balance line is a SUM across many journals) — so clicking
+ * it switches to the Trace tab for that exact account + the period
+ * already selected, which is where the individual journals/evidence
+ * live. This IS the "statement line drill-down" / "account
+ * drill-down" from Phase 1: trace_line's own docstring calls itself
+ * "the exact posted ledger entries... behind one account's balance". */
+function handleDrillAccount(accountId) {
+  uiState.reportType = "trace";
+  uiState.selectedAccountId = accountId;
+  uiState.traceResult = null;
+  uiState.traceCompleteness = null;
+  uiState.traceReconciliation = null;
+  render();
+  handleGenerateReport();
 }
 
 async function loadReportingPrereqs() {
@@ -771,7 +891,19 @@ async function handleGenerateReport() {
     else if (uiState.reportType === "income-statement") uiState.reportResult = await api.incomeStatement(uiState.selectedPeriodId);
     else if (uiState.reportType === "balance-sheet") uiState.reportResult = await api.balanceSheet(uiState.selectedPeriodId);
     else if (uiState.reportType === "general-ledger") uiState.reportResult = await api.generalLedger(uiState.selectedPeriodId, uiState.selectedAccountId || undefined);
-    else if (uiState.reportType === "trace") uiState.traceResult = await api.traceLine(uiState.selectedAccountId, uiState.selectedPeriodId);
+    else if (uiState.reportType === "trace") {
+      uiState.traceResult = await api.traceLine(uiState.selectedAccountId, uiState.selectedPeriodId);
+      uiState.traceCompleteness = await api
+        .evidenceCompleteness(uiState.selectedAccountId, uiState.selectedPeriodId || undefined)
+        .catch(() => null);
+      const recon = await api.reconciliationSummary(uiState.selectedAccountId).catch(() => null);
+      // See openDrilldown's identical comment above on why an
+      // all-zero summary is treated as "not applicable" rather than
+      // "clean" — this account may simply not be a reconciled bank
+      // account at all.
+      uiState.traceReconciliation =
+        recon && (recon.reconciled_count || recon.outstanding_count || recon.exception_count) ? recon : null;
+    }
   } catch (err) {
     uiState.reportingError = err.message || "Could not generate report.";
   } finally {

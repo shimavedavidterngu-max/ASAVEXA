@@ -81,3 +81,17 @@ def get_reconciliation_summary(
 ):
     """Read-only control context — never affects any report figure."""
     return service.get_reconciliation_summary(org_id, bank_account_id)
+
+
+@router.get("/evidence-completeness")
+def get_evidence_completeness(
+    account_id: str,
+    period_id: Optional[str] = None,
+    org_id: str = Depends(get_current_org),
+    service: ReportingService = Depends(get_reporting_service),
+):
+    """Phase 1 'evidence completeness score': of the ledger entries
+    behind this account's balance, what fraction have evidence
+    attached (and verified)? Read-only control context — never
+    affects any report figure."""
+    return service.get_evidence_completeness(org_id, account_id, period_id=period_id)

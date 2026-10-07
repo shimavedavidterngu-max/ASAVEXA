@@ -41,3 +41,10 @@ class ReconciliationNotConfiguredError(AsavexaReportingError):
     """Raised by get_reconciliation_summary when this ReportingService
     instance was constructed without a ReconciliationService — the
     integration is optional, not assumed."""
+
+
+class EvidenceNotConfiguredError(AsavexaReportingError):
+    """Raised by get_evidence_completeness when this ReportingService
+    instance was constructed without an EvidenceVault — the
+    integration is optional, not assumed (same pattern as
+    ReconciliationNotConfiguredError above)."""

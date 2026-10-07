@@ -329,6 +329,18 @@ export class ApiClient {
   reconciliationSummary(bankAccountId) {
     return this.get("/reports/reconciliation-summary", { bank_account_id: bankAccountId });
   }
+  /** Phase 1 "evidence completeness score" — see
+   * src/asavexa/api/routers/reporting.py's /reports/evidence-completeness. */
+  evidenceCompleteness(accountId, periodId) {
+    return this.get("/reports/evidence-completeness", { account_id: accountId, period_id: periodId });
+  }
+
+  // ---- Audit (audit.py — generic, entity-agnostic audit-event feed;
+  //      journalAuditTrail() above is the Journal-specific equivalent
+  //      and predates this) ----
+  entityAuditTrail(entityType, entityId) {
+    return this.get(`/audit/entity/${entityType}/${entityId}`);
+  }
 
   // ---- Period Close (period_close.py) ----
   checkCloseReadiness(periodId, requiredEvidenceRefs) {

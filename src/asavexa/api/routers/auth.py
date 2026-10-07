@@ -63,7 +63,16 @@ def select_organisation(
     logout — select_organisation needs to look the session up by its
     token hash and then mutate it."""
     session = identity.select_organisation(token, body.org_id)
-    return {"org_id": session.org_id}
+    # The frontend (frontend/src/app.js) destructures `{ role }` from
+    # this response immediately after calling it — select_organisation
+    # itself returns a Session, which has no role field (role lives on
+    # the Membership, not the Session), so it must be looked up
+    # separately via the same get_role() already used by
+    # list_members() above. Without this, every "select organisation"
+    # action looked successful but silently left the frontend's role
+    # state undefined (visible on the Dashboard as "Role: undefined").
+    role = identity.get_role(session.user_id, body.org_id)
+    return {"org_id": session.org_id, "role": role.value if role else None}
 
 
 # ----------------------------------------------------------------------

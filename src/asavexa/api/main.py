@@ -78,6 +78,7 @@ from ..reconciliation.domain.errors import (
 )
 from ..reporting.domain.errors import (
     AsavexaReportingError,
+    EvidenceNotConfiguredError,
     ReconciliationNotConfiguredError,
     ReportingAccountNotFoundError,
     ReportingPeriodNotFoundError,
@@ -107,7 +108,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, auth, compliance, evidence, journals, period_close, periods, reconciliation, reporting
+from .routers import accounts, audit, auth, compliance, evidence, journals, period_close, periods, reconciliation, reporting
 
 app = FastAPI(
     title="Asavexa",
@@ -206,6 +207,7 @@ app.include_router(reconciliation.txn_router)
 app.include_router(reporting.router)
 app.include_router(period_close.router)
 app.include_router(compliance.router)
+app.include_router(audit.router)
 
 
 # ----------------------------------------------------------------------
@@ -236,7 +238,7 @@ _RECONCILIATION_CONFLICT = (
 
 _REPORTING_NOT_FOUND = (ReportingPeriodNotFoundError, ReportingAccountNotFoundError)
 _REPORTING_CONFLICT = (UnsupportedAccountClassificationError,)
-_REPORTING_BAD_REQUEST = (UnknownReportTypeError, ReconciliationNotConfiguredError)
+_REPORTING_BAD_REQUEST = (UnknownReportTypeError, ReconciliationNotConfiguredError, EvidenceNotConfiguredError)
 
 _PERIOD_CLOSE_NOT_FOUND = (PeriodCloseProcessNotFoundError, PeriodClosePeriodNotFoundError)
 _PERIOD_CLOSE_CONFLICT = (

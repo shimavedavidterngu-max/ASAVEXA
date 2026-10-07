@@ -12,6 +12,7 @@ from __future__ import annotations
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from ..audit.repository import AuditRepository
 from ..accounting.services.engine import AccountingEngine
 from ..evidence.services.vault import EvidenceVault
 from ..reconciliation.services.service import ReconciliationService
@@ -58,6 +59,18 @@ _bearer_scheme = HTTPBearer(
 )
 
 
+def get_audit_repository(session=Depends(get_session)) -> AuditRepository:
+    """
+    Generic, cross-module read access to the shared audit trail (see
+    api/routers/audit.py's GET /audit/entity/{entity_type}/{entity_id}).
+    Every other get_*_service factory below already builds its own
+    SqlAlchemyAuditRepository(session) internally for WRITES scoped to
+    that module; this is the same repository, exposed directly for the
+    one generic READ endpoint that isn't scoped to any single module.
+    """
+    return SqlAlchemyAuditRepository(session)
+
+
 def get_identity_service(session=Depends(get_session)) -> IdentityService:
     return IdentityService(
         organisations=SqlAlchemyOrganisationRepository(session),
@@ -101,17 +114,19 @@ def get_reconciliation_service(session=Depends(get_session)) -> ReconciliationSe
 def get_reporting_service(session=Depends(get_session)) -> ReportingService:
     """
     Constructed with a real AccountingEngine (read-only) and, since
-    Reporting's Reconciliation integration is optional (see
-    reporting/services/service.py), a real ReconciliationService too —
-    there is no reason to withhold it here; get_reconciliation_summary
-    simply raises ReconciliationNotConfiguredError if a caller ever
-    constructs ReportingService without one, which this factory never
-    does.
+    Reporting's Reconciliation and Evidence integrations are both
+    optional (see reporting/services/service.py), a real
+    ReconciliationService and EvidenceVault too — there is no reason to
+    withhold either here; get_reconciliation_summary/
+    get_evidence_completeness simply raise their own
+    *NotConfiguredError if a caller ever constructs ReportingService
+    without one, which this factory never does.
     """
     return ReportingService(
         accounting=get_accounting_engine(session),
         audit=SqlAlchemyAuditRepository(session),
         reconciliation=get_reconciliation_service(session),
+        evidence=get_evidence_vault(session),
     )
 
 

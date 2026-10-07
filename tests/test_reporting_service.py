@@ -20,8 +20,12 @@ from asavexa.accounting.repository.sqlite_repository import (
 from asavexa.accounting.services.engine import AccountingEngine, LineInput
 from asavexa.audit.sqlite_repository import SqliteAuditRepository
 from asavexa.bootstrap import create_sqlite_connection
+from asavexa.evidence.domain.enums import EvidenceType
+from asavexa.evidence.repository.sqlite_repository import SqliteEvidenceRepository, connect as evidence_connect
+from asavexa.evidence.services.vault import EvidenceVault
 from asavexa.reporting.domain.enums import ReportType
 from asavexa.reporting.domain.errors import (
+    EvidenceNotConfiguredError,
     ReportingAccountNotFoundError,
     ReportingPeriodNotFoundError,
     UnknownReportTypeError,
@@ -353,6 +357,108 @@ class ReportingServiceTestCase(unittest.TestCase):
         reloaded = self.accounting.journals.get(ORG_A, journal.id)
         self.assertEqual(reloaded.status, journal.status)
         self.assertEqual(reloaded.total_debits(), journal.total_debits())
+
+
+class EvidenceCompletenessTestCase(unittest.TestCase):
+    """Phase 1 'evidence completeness score' (get_evidence_completeness),
+    exercised against a real, SQLite-backed EvidenceVault (not a mock) —
+    same discipline as ReportingServiceTestCase above, which exercises
+    the same ReportingService against a real AccountingEngine."""
+
+    def setUp(self):
+        self.conn = create_sqlite_connection(":memory:")
+        audit = SqliteAuditRepository(self.conn)
+        self.accounting = AccountingEngine(
+            accounts=SqliteAccountRepository(self.conn),
+            periods=SqlitePeriodRepository(self.conn),
+            journals=SqliteJournalRepository(self.conn),
+            audit=audit,
+        )
+        self.vault = EvidenceVault(
+            evidence=SqliteEvidenceRepository(evidence_connect(":memory:")),
+            audit=audit,
+        )
+        self.reporting = ReportingService(accounting=self.accounting, audit=audit, evidence=self.vault)
+
+        self.cash = self.accounting.create_account(ORG_A, "1000", "Cash", AccountType.ASSET, actor="setup")
+        self.revenue = self.accounting.create_account(ORG_A, "4000", "Sales Revenue", AccountType.REVENUE, actor="setup")
+        self.period = self.accounting.open_period(ORG_A, "FY2026-M01", date(2026, 1, 1), date(2026, 1, 31), actor="setup")
+
+    def _post(self, lines, txn_date, desc, transaction_ref=None):
+        journal = self.accounting.create_draft_journal(
+            ORG_A, txn_date, desc, "USD", lines, created_by="dara", transaction_ref=transaction_ref,
+        )
+        return self.accounting.post_journal(ORG_A, journal.id, actor="dara")
+
+    def test_completeness_is_100_percent_when_every_entry_has_verified_evidence(self):
+        journal = self._post(
+            [LineInput(self.cash.id, debit_amount=Decimal("500.00")), LineInput(self.revenue.id, credit_amount=Decimal("500.00"))],
+            date(2026, 1, 5), "Sale",
+        )
+        record = self.vault.upload_evidence(
+            ORG_A, EvidenceType.INVOICE, b"fake invoice bytes", "invoice.pdf", "application/pdf",
+            uploaded_by="dara", linked_journal_id=journal.id,
+        )
+        self.vault.verify_evidence(ORG_A, record.id, actor="reviewer", note="looks right")
+
+        result = self.reporting.get_evidence_completeness(ORG_A, self.cash.id, period_id=self.period.id)
+        self.assertEqual(result["total_entries"], 1)
+        self.assertEqual(result["entries_with_evidence"], 1)
+        self.assertEqual(result["entries_verified"], 1)
+        self.assertEqual(result["entries_missing_evidence"], 0)
+        self.assertEqual(result["completeness_ratio"], 1.0)
+        self.assertEqual(result["verified_ratio"], 1.0)
+        self.assertEqual(result["missing_journal_ids"], [])
+
+    def test_missing_evidence_is_counted_and_named_not_averaged_away(self):
+        with_evidence = self._post(
+            [LineInput(self.cash.id, debit_amount=Decimal("500.00")), LineInput(self.revenue.id, credit_amount=Decimal("500.00"))],
+            date(2026, 1, 5), "Sale with evidence",
+        )
+        self.vault.upload_evidence(
+            ORG_A, EvidenceType.INVOICE, b"fake invoice bytes", "invoice.pdf", "application/pdf",
+            uploaded_by="dara", linked_journal_id=with_evidence.id,
+        )
+        missing = self._post(
+            [LineInput(self.cash.id, debit_amount=Decimal("100.00")), LineInput(self.revenue.id, credit_amount=Decimal("100.00"))],
+            date(2026, 1, 6), "Sale with no evidence yet",
+        )
+
+        result = self.reporting.get_evidence_completeness(ORG_A, self.cash.id, period_id=self.period.id)
+        self.assertEqual(result["total_entries"], 2)
+        self.assertEqual(result["entries_with_evidence"], 1)
+        self.assertEqual(result["entries_verified"], 0)  # uploaded, never verified
+        self.assertEqual(result["entries_missing_evidence"], 1)
+        self.assertEqual(result["completeness_ratio"], 0.5)
+        self.assertEqual(result["missing_journal_ids"], [missing.id])
+
+    def test_transaction_ref_linked_evidence_also_counts(self):
+        journal = self._post(
+            [LineInput(self.cash.id, debit_amount=Decimal("250.00")), LineInput(self.revenue.id, credit_amount=Decimal("250.00"))],
+            date(2026, 1, 7), "Sale", transaction_ref="txn-ref-9",
+        )
+        self.vault.upload_evidence(
+            ORG_A, EvidenceType.RECEIPT, b"fake receipt bytes", "receipt.pdf", "application/pdf",
+            uploaded_by="dara", linked_transaction_ref="txn-ref-9",
+        )
+        result = self.reporting.get_evidence_completeness(ORG_A, self.cash.id, period_id=self.period.id)
+        self.assertEqual(result["entries_with_evidence"], 1)
+        self.assertEqual(result["missing_journal_ids"], [])
+
+    def test_no_entries_is_100_percent_not_a_division_error(self):
+        result = self.reporting.get_evidence_completeness(ORG_A, self.cash.id, period_id=self.period.id)
+        self.assertEqual(result["total_entries"], 0)
+        self.assertEqual(result["completeness_ratio"], 1.0)
+        self.assertEqual(result["verified_ratio"], 1.0)
+
+    def test_unknown_account_raises_same_error_as_trace_line(self):
+        with self.assertRaises(ReportingAccountNotFoundError):
+            self.reporting.get_evidence_completeness(ORG_A, "nonexistent-account", period_id=self.period.id)
+
+    def test_raises_when_constructed_without_an_evidence_vault(self):
+        reporting_without_evidence = ReportingService(accounting=self.accounting, audit=SqliteAuditRepository(self.conn))
+        with self.assertRaises(EvidenceNotConfiguredError):
+            reporting_without_evidence.get_evidence_completeness(ORG_A, self.cash.id, period_id=self.period.id)
 
 
 if __name__ == "__main__":

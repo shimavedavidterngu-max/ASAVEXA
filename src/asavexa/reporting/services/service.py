@@ -31,6 +31,7 @@ from ...audit.repository import AuditRepository
 from ..domain import rules as reporting_rules
 from ..domain.enums import AuditAction, ReportType
 from ..domain.errors import (
+    EvidenceNotConfiguredError,
     ReconciliationNotConfiguredError,
     ReportingAccountNotFoundError,
     ReportingPeriodNotFoundError,
@@ -64,6 +65,7 @@ class ReportingService:
         accounting: AccountingEngine,
         audit: AuditRepository,
         reconciliation: Optional["object"] = None,
+        evidence: Optional["object"] = None,
     ):
         self.accounting = accounting
         self.audit = audit
@@ -74,6 +76,12 @@ class ReportingService:
         # only its public `.transactions` repository attribute is ever
         # touched (see get_reconciliation_summary).
         self.reconciliation = reconciliation
+        # Same optional-integration pattern as `reconciliation` above —
+        # the actual type expected is evidence.services.vault.EvidenceVault,
+        # and only its public `.get_status_for_reference(...)` method is
+        # ever touched (see get_evidence_completeness). Still never
+        # WRITES to Evidence, and still never changes any report figure.
+        self.evidence = evidence
 
     # ------------------------------------------------------------------
     def _get_period(self, org_id: str, period_id: str):
@@ -349,3 +357,70 @@ class ReportingService:
             bank_account_id=bank_account_id, reconciled_count=reconciled,
             outstanding_count=outstanding, exception_count=exceptions,
         )
+
+    # ------------------------------------------------------------------
+    # Optional, read-only Evidence enrichment — Phase 1 "evidence
+    # completeness score"
+    # ------------------------------------------------------------------
+    def get_evidence_completeness(
+        self, org_id: str, account_id: str, period_id: Optional[str] = None
+    ) -> dict:
+        """
+        Of every posted ledger entry behind this account's balance
+        (the same entries trace_line() returns), what fraction has
+        evidence attached, and of those, what fraction has been
+        verified? This is deliberately a count of presence/absence —
+        never a judgment about whether the attached evidence is the
+        *right* evidence (that is EvidenceVault's job, via its own
+        verify/reject workflow) — and it never hides a MISSING entry
+        inside a reassuring-looking average (Blueprint Rule 2: "if
+        evidence is unavailable, clearly show MISSING EVIDENCE"),
+        which is why `missing_journal_ids` is always returned in full
+        alongside the ratio, never truncated or summarized away.
+
+        Requires this ReportingService to have been constructed with
+        an EvidenceVault; the integration is optional and never
+        assumed (same pattern as get_reconciliation_summary above).
+        """
+        if self.evidence is None:
+            raise EvidenceNotConfiguredError(
+                "This ReportingService was constructed without an EvidenceVault — "
+                "evidence-completeness scoring is unavailable."
+            )
+        entries = self.trace_line(org_id, account_id, period_id=period_id)
+        total = len(entries)
+        with_evidence = 0
+        verified = 0
+        missing_journal_ids: List[str] = []
+        for entry in entries:
+            # "MISSING" is EvidenceVault's own literal sentinel string
+            # (Blueprint Rule 2), not a member of EvidenceStatus — a
+            # real evidence record's status is always one of
+            # EvidenceStatus's values (UPLOADED/VERIFIED/INCOMPLETE/
+            # DUPLICATE/CONFLICTING/EXPIRED/REJECTED). Compared as a
+            # plain string here, exactly like get_reconciliation_summary
+            # above compares `.status.value` as a plain string, to avoid
+            # a hard import of evidence.services.vault into this module
+            # just for one constant.
+            status = self.evidence.get_status_for_reference(
+                org_id,
+                journal_id=entry.get("journal_id"),
+                transaction_ref=entry.get("transaction_ref"),
+            )
+            if status == "MISSING":
+                missing_journal_ids.append(entry.get("journal_id"))
+            else:
+                with_evidence += 1
+                if status == "VERIFIED":
+                    verified += 1
+        return {
+            "account_id": account_id,
+            "period_id": period_id,
+            "total_entries": total,
+            "entries_with_evidence": with_evidence,
+            "entries_verified": verified,
+            "entries_missing_evidence": total - with_evidence,
+            "completeness_ratio": round(with_evidence / total, 4) if total else 1.0,
+            "verified_ratio": round(verified / total, 4) if total else 1.0,
+            "missing_journal_ids": missing_journal_ids,
+        }

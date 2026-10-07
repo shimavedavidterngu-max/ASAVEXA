@@ -158,6 +158,7 @@ class RouterServiceCallSiteTestCase(unittest.TestCase):
         "period_close.py": ("asavexa.period_close.services.service", "PeriodCloseService"),
         "compliance.py": ("asavexa.compliance.services.service", "ComplianceService"),
         "auth.py": ("asavexa.identity.services.service", "IdentityService"),
+        "audit.py": ("asavexa.audit.repository", "AuditRepository"),
     }
 
     def test_every_router_service_call_matches_a_real_method_signature(self):
@@ -224,6 +225,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "reconciliation.txn_router": "/reconciliations/transactions",
         "reporting.router": "/reports", "period_close.router": "/period-close",
         "compliance.router": "/compliance",
+        "audit.router": "/audit",
     }
 
     def test_every_expected_router_registered_exactly_once(self):

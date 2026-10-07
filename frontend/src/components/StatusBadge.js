@@ -25,6 +25,10 @@ export const STATUS_TONE = {
   // EvidenceStatus
   UPLOADED: "neutral", INCOMPLETE: "warn", DUPLICATE: "warn",
   CONFLICTING: "fail", EXPIRED: "fail",
+  // EvidenceVault's own sentinel (not a member of EvidenceStatus — see
+  // evidence/services/vault.py's MISSING constant and Blueprint Rule 2:
+  // "if evidence is unavailable, clearly show MISSING EVIDENCE").
+  MISSING: "fail",
 };
 
 export function StatusBadge({ status, label }) {
