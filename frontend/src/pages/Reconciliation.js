@@ -21,7 +21,7 @@ import { formatMoney } from "./Dashboard.js";
 export function Reconciliation({
   role, view, loading, error,
   reconciliations, detail, transactions, detailError,
-  form, formError, formPending, onFieldChange, onSubmitCreate,
+  form, formError, formPending, onFieldChange, onSubmitCreate, accounts, accountsLoading,
   onNavigate, onRetry,
   onSubmitReconciliation, onApproveReconciliation, onRejectReconciliation, rejectReason, onRejectReasonChange,
   onManualMatch, matchJournalId, onMatchJournalIdChange,
@@ -36,7 +36,7 @@ export function Reconciliation({
   if (view === "new") {
     return Fragment([
       breadcrumb(onNavigate, "New reconciliation"),
-      createForm({ form, formError, formPending, onFieldChange, onSubmitCreate }),
+      createForm({ form, formError, formPending, onFieldChange, onSubmitCreate, accounts, accountsLoading }),
     ]);
   }
 
@@ -93,8 +93,10 @@ function breadcrumb(onNavigate, label) {
     h("span", {}, "/"), h("span", {}, label));
 }
 
-function createForm({ form, formError, formPending, onFieldChange, onSubmitCreate }) {
+function createForm({ form, formError, formPending, onFieldChange, onSubmitCreate, accounts, accountsLoading }) {
   const f = form || {};
+  const assets = (accounts || []).filter((a) => a.type === "ASSET");
+  const choices = assets.length > 0 ? assets : accounts || [];
   return h(
     "div",
     { className: "card" },
@@ -104,8 +106,14 @@ function createForm({ form, formError, formPending, onFieldChange, onSubmitCreat
       "form",
       { onSubmit: (e) => { e.preventDefault(); onSubmitCreate(); } },
       h("div", { style: "display:flex; gap:12px; flex-wrap:wrap;" },
-        h("div", { className: "field" }, h("label", {}, "Bank account id"),
-          h("input", { value: f.bank_account_id || "", required: true, onInput: (e) => onFieldChange("bank_account_id", e.target.value) })),
+        h("div", { className: "field" }, h("label", {}, "Bank account"),
+          accountsLoading
+            ? h("div", { style: "color: var(--ink-500);" }, "Loading accounts…")
+            : choices.length === 0
+              ? h("div", { style: "color: var(--ink-500);" }, "No accounts yet — create a bank account in Accounting first.")
+              : h("select", { value: f.bank_account_id || "", required: true, onChange: (e) => onFieldChange("bank_account_id", e.target.value) },
+                  h("option", { value: "" }, "Select a bank account…"),
+                  choices.map((a) => h("option", { value: a.id }, `${a.code} — ${a.name}`)))),
         h("div", { className: "field" }, h("label", {}, "Name"),
           h("input", { value: f.name || "", required: true, onInput: (e) => onFieldChange("name", e.target.value) })),
         h("div", { className: "field" }, h("label", {}, "Period start"),

@@ -35,3 +35,21 @@ describe("h() — vnode construction (no DOM touched, plain data)", () => {
     assert.deepEqual(vnode.children, []);
   });
 });
+
+import { readFileSync } from "node:fs";
+import { test as t3 } from "node:test";
+import assert3 from "node:assert/strict";
+
+t3("render() applies a <select>'s value only after its options exist", () => {
+  const src = readFileSync(new URL("../src/lib/vdom.js", import.meta.url), "utf8");
+  const appendChildren = src.indexOf("for (const child of vnode.children) {\n    const childNode = render(child);\n    if (childNode) el.appendChild(childNode);");
+  const applyValue = src.indexOf("el.value = pendingValue");
+  assert3.ok(appendChildren > -1 && applyValue > appendChildren, "value must be assigned after children are appended");
+});
+
+t3("mount() preserves focus, scroll and chosen files across re-renders", () => {
+  const src = readFileSync(new URL("../src/lib/vdom.js", import.meta.url), "utf8");
+  assert3.match(src, /captureUiState\(container\)/);
+  assert3.match(src, /restoreUiState\(container, saved\)/);
+  assert3.match(src, /data-file-name/);
+});

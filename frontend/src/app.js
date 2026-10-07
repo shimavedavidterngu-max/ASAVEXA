@@ -84,7 +84,7 @@ let uiState = {
   auditQuery: "", auditJournal: null, auditChain: null, auditError: null,
 
   // Accounting
-  accounts: null, periods: null, accountingError: null,
+  accounts: null, periods: null, journals: null, accountingError: null,
   accountForm: { code: "", name: "", type: "ASSET", currency: "USD" }, accountFormError: null, accountFormPending: false,
   periodForm: { name: "", start_date: "", end_date: "" }, periodFormError: null, periodFormPending: false,
   journalForm: { date: "", description: "", currency: "USD", lines: [{}, {}] }, journalFormError: null, journalFormPending: false,
@@ -120,16 +120,32 @@ let uiState = {
 
   // Compliance
   controls: null, executions: null, complianceError: null, selectedControlId: null, executeParams: "",
+  executePeriodId: "", executeError: null, executePending: false,
   defineForm: { domain: "ACCOUNTING", severity: "MEDIUM" }, defineError: null, definePending: false,
   findings: null, findingFilter: "", finding: null, findingError: null, remediation: null,
   reasonInputs: {}, remediationForm: {},
 
   // Administration
   organisation: null, members: null, adminError: null,
+  profileForm: {}, profileError: null, profilePending: false, profileSaved: false,
   addMemberForm: { role: "READ_ONLY" }, addMemberError: null, addMemberPending: false, roleDrafts: {},
 };
 
-const router = new Router(routes, { onChange: () => render() });
+// Page loaders (see once()) run once per visit to a page. Navigating
+// clears this so each visit refreshes its data.
+const loadedOnce = new Set();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const router = new Router(routes, {
+  onChange: () => {
+    loadedOnce.clear();
+    uiState.dashboardData = null;
+    uiState.journalRequestedId = null;
+    uiState.evidenceDetailRequestedId = null;
+    uiState.reconciliationDetailRequestedId = null;
+    render();
+  },
+});
 
 function render() {
   const authState = authStore.getState();
@@ -247,7 +263,9 @@ function renderPage(matched, authState) {
     return Dashboard({ role: authState.role, data: uiState.dashboardData || {}, onNavigate: nav });
   }
   if (name === "audit") {
+    once("auditRecentLoading", loadRecentJournals);
     return AuditWorkspace({
+      recentJournals: uiState.journals, onOpenJournal: (id) => handleAuditSearch(id),
       searchQuery: uiState.auditQuery, journal: uiState.auditJournal, chainLinks: uiState.auditChain,
       error: uiState.auditError, onNavigate: nav, onSearch: handleAuditSearch,
     });
@@ -269,11 +287,25 @@ function renderPage(matched, authState) {
 // loadDashboardData's own pattern below.
 // ------------------------------------------------------------------
 function once(flagKey, loader) {
-  if (uiState[flagKey]) return;
+  // The flag doubles as the page's `loading` prop, so it stays true until
+  // the loader has fully finished. `loadedOnce` stops the re-render that
+  // follows from starting the loader again (an endless reload loop that
+  // used to keep pages on "Loading..." and collapse open dropdowns).
+  if (uiState[flagKey] || loadedOnce.has(flagKey)) return;
   uiState[flagKey] = true;
-  loader().finally(() => {
-    uiState[flagKey] = false;
-  });
+  Promise.resolve()
+    .then(() => loader())
+    .catch(() => {})
+    .finally(() => {
+      uiState[flagKey] = false;
+      loadedOnce.add(flagKey);
+      render();
+    });
+}
+
+function reload(flagKey) {
+  loadedOnce.delete(flagKey);
+  render();
 }
 
 async function loadDashboardData(authState) {
@@ -342,8 +374,20 @@ async function loadChainForJournal(journalId) {
   return { journal, chain, auditEvents, evidence };
 }
 
-async function handleAuditSearch(query) {
+async function loadRecentJournals() {
+  uiState.journals = await api.listJournals().catch(() => uiState.journals || []);
+}
+
+async function handleAuditSearch(rawQuery) {
+  const query = (rawQuery || "").trim();
   uiState.auditQuery = query;
+  if (!UUID_RE.test(query)) {
+    uiState.auditError = "Enter a journal's ID — a long code like 3f2c9a1e-…, shown on the journal's page. Or pick an entry from the list below.";
+    uiState.auditJournal = null;
+    uiState.auditChain = null;
+    render();
+    return;
+  }
   uiState.auditError = null;
   uiState.auditJournal = null;
   uiState.auditChain = null;
@@ -451,7 +495,7 @@ function renderAccounting(name, params, authState, nav) {
   once("accountingLoading", loadAccountsAndPeriods);
   return Accounting({
     role: authState.role, view: "overview", loading: uiState.accountingLoading, error: uiState.accountingError,
-    accounts: uiState.accounts, periods: uiState.periods, onNavigate: nav, onRetry: () => { uiState.accounts = null; uiState.periods = null; render(); },
+    accounts: uiState.accounts, periods: uiState.periods, journals: uiState.journals, onNavigate: nav, onRetry: () => reload("accountingLoading"),
     accountForm: uiState.accountForm, accountFormError: uiState.accountFormError, accountFormPending: uiState.accountFormPending,
     onAccountFieldChange: (f, v) => { uiState.accountForm = { ...uiState.accountForm, [f]: v }; render(); },
     onSubmitAccount: handleSubmitAccount,
@@ -466,6 +510,7 @@ async function loadAccountsAndPeriods() {
   try {
     uiState.accounts = await api.listAccounts();
     uiState.periods = await api.listPeriods();
+    uiState.journals = await api.listJournals().catch(() => []);
   } catch (err) {
     uiState.accountingError = err.message || "Could not load accounting data.";
   } finally {
@@ -640,12 +685,13 @@ function renderEvidence(name, params, authState, nav) {
   once("evidenceLoading", loadEvidenceList);
   return Evidence({
     role: authState.role, view: "list", loading: uiState.evidenceLoading, error: uiState.evidenceError,
-    items: uiState.evidenceItems, onNavigate: nav, onRetry: loadEvidenceList,
+    items: uiState.evidenceItems, onNavigate: nav, onRetry: () => reload("evidenceLoading"),
     filterStatus: uiState.evidenceFilterStatus, filterType: uiState.evidenceFilterType,
     onFilterChange: (field, value) => {
       if (field === "status") uiState.evidenceFilterStatus = value; else uiState.evidenceFilterType = value;
-      loadEvidenceList();
+      render();
     },
+    uploadFile: uiState.evidenceUploadFile,
     uploadForm: uiState.evidenceUploadForm, uploadError: uiState.evidenceUploadError, uploadPending: uiState.evidenceUploadPending,
     onUploadFieldChange: (f, v) => { uiState.evidenceUploadForm = { ...uiState.evidenceUploadForm, [f]: v }; render(); },
     onFileSelected: (file) => { uiState.evidenceUploadFile = file; render(); },
@@ -658,10 +704,7 @@ async function loadEvidenceList() {
   uiState.evidenceError = null;
   render();
   try {
-    const query = {};
-    if (uiState.evidenceFilterStatus) query.status = uiState.evidenceFilterStatus;
-    if (uiState.evidenceFilterType) query.type = uiState.evidenceFilterType;
-    uiState.evidenceItems = await api.listEvidence(query);
+    uiState.evidenceItems = await api.listEvidence();
   } catch (err) {
     uiState.evidenceError = err.message || "Could not load evidence.";
   } finally {
@@ -676,6 +719,12 @@ async function handleSubmitEvidenceUpload() {
     render();
     return;
   }
+  const linked = (uiState.evidenceUploadForm.linkedJournalId || "").trim();
+  if (linked && !UUID_RE.test(linked)) {
+    uiState.evidenceUploadError = "The linked journal ID must be a journal's ID (a long code like 3f2c9a1e-…). Copy it from the journal's page, or leave it blank.";
+    render();
+    return;
+  }
   uiState.evidenceUploadPending = true;
   uiState.evidenceUploadError = null;
   render();
@@ -683,7 +732,7 @@ async function handleSubmitEvidenceUpload() {
     await api.uploadEvidence({
       file: uiState.evidenceUploadFile,
       type: uiState.evidenceUploadForm.type || "OTHER",
-      linkedJournalId: uiState.evidenceUploadForm.linkedJournalId,
+      linkedJournalId: linked || undefined,
       linkedTransactionRef: uiState.evidenceUploadForm.linkedTransactionRef,
     });
     uiState.evidenceUploadForm = { type: "INVOICE" };
@@ -738,8 +787,10 @@ async function handleRejectEvidence(id) {
 // ==================================================================
 function renderReconciliation(name, params, authState, nav) {
   if (name === "reconciliation-new") {
+    once("accountingLoading", loadAccountsAndPeriods);
     return Reconciliation({
       role: authState.role, view: "new", form: uiState.reconciliationForm,
+      accounts: uiState.accounts, accountsLoading: uiState.accountingLoading,
       formError: uiState.reconciliationFormError, formPending: uiState.reconciliationFormPending,
       onFieldChange: (f, v) => { uiState.reconciliationForm = { ...uiState.reconciliationForm, [f]: v }; render(); },
       onSubmitCreate: () => handleSubmitReconciliation(nav), onNavigate: nav,
@@ -768,7 +819,7 @@ function renderReconciliation(name, params, authState, nav) {
   once("reconciliationLoading", loadReconciliations);
   return Reconciliation({
     role: authState.role, view: "list", loading: uiState.reconciliationLoading, error: uiState.reconciliationError,
-    reconciliations: uiState.reconciliations, onNavigate: nav, onRetry: loadReconciliations,
+    reconciliations: uiState.reconciliations, onNavigate: nav, onRetry: () => reload("reconciliationLoading"),
   });
 }
 
@@ -873,8 +924,8 @@ function handleDrillAccount(accountId) {
 
 async function loadReportingPrereqs() {
   try {
-    if (!uiState.periods) uiState.periods = await api.listPeriods();
-    if (!uiState.accounts) uiState.accounts = await api.listAccounts();
+    uiState.periods = await api.listPeriods();
+    uiState.accounts = await api.listAccounts();
   } catch (err) {
     uiState.reportingError = err.message;
   } finally {
@@ -919,7 +970,7 @@ function renderPeriodClose(authState, nav) {
   once("periodCloseLoading", loadPeriodClosePeriods);
   return PeriodClose({
     role: authState.role, periods: uiState.periods, selectedPeriodId: uiState.selectedClosePeriodId,
-    onSelectPeriod: (id) => { uiState.selectedClosePeriodId = id; uiState.closeReadiness = null; uiState.activeCloseProcess = null; uiState.closeProcesses = null; loadPeriodCloseState(id); },
+    onSelectPeriod: (id) => { uiState.selectedClosePeriodId = id; uiState.periodCloseError = null; uiState.closeReadiness = null; uiState.activeCloseProcess = null; uiState.closeProcesses = null; loadPeriodCloseState(id); },
     loading: uiState.periodCloseWorking, error: uiState.periodCloseError,
     readiness: uiState.closeReadiness, activeProcess: uiState.activeCloseProcess, processes: uiState.closeProcesses,
     onCheckReadiness: () => handleCheckReadiness(),
@@ -936,7 +987,7 @@ function renderPeriodClose(authState, nav) {
 
 async function loadPeriodClosePeriods() {
   try {
-    if (!uiState.periods) uiState.periods = await api.listPeriods();
+    uiState.periods = await api.listPeriods();
   } catch (err) {
     uiState.periodCloseError = err.message;
   } finally {
@@ -962,6 +1013,7 @@ async function loadPeriodCloseState(periodId) {
 
 async function handleCheckReadiness() {
   if (!uiState.selectedClosePeriodId) return;
+  uiState.periodCloseError = null;
   uiState.periodCloseWorking = true;
   render();
   try {
@@ -976,6 +1028,7 @@ async function handleCheckReadiness() {
 
 async function handleRequestClose() {
   if (!uiState.selectedClosePeriodId) return;
+  uiState.periodCloseError = null;
   uiState.periodCloseWorking = true;
   render();
   try {
@@ -990,6 +1043,7 @@ async function handleRequestClose() {
 }
 
 async function handlePeriodCloseAction(action) {
+  uiState.periodCloseError = null;
   uiState.periodCloseWorking = true;
   render();
   try {
@@ -1053,7 +1107,10 @@ function renderCompliance(name, params, authState, nav) {
     executions: uiState.executions, onExecuteControl: handleExecuteControl,
     executeParams: uiState.executeParams, onExecuteParamsChange: (v) => { uiState.executeParams = v; render(); },
     onReviewExecution: handleReviewExecution,
-    selectedControlId: uiState.selectedControlId, onSelectControl: (id) => { uiState.selectedControlId = id; render(); },
+    selectedControlId: uiState.selectedControlId, onSelectControl: (id) => { uiState.selectedControlId = id; uiState.executeError = null; render(); },
+    periods: uiState.periods, executePeriodId: uiState.executePeriodId,
+    onExecutePeriodChange: (v) => { uiState.executePeriodId = v; render(); },
+    executeError: uiState.executeError, executePending: uiState.executePending, onCreateFinding: handleCreateFindingFromExecution,
   });
 }
 
@@ -1062,6 +1119,7 @@ async function loadControlsAndExecutions() {
   try {
     uiState.controls = await api.listControls();
     uiState.executions = await api.listExecutions();
+    uiState.periods = await api.listPeriods().catch(() => uiState.periods || []);
   } catch (err) {
     uiState.complianceError = err.message || "Could not load controls.";
   } finally {
@@ -1108,13 +1166,36 @@ async function handleDeactivateControl(id) {
 }
 
 async function handleExecuteControl(controlId) {
+  const journalId = (uiState.executeParams || "").trim();
+  if (journalId && !UUID_RE.test(journalId)) {
+    uiState.executeError = "The journal ID must be a journal's ID (a long code like 3f2c9a1e-…). Copy it from the journal's page, or leave it blank.";
+    render();
+    return;
+  }
+  uiState.executePending = true;
+  uiState.executeError = null;
+  render();
   try {
-    await api.executeControl(controlId, uiState.executeParams || undefined);
+    await api.executeControl(controlId, uiState.executePeriodId || undefined, journalId ? { journal_id: journalId } : {});
     uiState.executions = await api.listExecutions();
     uiState.selectedControlId = null;
+    uiState.executeParams = "";
+  } catch (err) {
+    uiState.executeError = err.message;
+  } finally {
+    uiState.executePending = false;
+    render();
+  }
+}
+
+async function handleCreateFindingFromExecution(executionId) {
+  const description = window.prompt("Describe the issue to track as a finding:");
+  if (!description) return;
+  try {
+    const finding = await api.createFindingFromExecution(executionId, description);
+    router.navigate(`/compliance/findings/${finding.id}`);
   } catch (err) {
     uiState.complianceError = err.message;
-  } finally {
     render();
   }
 }
@@ -1218,6 +1299,10 @@ function renderAdmin(authState, nav) {
     addForm: uiState.addMemberForm, addError: uiState.addMemberError, addPending: uiState.addMemberPending,
     onAddFieldChange: (f, v) => { uiState.addMemberForm = { ...uiState.addMemberForm, [f]: v }; render(); },
     onSubmitAdd: () => handleSubmitAddMember(authState),
+    profileForm: uiState.profileForm, profileError: uiState.profileError, profilePending: uiState.profilePending,
+    profileSaved: uiState.profileSaved,
+    onProfileFieldChange: (f, v) => { uiState.profileForm = { ...uiState.profileForm, [f]: v }; uiState.profileSaved = false; render(); },
+    onSubmitProfile: handleSubmitProfile,
     onChangeRole: (userId, role) => handleChangeRole(authState, userId, role),
     roleDrafts: uiState.roleDrafts, onRoleDraftChange: (userId, role) => { uiState.roleDrafts = { ...uiState.roleDrafts, [userId]: role }; render(); },
     onRevokeMember: (userId) => handleRevokeMember(authState, userId),
@@ -1227,13 +1312,42 @@ function renderAdmin(authState, nav) {
 
 async function loadAdminData(authState) {
   uiState.adminError = null;
+  uiState.profileError = null;
   try {
     const orgs = await api.myOrganisations();
     uiState.organisation = orgs.find((o) => o.id === authState.organisationId) || null;
     uiState.members = await api.listMembers(authState.organisationId);
+    try {
+      const profile = await api.getOrganisationProfile();
+      uiState.profileForm = profileToForm(profile);
+    } catch (err) {
+      uiState.profileError = err.message;
+    }
   } catch (err) {
     uiState.adminError = err.message || "Could not load organisation data.";
   } finally {
+    render();
+  }
+}
+
+function profileToForm(profile) {
+  const { org_id, updated_at, updated_by, ...fields } = profile || {};
+  return fields;
+}
+
+async function handleSubmitProfile() {
+  uiState.profilePending = true;
+  uiState.profileError = null;
+  uiState.profileSaved = false;
+  render();
+  try {
+    const saved = await api.updateOrganisationProfile(uiState.profileForm);
+    uiState.profileForm = profileToForm(saved);
+    uiState.profileSaved = true;
+  } catch (err) {
+    uiState.profileError = err.message;
+  } finally {
+    uiState.profilePending = false;
     render();
   }
 }

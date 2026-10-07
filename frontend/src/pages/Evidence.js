@@ -21,7 +21,7 @@ import { PERMISSIONS } from "../lib/permissions.js";
 export function Evidence({
   role, view, loading, error, items, detail, detailError,
   filterStatus, filterType, onFilterChange,
-  uploadForm, uploadError, uploadPending,
+  uploadForm, uploadError, uploadPending, uploadFile,
   onNavigate, onRetry, onUploadFieldChange, onFileSelected, onSubmitUpload,
   onVerify, onReject, rejectReason, onRejectReasonChange,
 }) {
@@ -51,7 +51,7 @@ export function Evidence({
       "Every financial claim in ASAVEXA should be traceable to a piece of supporting evidence. Nothing here is fabricated: a missing hash or status is shown as missing, never guessed."),
     error ? ErrorState({ message: error, onRetry }) : null,
     PermissionGate({ role, permission: PERMISSIONS.EVIDENCE_UPLOAD },
-      uploadCard({ uploadForm, uploadError, uploadPending, onUploadFieldChange, onFileSelected, onSubmitUpload })),
+      uploadCard({ uploadForm, uploadError, uploadPending, uploadFile, onUploadFieldChange, onFileSelected, onSubmitUpload })),
     h(
       "div",
       { className: "card" },
@@ -59,7 +59,7 @@ export function Evidence({
         h("h2", {}, "All evidence"),
         filterBar({ filterStatus, filterType, onFilterChange })
       ),
-      loading ? LoadingState() : evidenceTable({ items, onNavigate })
+      loading ? LoadingState() : evidenceTable({ items, onNavigate, filterStatus, filterType })
     )
   );
 }
@@ -77,8 +77,17 @@ function filterBar({ filterStatus, filterType, onFilterChange }) {
   );
 }
 
-function evidenceTable({ items, onNavigate }) {
-  const filtered = items || [];
+/** Filtering happens here, in the browser, on the already-loaded list —
+ * changing a filter never triggers a reload (which used to rebuild the
+ * page and collapse the open dropdown). */
+export function filterEvidence(items, filterStatus, filterType) {
+  return (items || []).filter(
+    (r) => (!filterStatus || r.status === filterStatus) && (!filterType || r.type === filterType)
+  );
+}
+
+function evidenceTable({ items, onNavigate, filterStatus, filterType }) {
+  const filtered = filterEvidence(items, filterStatus, filterType);
   return DataTable({
     columns: [
       { key: "original_filename", label: "File" },
@@ -95,7 +104,7 @@ function evidenceTable({ items, onNavigate }) {
   });
 }
 
-function uploadCard({ uploadForm, uploadError, uploadPending, onUploadFieldChange, onFileSelected, onSubmitUpload }) {
+function uploadCard({ uploadForm, uploadError, uploadPending, uploadFile, onUploadFieldChange, onFileSelected, onSubmitUpload }) {
   const f = uploadForm || {};
   return h(
     "div",
@@ -107,11 +116,12 @@ function uploadCard({ uploadForm, uploadError, uploadPending, onUploadFieldChang
       { onSubmit: (e) => { e.preventDefault(); onSubmitUpload(); } },
       h("div", { style: "display:flex; gap:12px; flex-wrap:wrap;" },
         h("div", { className: "field" }, h("label", {}, "File"),
-          h("input", { type: "file", required: true, onChange: (e) => onFileSelected(e.target.files && e.target.files[0]) })),
+          h("input", { type: "file", required: !uploadFile, "data-file-name": uploadFile ? uploadFile.name : null, onChange: (e) => onFileSelected(e.target.files && e.target.files[0]) }),
+          uploadFile ? h("div", { style: "font-size:12.5px; color: var(--ink-500); margin-top:4px;" }, `Selected: ${uploadFile.name}`) : null),
         h("div", { className: "field" }, h("label", {}, "Type"),
           h("select", { value: f.type || "INVOICE", onChange: (e) => onUploadFieldChange("type", e.target.value) },
             ["INVOICE", "RECEIPT", "CONTRACT", "BANK_STATEMENT", "PURCHASE_ORDER", "DELIVERY_NOTE", "PAYROLL_EVIDENCE", "TAX_DOCUMENT", "APPROVAL_RECORD", "OTHER"].map((t) => h("option", { value: t }, t)))),
-        h("div", { className: "field" }, h("label", {}, "Linked journal id (optional)"),
+        h("div", { className: "field" }, h("label", {}, "Linked journal ID (optional, from the journal page)"),
           h("input", { value: f.linkedJournalId || "", onInput: (e) => onUploadFieldChange("linkedJournalId", e.target.value) })),
         h("div", { className: "field" }, h("label", {}, "Linked transaction ref (optional)"),
           h("input", { value: f.linkedTransactionRef || "", onInput: (e) => onUploadFieldChange("linkedTransactionRef", e.target.value) }))

@@ -226,6 +226,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "reporting.router": "/reports", "period_close.router": "/period-close",
         "compliance.router": "/compliance",
         "audit.router": "/audit",
+        "organisation_profile.router": "/organisation-profile",
     }
 
     def test_every_expected_router_registered_exactly_once(self):

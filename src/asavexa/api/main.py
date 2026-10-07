@@ -29,6 +29,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.exc import DataError, IntegrityError
 
 from .db.base import get_session
 
@@ -108,7 +109,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, audit, auth, compliance, evidence, journals, period_close, periods, reconciliation, reporting
+from .routers import accounts, audit, auth, compliance, evidence, journals, organisation_profile, period_close, periods, reconciliation, reporting
 
 app = FastAPI(
     title="Asavexa",
@@ -144,7 +145,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -208,6 +209,19 @@ app.include_router(reporting.router)
 app.include_router(period_close.router)
 app.include_router(compliance.router)
 app.include_router(audit.router)
+app.include_router(organisation_profile.router)
+
+
+@app.on_event("startup")
+def _ensure_optional_tables() -> None:
+    """Creates tables added after the initial migration (idempotent).
+    A failure here is logged, never fatal: the rest of the API must
+    still start even if this one table cannot be created."""
+    try:
+        from .db.profile_models import ensure_profile_table
+        ensure_profile_table()
+    except Exception:  # pragma: no cover - environment dependent
+        logger.exception("could not ensure organisation_profiles table")
 
 
 # ----------------------------------------------------------------------
@@ -342,6 +356,49 @@ def handle_compliance_error(request: Request, exc: AsavexaComplianceError):
     return _error_response(request, exc, 400)
 
 
+def _cors_headers_for(request: Request) -> dict:
+    """Starlette runs the catch-all 500 handler OUTSIDE CORSMiddleware,
+    so without this a server error reaches the browser with no CORS
+    headers and shows up as an opaque "Failed to fetch" (which the UI
+    reports as "could not reach the API"). Echoing the allowed origin
+    lets the real error message through."""
+    origin = request.headers.get("origin")
+    if origin and origin in _cors_origins:
+        return {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+    return {}
+
+
+@app.exception_handler(DataError)
+async def handle_database_data_error(request: Request, exc: DataError):
+    """A value the database cannot store — most commonly an id that is
+    not a valid UUID, or text that is too long. This is a bad request,
+    not a server fault."""
+    logger.warning("database_data_error", extra={"path": request.url.path})
+    response = _error_response(
+        request, ValueError(
+            "One of the submitted values is not valid — for example an ID that is not a real record ID, "
+            "or text that is too long. Please check the fields and try again."
+        ), 400,
+    )
+    response.headers.update(_cors_headers_for(request))
+    return response
+
+
+@app.exception_handler(IntegrityError)
+async def handle_database_integrity_error(request: Request, exc: IntegrityError):
+    """A uniqueness or reference rule was violated (duplicate, or a
+    reference to a record that does not exist)."""
+    logger.warning("database_integrity_error", extra={"path": request.url.path})
+    response = _error_response(
+        request, ValueError(
+            "This conflicts with existing data — the record may already exist, or it refers to something "
+            "that does not exist."
+        ), 409,
+    )
+    response.headers.update(_cors_headers_for(request))
+    return response
+
+
 @app.exception_handler(Exception)
 async def handle_unexpected_error(request: Request, exc: Exception):
     """The catch-all this audit found missing entirely. Without this,
@@ -363,6 +420,7 @@ async def handle_unexpected_error(request: Request, exc: Exception):
     logger.exception("unhandled_exception", extra={"request_id": request_id, "path": request.url.path})
     return JSONResponse(
         status_code=500,
+        headers=_cors_headers_for(request),
         content={
             "error": "InternalServerError",
             "message": "An unexpected error occurred. If this persists, contact support and reference the request_id below.",

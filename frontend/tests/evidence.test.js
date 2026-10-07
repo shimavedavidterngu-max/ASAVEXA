@@ -132,3 +132,19 @@ function collectButtons(vnode, acc = []) {
   for (const child of vnode.children || []) collectButtons(child, acc);
   return acc;
 }
+
+import { filterEvidence } from "../src/pages/Evidence.js";
+import { test as t4 } from "node:test";
+import assert4 from "node:assert/strict";
+
+t4("filterEvidence filters in the browser by status and type without reloading", () => {
+  const items = [
+    { id: "1", status: "VERIFIED", type: "INVOICE" },
+    { id: "2", status: "UPLOADED", type: "INVOICE" },
+    { id: "3", status: "VERIFIED", type: "RECEIPT" },
+  ];
+  assert4.deepEqual(filterEvidence(items, "", "").map((r) => r.id), ["1", "2", "3"]);
+  assert4.deepEqual(filterEvidence(items, "VERIFIED", "").map((r) => r.id), ["1", "3"]);
+  assert4.deepEqual(filterEvidence(items, "VERIFIED", "INVOICE").map((r) => r.id), ["1"]);
+  assert4.deepEqual(filterEvidence(null, "VERIFIED", ""), []);
+});

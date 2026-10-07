@@ -24,6 +24,7 @@ import { PERMISSIONS } from "../lib/permissions.js";
 export function Administration({
   role, organisation, members, loading, error, onRetry,
   addForm, addError, addPending, onAddFieldChange, onSubmitAdd,
+  profileForm, profileError, profilePending, profileSaved, onProfileFieldChange, onSubmitProfile,
   onChangeRole, roleDrafts, onRoleDraftChange,
   onRevokeMember, currentUserId,
 }) {
@@ -43,6 +44,7 @@ export function Administration({
       "div",
       {},
       organisationCard(organisation),
+      profileCard({ role, profileForm, profileError, profilePending, profileSaved, onProfileFieldChange, onSubmitProfile }),
       membersCard({ role, members, onChangeRole, roleDrafts, onRoleDraftChange, onRevokeMember, currentUserId }),
       PermissionGate({ role, permission: PERMISSIONS.ORG_MANAGE_USERS },
         addMemberCard({ addForm, addError, addPending, onAddFieldChange, onSubmitAdd })),
@@ -61,6 +63,56 @@ function organisationCard(organisation) {
     h("h2", {}, organisation.name),
     h("div", { className: "mono", style: "font-size:12.5px; color: var(--ink-500);" }, organisation.id),
     h("div", { style: "margin-top:4px; color: var(--ink-500); font-size:13px;" }, `Created ${organisation.created_at}`)
+  );
+}
+
+export const REPORTING_FRAMEWORKS = [
+  ["", "Select…"], ["IFRS", "IFRS"], ["IFRS_FOR_SMES", "IFRS for SMEs"], ["US_GAAP", "US GAAP"],
+  ["IPSAS", "IPSAS (public sector)"], ["LOCAL_GAAP", "Local GAAP"], ["NONPROFIT", "Non-profit reporting"],
+  ["CASH_BASIS", "Cash basis"], ["OTHER", "Other"],
+];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function profileCard({ role, profileForm, profileError, profilePending, profileSaved, onProfileFieldChange, onSubmitProfile }) {
+  const f = profileForm || {};
+  const canEdit = allowed(role, PERMISSIONS.ORG_MANAGE_SETTINGS);
+  const text = (key, label, extra = {}) =>
+    h("div", { className: "field" }, h("label", {}, label),
+      h("input", { value: f[key] || "", disabled: !canEdit, onInput: (e) => onProfileFieldChange(key, e.target.value), ...extra }));
+  return h(
+    "div", { className: "card" },
+    h("h2", {}, "Organisation profile"),
+    h("p", { style: "color: var(--ink-500); font-size:13px; margin-top:-4px;" },
+      "The legal and reporting details that identify this organisation. Every change is recorded in the audit trail."),
+    profileError ? h("div", { className: "alert alert-error" }, profileError) : null,
+    profileSaved ? h("div", { className: "alert alert-info" }, "Profile saved.") : null,
+    h(
+      "form", { onSubmit: (e) => { e.preventDefault(); if (canEdit) onSubmitProfile(); } },
+      h("div", { style: "display:flex; gap:12px; flex-wrap:wrap;" },
+        text("legal_name", "Legal name"),
+        text("trading_name", "Trading name"),
+        text("registration_number", "Registration number"),
+        text("tax_id", "Tax ID"),
+        text("organisation_type", "Organisation type (e.g. company, NGO, cooperative)"),
+        text("industry", "Industry / sector"),
+        text("country", "Country"),
+        text("contact_email", "Contact email", { type: "email" }),
+        text("contact_phone", "Contact phone"),
+        text("website", "Website"),
+        h("div", { className: "field" }, h("label", {}, "Base currency (3-letter code)"),
+          h("input", { value: f.base_currency || "", maxlength: "3", placeholder: "e.g. USD", disabled: !canEdit, onInput: (e) => onProfileFieldChange("base_currency", e.target.value.toUpperCase()) })),
+        h("div", { className: "field" }, h("label", {}, "Financial year starts in"),
+          h("select", { value: f.fiscal_year_start_month ? String(f.fiscal_year_start_month) : "", disabled: !canEdit, onChange: (e) => onProfileFieldChange("fiscal_year_start_month", e.target.value ? Number(e.target.value) : null) },
+            h("option", { value: "" }, "Select…"),
+            MONTHS.map((m, i) => h("option", { value: String(i + 1) }, m)))),
+        h("div", { className: "field" }, h("label", {}, "Reporting framework"),
+          h("select", { value: f.reporting_framework || "", disabled: !canEdit, onChange: (e) => onProfileFieldChange("reporting_framework", e.target.value) },
+            REPORTING_FRAMEWORKS.map(([v, label]) => h("option", { value: v }, label))))
+      ),
+      h("div", { className: "field" }, h("label", {}, "Address"),
+        h("textarea", { value: f.address || "", disabled: !canEdit, onInput: (e) => onProfileFieldChange("address", e.target.value) })),
+      canEdit ? h("button", { type: "submit", className: "btn btn-primary", disabled: profilePending }, profilePending ? "Saving…" : "Save profile") : null
+    )
   );
 }
 

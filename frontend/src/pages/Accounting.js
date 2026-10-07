@@ -25,7 +25,7 @@ import { formatMoney } from "./Dashboard.js";
  */
 export function Accounting({
   role, view, loading, error,
-  accounts, periods, journal, journalError,
+  accounts, periods, journals, journal, journalError,
   accountForm, accountFormError, accountFormPending,
   periodForm, periodFormError, periodFormPending,
   form, formError, formPending,
@@ -69,7 +69,7 @@ export function Accounting({
     loading ? LoadingState() : Fragment([
       accountsSection({ role, accounts, form: accountForm, formError: accountFormError, formPending: accountFormPending, onAccountFieldChange, onSubmitAccount }),
       periodsSection({ role, periods, form: periodForm, formError: periodFormError, formPending: periodFormPending, onPeriodFieldChange, onSubmitPeriod, onLockPeriod }),
-      journalsSection({ role, onNavigate }),
+      journalsSection({ role, journals, onNavigate }),
     ])
   );
 }
@@ -178,15 +178,28 @@ function periodForm({ form, formError, formPending, onPeriodFieldChange, onSubmi
   );
 }
 
-function journalsSection({ role, onNavigate }) {
+function journalsSection({ role, journals, onNavigate }) {
   return h(
     "div",
     { className: "card" },
-    h("h2", {}, "Journal Entries"),
+    h("div", { style: "display:flex; justify-content:space-between; align-items:center;" },
+      h("h2", {}, "Journal Entries"),
+      PermissionGate({ role, permission: PERMISSIONS.JOURNAL_CREATE },
+        h("button", { className: "btn btn-primary", onClick: () => onNavigate("/accounting/journals/new") }, "New journal entry"))),
     h("p", { style: "color: var(--ink-500);" },
-      "Look up a journal by id from the Audit Workspace, or create a new draft entry below. A draft is never part of the ledger until posted."),
-    PermissionGate({ role, permission: PERMISSIONS.JOURNAL_CREATE },
-      h("button", { className: "btn btn-primary", onClick: () => onNavigate("/accounting/journals/new") }, "New journal entry"))
+      "A draft is never part of the ledger until it is posted. Click an entry to open it."),
+    DataTable({
+      columns: [
+        { key: "journal_number", label: "Number" },
+        { key: "date", label: "Date" },
+        { key: "description", label: "Description" },
+        { key: "status", label: "Status", render: (j) => StatusBadge({ status: j.status }) },
+      ],
+      rows: journals || [],
+      emptyTitle: "No journal entries yet",
+      emptyMessage: "Create the first draft entry.",
+      onRowClick: (j) => onNavigate(`/accounting/journals/${j.id}`),
+    })
   );
 }
 

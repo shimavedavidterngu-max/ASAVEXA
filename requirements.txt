@@ -7,7 +7,7 @@
 # releases before installing; this list was written without live
 # internet access and has not been resolved/locked against real PyPI.
 
-fastapi>=0.110
+fastapi>=0.110,<0.118
 uvicorn[standard]>=0.29
 sqlalchemy>=2.0
 psycopg[binary]>=3.1

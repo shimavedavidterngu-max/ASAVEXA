@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 
 from ...accounting.domain.errors import JournalNotFoundError
@@ -31,6 +33,20 @@ def create_draft_journal(
         currency=body.currency, lines=lines, created_by=actor,
         transaction_ref=body.transaction_ref, evidence_ref=body.evidence_ref,
     )
+
+
+@router.get("", response_model=list[JournalOut], dependencies=[Depends(require_permission(LEDGER_READ))])
+def list_journals(
+    period_id: Optional[str] = None,
+    status: Optional[str] = None,
+    org_id: str = Depends(get_current_org),
+    engine: AccountingEngine = Depends(get_accounting_engine),
+):
+    """The organisation's journal entries, newest first (capped at 200).
+    Optional filters: period_id, status (DRAFT / POSTED / REVERSED)."""
+    journals = engine.journals.list_for_org(org_id, period_id=period_id, status=status)
+    journals = sorted(journals, key=lambda j: (j.date, j.created_at), reverse=True)
+    return journals[:200]
 
 
 @router.get("/{journal_id}", response_model=JournalOut, dependencies=[Depends(require_permission(LEDGER_READ))])

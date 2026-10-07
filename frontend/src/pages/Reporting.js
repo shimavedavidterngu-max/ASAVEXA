@@ -51,10 +51,10 @@ export function Reporting({
         (type === "general-ledger" || type === "trace")
           ? h("div", { className: "field" }, h("label", {}, "Account"),
               h("select", { value: selectedAccountId || "", onChange: (e) => onSelectAccount(e.target.value) },
-                h("option", { value: "" }, "All accounts"),
+                h("option", { value: "" }, type === "trace" ? "Select account…" : "All accounts"),
                 (accounts || []).map((a) => h("option", { value: a.id }, `${a.code} — ${a.name}`))))
           : null,
-        h("button", { className: "btn btn-primary", disabled: !selectedPeriodId, onClick: onGenerate }, "Generate")
+        h("button", { className: "btn btn-primary", disabled: !selectedPeriodId || (type === "trace" && !selectedAccountId), onClick: onGenerate }, "Generate")
       )
     ),
     error ? ErrorState({ message: error, onRetry }) : null,

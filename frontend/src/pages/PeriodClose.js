@@ -49,7 +49,12 @@ export function PeriodClose({
     ),
     error ? ErrorState({ message: error, onRetry }) : null,
     !selectedPeriodId
-      ? EmptyState({ title: "No period selected", message: "Select an accounting period above to see its close readiness and history." })
+      ? EmptyState({
+          title: "No period selected",
+          message: Array.isArray(periods) && periods.length === 0
+            ? "There are no accounting periods yet. Open one under Accounting first, then return here to close it."
+            : "Select an accounting period above to see its close readiness and history.",
+        })
       : (loading ? LoadingState() : Fragment([
           readiness ? readinessCard(readiness) : null,
           activeProcess ? processCard({ role, process: activeProcess, onRecheck, onReview, onApprove, onReject, approveReason, onApproveReasonChange, rejectReason, onRejectReasonChange }) : null,

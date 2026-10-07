@@ -131,3 +131,34 @@ describe("Compliance — remediation lifecycle: remediate vs. verify are disjoin
     assert.ok(JSON.stringify(vnode).includes("amaka"));
   });
 });
+
+import { CHECK_KEYS } from "../src/pages/Compliance.js";
+import { Compliance as ComplianceForTest } from "../src/pages/Compliance.js";
+import { test as t5 } from "node:test";
+import assert5 from "node:assert/strict";
+
+t5("the define-control form offers exactly the 9 backend check keys as a dropdown", () => {
+  assert5.equal(CHECK_KEYS.length, 9);
+  const vnode = ComplianceForTest({ role: "OWNER", view: "controls", controls: [], executions: [], defineForm: {}, onDefineFieldChange: () => {}, onNavigate: () => {} });
+  const text = JSON.stringify(vnode);
+  for (const k of CHECK_KEYS) assert5.ok(text.includes(k.key));
+});
+
+t5("a WARNING execution offers Create finding; a PASS one does not", () => {
+  const controls = [{ id: "c1", code: "ACC-001", name: "TB balanced", domain: "ACCOUNTING", severity: "HIGH", is_active: true }];
+  const executions = [
+    { id: "e1", control_id: "c1", result: "WARNING", explanation: "w", reviewed_by: null },
+    { id: "e2", control_id: "c1", result: "PASS", explanation: "p", reviewed_by: "u" },
+  ];
+  const text = JSON.stringify(ComplianceForTest({ role: "OWNER", view: "controls", controls, executions, onNavigate: () => {}, onCreateFinding: () => {} }));
+  assert5.equal((text.match(/Create finding/g) || []).length, 1);
+  assert5.ok(text.includes("ACC-001"), "executions show the control code, not just its id");
+});
+
+t5("selecting a control shows a period dropdown, not a free-text period id", () => {
+  const controls = [{ id: "c1", code: "ACC-001", name: "TB", domain: "ACCOUNTING", severity: "HIGH", is_active: true }];
+  const periods = [{ id: "p1", name: "Jan 2026", start_date: "2026-01-01", end_date: "2026-01-31" }];
+  const text = JSON.stringify(ComplianceForTest({ role: "OWNER", view: "controls", controls, executions: [], periods, selectedControlId: "c1", onNavigate: () => {}, onExecutePeriodChange: () => {} }));
+  assert5.ok(text.includes("Accounting period"));
+  assert5.ok(text.includes("Jan 2026"));
+});

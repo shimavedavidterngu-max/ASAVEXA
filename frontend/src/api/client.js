@@ -20,11 +20,27 @@
 
 export class ApiError extends Error {
   constructor(status, body) {
-    const message = (body && (body.detail || body.message)) || `Request failed (${status})`;
-    super(message);
+    super(ApiError.describe(status, body));
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+  }
+
+  /** Turns any backend error shape into one readable sentence —
+   * including FastAPI's 422 validation lists, which would otherwise
+   * print as "[object Object]". */
+  static describe(status, body) {
+    const detail = body && body.detail;
+    if (Array.isArray(detail)) {
+      const parts = detail.map((d) => {
+        const field = Array.isArray(d.loc) ? d.loc.filter((x) => x !== "body").join(".") : "";
+        const msg = d.msg || "is invalid";
+        return field ? `${field}: ${msg}` : msg;
+      });
+      if (parts.length) return parts.join("; ");
+    }
+    if (typeof detail === "string" && detail) return detail;
+    return (body && body.message) || `Request failed (${status})`;
   }
 
   /** UX-level classification — mirrors the backend's own status
@@ -111,6 +127,9 @@ export class ApiClient {
   post(path, body, query) {
     return this._request("POST", path, { body: body ?? {}, query });
   }
+  put(path, body) {
+    return this._request("PUT", path, { body: body ?? {} });
+  }
   patch(path, body) {
     return this._request("PATCH", path, { body: body ?? {} });
   }
@@ -177,6 +196,12 @@ export class ApiClient {
   createOrganisation(name) {
     return this.post("/organisations", { name });
   }
+  getOrganisationProfile() {
+    return this.get("/organisation-profile");
+  }
+  updateOrganisationProfile(profile) {
+    return this.put("/organisation-profile", profile);
+  }
   myOrganisations() {
     return this.get("/organisations/mine");
   }
@@ -217,6 +242,9 @@ export class ApiClient {
   }
   createDraftJournal(body) {
     return this.post("/journals", body);
+  }
+  listJournals(query) {
+    return this.get("/journals", query);
   }
   getJournal(journalId) {
     return this.get(`/journals/${journalId}`);

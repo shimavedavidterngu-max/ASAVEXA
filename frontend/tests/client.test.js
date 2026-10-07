@@ -155,3 +155,17 @@ describe("ApiClient route coverage sanity", () => {
     }
   });
 });
+
+import { ApiError as ApiErrorForDescribe } from "../src/api/client.js";
+import { test as t2 } from "node:test";
+import assert2 from "node:assert/strict";
+
+t2("ApiError turns a FastAPI 422 validation list into a readable sentence", () => {
+  const err = new ApiErrorForDescribe(422, { detail: [{ loc: ["body", "contact_email"], msg: "value is not a valid email address" }] });
+  assert2.equal(err.message, "contact_email: value is not a valid email address");
+});
+
+t2("ApiError keeps string detail and domain-error message shapes", () => {
+  assert2.equal(new ApiErrorForDescribe(400, { detail: "Nope" }).message, "Nope");
+  assert2.equal(new ApiErrorForDescribe(409, { error: "X", message: "Conflict here" }).message, "Conflict here");
+});

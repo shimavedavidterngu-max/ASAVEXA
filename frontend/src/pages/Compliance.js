@@ -24,6 +24,7 @@ export function Compliance({
   role, view, loading, error, onRetry, onNavigate,
   controls, onSeedStandard, defineForm, defineError, definePending, onDefineFieldChange, onSubmitDefine, onDeactivateControl,
   executions, onExecuteControl, executeParams, onExecuteParamsChange, onReviewExecution, selectedControlId, onSelectControl,
+  periods, executePeriodId, onExecutePeriodChange, executeError, executePending, onCreateFinding,
   findings, findingFilter, onFindingFilterChange,
   finding, findingError, remediation,
   reasonInputs, onReasonChange,
@@ -60,7 +61,7 @@ export function Compliance({
     tabBar(tab, onNavigate),
     error ? ErrorState({ message: error, onRetry }) : null,
     loading ? LoadingState() : (tab === "controls"
-      ? controlsView({ role, controls, onSeedStandard, defineForm, defineError, definePending, onDefineFieldChange, onSubmitDefine, onDeactivateControl, executions, onExecuteControl, executeParams, onExecuteParamsChange, onReviewExecution, selectedControlId, onSelectControl })
+      ? controlsView({ role, controls, onSeedStandard, defineForm, defineError, definePending, onDefineFieldChange, onSubmitDefine, onDeactivateControl, executions, onExecuteControl, executeParams, onExecuteParamsChange, onReviewExecution, selectedControlId, onSelectControl, periods, executePeriodId, onExecutePeriodChange, executeError, executePending, onCreateFinding })
       : findingsView({ findings, findingFilter, onFindingFilterChange, onNavigate }))
   );
 }
@@ -77,7 +78,9 @@ function tabBar(tab, onNavigate) {
     h("button", { className: `btn ${tab === "findings" ? "btn-primary" : "btn-secondary"}`, onClick: () => onNavigate("/compliance/findings") }, "Findings"));
 }
 
-function controlsView({ role, controls, onSeedStandard, defineForm, defineError, definePending, onDefineFieldChange, onSubmitDefine, onDeactivateControl, executions, onExecuteControl, executeParams, onExecuteParamsChange, onReviewExecution, selectedControlId, onSelectControl }) {
+function controlsView({ role, controls, onSeedStandard, defineForm, defineError, definePending, onDefineFieldChange, onSubmitDefine, onDeactivateControl, executions, onExecuteControl, executeParams, onExecuteParamsChange, onReviewExecution, selectedControlId, onSelectControl, periods, executePeriodId, onExecutePeriodChange, executeError, executePending, onCreateFinding }) {
+  const controlById = Object.fromEntries((controls || []).map((c) => [c.id, c]));
+  const selected = selectedControlId ? controlById[selectedControlId] : null;
   return Fragment([
     h(
       "div", { className: "card" },
@@ -103,24 +106,38 @@ function controlsView({ role, controls, onSeedStandard, defineForm, defineError,
       }),
       PermissionGate({ role, permission: PERMISSIONS.CONTROL_MANAGE }, defineControlForm({ defineForm, defineError, definePending, onDefineFieldChange, onSubmitDefine }))
     ),
-    selectedControlId
-      ? h("div", { className: "card" }, h("h3", {}, "Execute control"),
-          h("div", { style: "display:flex; gap:8px; align-items:center;" },
-            h("input", { placeholder: "Period id (optional)", value: executeParams || "", onInput: (e) => onExecuteParamsChange(e.target.value) }),
-            h("button", { className: "btn btn-primary", onClick: () => onExecuteControl(selectedControlId) }, "Run")))
+    selected
+      ? h("div", { className: "card" }, h("h3", {}, `Execute control: ${selected.code} — ${selected.name}`),
+          executeError ? h("div", { className: "alert alert-error" }, executeError) : null,
+          h("div", { style: "display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;" },
+            h("div", { className: "field" }, h("label", {}, "Accounting period"),
+              h("select", { value: executePeriodId || "", onChange: (e) => onExecutePeriodChange(e.target.value) },
+                h("option", { value: "" }, "No period"),
+                (periods || []).map((p) => h("option", { value: p.id }, `${p.name} (${p.start_date} → ${p.end_date})`)))),
+            h("div", { className: "field" }, h("label", {}, "Journal ID (only for evidence-by-journal controls)"),
+              h("input", { value: executeParams || "", placeholder: "optional", onInput: (e) => onExecuteParamsChange(e.target.value) })),
+            h("button", { className: "btn btn-primary", disabled: executePending, onClick: () => onExecuteControl(selected.id) }, executePending ? "Running…" : "Run"),
+            h("button", { className: "btn btn-secondary", onClick: () => onSelectControl(null) }, "Cancel")),
+          !executePeriodId && selected.domain !== "EVIDENCE"
+            ? h("div", { style: "color: var(--ink-500); font-size:12.5px; margin-top:6px;" }, "This control checks a specific period — choose one, otherwise it will report \"requires review\".")
+            : null)
       : null,
     h(
       "div", { className: "card" }, h("h3", {}, "Recent executions"),
       DataTable({
         columns: [
-          { key: "control_id", label: "Control" },
+          { key: "control_id", label: "Control", render: (r) => (controlById[r.control_id] ? `${controlById[r.control_id].code} — ${controlById[r.control_id].name}` : r.control_id) },
           { key: "result", label: "Result", render: (r) => StatusBadge({ status: r.result }) },
           { key: "explanation", label: "Explanation" },
           { key: "reviewed_by", label: "Reviewed by", render: (r) => r.reviewed_by || "—" },
           {
             key: "actions", label: "",
-            render: (r) => (!r.reviewed_by ? PermissionGate({ role, permission: PERMISSIONS.CONTROL_EXECUTE },
-              h("button", { className: "btn btn-secondary", onClick: () => onReviewExecution(r.id) }, "Mark reviewed")) : null),
+            render: (r) => Fragment([
+              !r.reviewed_by ? PermissionGate({ role, permission: PERMISSIONS.CONTROL_EXECUTE },
+                h("button", { className: "btn btn-secondary", onClick: () => onReviewExecution(r.id) }, "Mark reviewed")) : null,
+              (r.result === "WARNING" || r.result === "REQUIRES_REVIEW") ? PermissionGate({ role, permission: PERMISSIONS.FINDING_MANAGE },
+                h("button", { className: "btn btn-secondary", style: "margin-left:4px;", onClick: () => onCreateFinding(r.id) }, "Create finding")) : null,
+            ]),
           },
         ],
         rows: executions || [], emptyTitle: "No executions yet",
@@ -128,6 +145,18 @@ function controlsView({ role, controls, onSeedStandard, defineForm, defineError,
     ),
   ]);
 }
+
+export const CHECK_KEYS = [
+  { key: "ACCOUNTING_TRIAL_BALANCE_BALANCED", label: "Trial balance is balanced" },
+  { key: "ACCOUNTING_NO_UNPOSTED_JOURNALS", label: "No unposted (draft) journals in the period" },
+  { key: "ACCOUNTING_PERIOD_LOCK_STATUS", label: "Period lock status" },
+  { key: "RECONCILIATION_NO_OUTSTANDING_TRANSACTIONS", label: "No outstanding reconciliation items" },
+  { key: "EVIDENCE_REQUIRED_REFERENCES_VALID", label: "Required evidence is verified" },
+  { key: "EVIDENCE_NOT_MISSING_FOR_JOURNAL", label: "Evidence is linked to a journal" },
+  { key: "REPORTING_TRIAL_BALANCE_PROVENANCE_AVAILABLE", label: "Trial balance figures are traceable" },
+  { key: "PERIOD_CLOSE_READINESS_CHECK", label: "Period close readiness" },
+  { key: "PERIOD_CLOSE_PERIOD_LOCKED", label: "Period is closed and locked" },
+];
 
 function defineControlForm({ defineForm, defineError, definePending, onDefineFieldChange, onSubmitDefine }) {
   const f = defineForm || {};
@@ -145,7 +174,10 @@ function defineControlForm({ defineForm, defineError, definePending, onDefineFie
       h("div", { className: "field" }, h("label", {}, "Severity"),
         h("select", { value: f.severity || "MEDIUM", onChange: (e) => onDefineFieldChange("severity", e.target.value) },
           ["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((s) => h("option", { value: s }, s)))),
-      h("div", { className: "field" }, h("label", {}, "Check key"), h("input", { value: f.check_key || "", required: true, onInput: (e) => onDefineFieldChange("check_key", e.target.value) }))
+      h("div", { className: "field" }, h("label", {}, "Check"),
+        h("select", { value: f.check_key || "", required: true, onChange: (e) => onDefineFieldChange("check_key", e.target.value) },
+          h("option", { value: "" }, "Select what this control checks…"),
+          CHECK_KEYS.map((c) => h("option", { value: c.key }, c.label))))
     ),
     h("div", { className: "field" }, h("label", {}, "Description"), h("textarea", { value: f.description || "", onInput: (e) => onDefineFieldChange("description", e.target.value) })),
     h("div", { className: "field" }, h("label", {}, "Objective"), h("textarea", { value: f.objective || "", onInput: (e) => onDefineFieldChange("objective", e.target.value) })),

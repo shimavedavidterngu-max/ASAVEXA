@@ -88,8 +88,43 @@ describe("Administration — members", () => {
       role: "OWNER", organisation: { id: "o1", name: "Acme", created_at: "2026-01-01" }, members: [],
       addForm: {}, onAddFieldChange: () => {}, onSubmitAdd: () => { submitted = true; },
     });
-    const form = findByTag(vnode, "form");
-    form.props.onSubmit({ preventDefault: () => {} });
+    const forms = collectByTag(vnode, "form");
+    forms[forms.length - 1].props.onSubmit({ preventDefault: () => {} });
     assert.equal(submitted, true);
+  });
+});
+
+describe("Administration — organisation profile form", () => {
+  const base = { organisation: { id: "o1", name: "Acme", created_at: "2026-01-01" }, members: [] };
+
+  test("an owner gets editable profile fields and a save button", () => {
+    const vnode = Administration({ ...base, role: "OWNER", profileForm: { legal_name: "Acme Ltd" }, onProfileFieldChange: () => {}, onSubmitProfile: () => {} });
+    const text = JSON.stringify(vnode);
+    assert.ok(text.includes("Organisation profile"));
+    assert.ok(text.includes("Legal name"));
+    assert.ok(text.includes("Reporting framework"));
+    assert.ok(text.includes("Save profile"));
+    assert.ok(text.includes("Acme Ltd"));
+  });
+
+  test("saving calls onSubmitProfile", () => {
+    let saved = false;
+    const vnode = Administration({ ...base, role: "OWNER", profileForm: {}, onProfileFieldChange: () => {}, onSubmitProfile: () => { saved = true; } });
+    collectByTag(vnode, "form")[0].props.onSubmit({ preventDefault: () => {} });
+    assert.equal(saved, true);
+  });
+
+  test("editing a field reports the field name and value", () => {
+    const calls = [];
+    const vnode = Administration({ ...base, role: "OWNER", profileForm: {}, onProfileFieldChange: (f, v) => calls.push([f, v]), onSubmitProfile: () => {} });
+    const input = collectByTag(vnode, "input").find((i) => i.props.onInput && i.props.value === "" );
+    input.props.onInput({ target: { value: "X" } });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][1], "X");
+  });
+
+  test("the owner role can save the profile", () => {
+    const vnode = Administration({ ...base, role: "OWNER", profileForm: {}, onProfileFieldChange: () => {}, onSubmitProfile: () => {} });
+    assert.ok(JSON.stringify(vnode).includes("Save profile"));
   });
 });

@@ -1,6 +1,7 @@
 import { h } from "../lib/vdom.js";
 import { EvidenceChain } from "../components/EvidenceChain.js";
 import { StatusBadge } from "../components/StatusBadge.js";
+import { DataTable } from "../components/DataTable.js";
 
 /**
  * AuditWorkspace — "one of ASAVEXA's most important interfaces"
@@ -32,7 +33,7 @@ import { StatusBadge } from "../components/StatusBadge.js";
  * Section 11's "where a relationship does not exist, clearly state
  * 'No linked record'. Do not fabricate relationships."
  */
-export function AuditWorkspace({ searchQuery, journal, chainLinks, onSearch, onNavigate, error }) {
+export function AuditWorkspace({ searchQuery, journal, chainLinks, onSearch, onNavigate, error, recentJournals, onOpenJournal }) {
   return h(
     "div",
     {},
@@ -49,7 +50,26 @@ export function AuditWorkspace({ searchQuery, journal, chainLinks, onSearch, onN
           h("h3", {}, "Traceability chain"),
           EvidenceChain({ links: chainLinks || [], onNavigate })
         )
-      : (!error ? emptyState() : null)
+      : (!error ? emptyState() : null),
+    !journal && recentJournals && recentJournals.length > 0 ? recentJournalsCard(recentJournals, onOpenJournal) : null
+  );
+}
+
+function recentJournalsCard(journals, onOpenJournal) {
+  return h(
+    "div", { className: "card", style: "margin-top:16px;" },
+    h("h3", {}, "Recent journal entries"),
+    h("p", { style: "color: var(--ink-500); font-size:13px;" }, "Pick an entry to trace it, or paste a journal ID above."),
+    DataTable({
+      columns: [
+        { key: "journal_number", label: "Number" },
+        { key: "date", label: "Date" },
+        { key: "description", label: "Description" },
+        { key: "status", label: "Status", render: (j) => StatusBadge({ status: j.status }) },
+      ],
+      rows: journals.slice(0, 15),
+      onRowClick: (j) => onOpenJournal(j.id),
+    })
   );
 }
 
@@ -58,11 +78,11 @@ function searchBar(searchQuery, onSearch) {
     "div",
     { className: "card" },
     h("div", { className: "field", style: "margin-bottom: 0;" },
-      h("label", { for: "audit-search" }, "Journal ID or reference"),
+      h("label", { for: "audit-search" }, "Journal ID"),
       h("div", { style: "display:flex; gap:8px;" },
         h("input", {
           id: "audit-search", type: "text", value: searchQuery || "",
-          placeholder: "e.g. a journal id, or a transaction reference",
+          placeholder: "Paste a journal ID",
           onKeydown: (e) => {
             if (e.key === "Enter") onSearch(e.target.value);
           },
