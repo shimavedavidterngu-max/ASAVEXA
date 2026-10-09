@@ -289,6 +289,12 @@ export class ApiClient {
   saveStandardsConfiguration(config) {
     return this.put("/standards/configuration", config);
   }
+  getPassport() {
+    return this.get("/passport");
+  }
+  savePassportStructure(structure) {
+    return this.put("/passport/structure", structure);
+  }
   myOrganisations() {
     return this.get("/organisations/mine");
   }

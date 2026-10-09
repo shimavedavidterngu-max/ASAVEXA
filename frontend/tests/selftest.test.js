@@ -7,7 +7,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -23,7 +23,7 @@ function fakeApi({ breakEvidenceStatus = false, down = false } = {}) {
     async entityAuditTrail(t, i) { return db.audit[`${t}:${i}`] || []; },
     async createAccount(b) { if (db.accounts.some((a) => a.code === b.code && a.org === db.org)) bad(409, "dup"); const a = { id: id(), org: db.org, ...b }; db.accounts.push(a); return a; },
     async listAccounts() { return db.accounts.filter((a) => a.org === db.org); },
-    async openPeriod(b) { return { id: id(), status: "OPEN", ...b }; },
+    async openPeriod(b) { const p = { id: id(), status: "OPEN", ...b }; db.periodId = p.id; return p; },
     async createDraftJournal(b) {
       const d = b.lines.reduce((s, l) => s + Number(l.debit_amount), 0), c = b.lines.reduce((s, l) => s + Number(l.credit_amount), 0);
       if (d !== c) bad(409, "unbalanced");
@@ -77,6 +77,31 @@ function fakeApi({ breakEvidenceStatus = false, down = false } = {}) {
     },
     async getStandardsConfiguration() { return db.std ? { configured: true, ...db.std, policies: [] } : { configured: false }; },
     async saveStandardsConfiguration(c) { db.std = c; return c; },
+    async getPassport() {
+      const mine = db.journals.filter((j) => j.org === db.org && j.status === "POSTED");
+      const acct = (i) => db.accounts.find((a) => a.id === i) || {};
+      const sum = (type, side) => mine.reduce((t, j) => t + j.lines.filter((l) => acct(l.account_id).type === type)
+        .reduce((x, l) => x + Number(side === "dr" ? l.debit_amount : l.credit_amount) - Number(side === "dr" ? l.credit_amount : l.debit_amount), 0), 0);
+      const per = mine.length ? [{ period_id: db.periodId, has_activity: true, expenses: String(sum("EXPENSE", "dr")), assets: String(sum("ASSET", "dr")), liabilities: String(sum("LIABILITY", "cr")) }] : [];
+      const linked = new Set(db.evidence.filter((e) => e.org === db.org).map((e) => e.linked_journal_id));
+      const missing = mine.filter((j) => !linked.has(j.id));
+      const p = {
+        schema_version: "vera-passport/1", fingerprint: "ab".repeat(32),
+        identity: { status: "attention", ownership: { recorded: !!db.structure, owners: db.structure ? db.structure.owners : [] }, subsidiaries: { recorded: !!db.structure, items: db.structure ? db.structure.subsidiaries : [], count: db.structure ? db.structure.subsidiaries.length : 0 } },
+        financial_history: { status: mine.length ? "ok" : "incomplete", periods: per, totals: { revenue: "0.00" } },
+        evidence_quality: { status: "attention", transactions: { total_posted: mine.length, supported_verified: 0, evidence_unverified: mine.length - missing.length, evidence_defective: 0, missing_evidence: missing.length }, missing_evidence: { items: missing.map((j) => ({ journal_id: j.id })) } },
+        governance: { status: "attention", segregation_of_duties: { checks: [{ key: "journal_post", tested: mine.length, violations: mine.length }] } },
+        reporting: { status: "incomplete" },
+        audit_trail: { status: "ok", by_person: [{ who: "u" }], journal_provenance: mine.map((j) => ({ journal_id: j.id, created_by: "u", created_at: "t", posted_by: "u", posted_at: "t" })) },
+      };
+      if (breakPassport) delete p.audit_trail;
+      return p;
+    },
+    async savePassportStructure(b) {
+      const total = b.owners.reduce((t, o) => t + Number(o.ownership_percent || 0), 0);
+      if (total > 100) bad(422, "Owners' percentages add up to more than 100%.");
+      db.structure = b; return b;
+    },
     async createOrganisation() { db.orgs.push({ id: "org2" }); return { id: "org2" }; },
     async selectOrganisation(o) { db.org = o; return {}; },
   };
@@ -91,6 +116,18 @@ test("self-test: every step passes (or warns on maker-checker) against a rule-en
   assert.equal(s.skip, 0);
   assert.ok(s.pass >= 50, `only ${s.pass} passed`);
   assert.ok(s.warn >= 1, "maker-checker rejections should be reported as warnings");
+});
+
+test("self-test: a passport missing a section is caught", async () => {
+  const results = await runSelfTest(fakeApi({ breakPassport: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Passport" && /six sections/.test(r.name)));
+});
+
+test("self-test: the Passport steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const passport = results.filter((r) => r.group === "Passport");
+  assert.equal(passport.length, 8);
+  assert.deepEqual(passport.filter((r) => r.status !== "pass"), []);
 });
 
 test("self-test: a backend that omits evidence_id (the bug fixed in this release) is caught", async () => {

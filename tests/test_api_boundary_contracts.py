@@ -228,6 +228,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "audit.router": "/audit",
         "organisation_profile.router": "/organisation-profile",
         "standards.router": "/standards",
+        "passport.router": "/passport",
     }
 
     def test_every_expected_router_registered_exactly_once(self):

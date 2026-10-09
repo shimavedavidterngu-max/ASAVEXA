@@ -48,6 +48,21 @@ class SqlAlchemyOrganisationRepository:
     def create(self, org: Organisation) -> Organisation:
         row = OrganisationORM(id=org.id, name=org.name, created_at=org.created_at)
         self.session.add(row)
+        # Explicit flush required: this session is created with
+        # autoflush=False (see api/db/base.py's get_session — deliberate,
+        # so a multi-write request commits as one atomic transaction).
+        # Session.get() (used by get() below, and called immediately
+        # after create() by IdentityService.add_membership's
+        # _get_organisation check) does NOT trigger autoflush even when
+        # autoflush is enabled — this is documented SQLAlchemy behavior,
+        # not a workaround for a one-off bug. Without this flush, a
+        # same-request create-then-read-by-id (exactly what
+        # create_organisation -> add_membership does) sees the DB as not
+        # yet containing the row just added, and incorrectly raises
+        # OrganisationNotFoundError. flush() sends the INSERT to
+        # PostgreSQL within the still-open, uncommitted transaction —
+        # it does not commit, so rollback-on-error atomicity is
+        # unaffected.
         self.session.flush()
         return org
 

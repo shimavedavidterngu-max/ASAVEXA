@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ...audit.models import AuditEvent
@@ -51,6 +51,19 @@ class SqlAlchemyAuditRepository:
             select(AuditEventORM).where(AuditEventORM.org_id == org_id).order_by(AuditEventORM.timestamp)
         ).all()
         return [_row_to_domain(r) for r in rows]
+
+    def list_recent_for_org(self, org_id: str, limit: int, exclude_action_prefix: Optional[str] = None):
+        """The most recent `limit` events for the organisation (oldest first)
+        and the total number of matching events. Optionally leaves out
+        actions starting with a prefix."""
+        cond = [AuditEventORM.org_id == org_id]
+        if exclude_action_prefix:
+            cond.append(~AuditEventORM.action.startswith(exclude_action_prefix, autoescape=True))
+        total = self.session.scalar(select(func.count()).select_from(AuditEventORM).where(*cond)) or 0
+        rows = self.session.scalars(
+            select(AuditEventORM).where(*cond).order_by(AuditEventORM.timestamp.desc()).limit(limit)
+        ).all()
+        return [_row_to_domain(r) for r in reversed(rows)], total
 
     def list_for_actor(self, actor: str) -> List[AuditEvent]:
         rows = self.session.scalars(

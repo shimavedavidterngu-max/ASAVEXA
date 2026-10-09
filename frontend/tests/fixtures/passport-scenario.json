@@ -1,0 +1,838 @@
+{
+ "schema_version": "vera-passport/1",
+ "org_id": "2f468ffa-e0fb-4896-b22d-469343d97316",
+ "generated_at": "2026-03-01T12:00:00+00:00",
+ "generated_by": "dara@meridian.test",
+ "fingerprint": "8f56ce79526b237a1f9c89b85bfaee8c86b7ae801ea070d579ae5a20023b1e05",
+ "fingerprint_note": "SHA-256 of the six sections. It changes whenever any underlying record changes, so two copies with the same fingerprint show the same data.",
+ "summary": {
+  "sections": {
+   "identity": "ok",
+   "financial_history": "ok",
+   "evidence_quality": "attention",
+   "governance": "attention",
+   "reporting": "attention",
+   "audit_trail": "ok"
+  },
+  "attention_count": 8,
+  "complete_sections": 3
+ },
+ "identity": {
+  "status": "ok",
+  "attention": [],
+  "legal_entity": {
+   "legal_name": "Meridian Textiles Limited",
+   "trading_name": null,
+   "registration_number": "RC123456",
+   "tax_id": "TIN-9",
+   "organisation_type": null,
+   "industry": null,
+   "country": "Nigeria",
+   "address": null,
+   "base_currency": "NGN",
+   "fiscal_year_start_month": 1,
+   "website": null
+  },
+  "ownership": {
+   "recorded": true,
+   "owners": [
+    {
+     "name": "Dara A.",
+     "kind": "INDIVIDUAL",
+     "ownership_percent": "60"
+    },
+    {
+     "name": "Holdco",
+     "kind": "COMPANY",
+     "ownership_percent": "40"
+    }
+   ],
+   "total_percent": "100",
+   "updated_at": "2026-03-01T12:00:00+00:00",
+   "updated_by": "dara@meridian.test"
+  },
+  "subsidiaries": {
+   "recorded": true,
+   "items": [
+    {
+     "name": "Meridian Ghana",
+     "relationship": "SUBSIDIARY",
+     "jurisdiction": "Ghana",
+     "ownership_percent": "100"
+    }
+   ],
+   "count": 1
+  },
+  "reporting_periods": [
+   {
+    "id": "2692ccf9-e8e2-45b6-996f-138a7108e8a3",
+    "name": "FY2026-M01",
+    "start_date": "2026-01-01",
+    "end_date": "2026-01-31",
+    "status": "OPEN"
+   },
+   {
+    "id": "23fd350c-9fa6-4ed9-8c08-6a1bc1f15ce1",
+    "name": "FY2026-M02",
+    "start_date": "2026-02-01",
+    "end_date": "2026-02-28",
+    "status": "OPEN"
+   }
+  ]
+ },
+ "financial_history": {
+  "status": "ok",
+  "attention": [],
+  "currency": "NGN",
+  "currencies_seen": [
+   "NGN"
+  ],
+  "periods": [
+   {
+    "period_id": "2692ccf9-e8e2-45b6-996f-138a7108e8a3",
+    "period_name": "FY2026-M01",
+    "status": "OPEN",
+    "has_activity": true,
+    "journal_count": 2,
+    "revenue": "1000000.00",
+    "expenses": "200000.00",
+    "net_income": "800000.00",
+    "profit_margin_percent": 80.0,
+    "assets": "875000.00",
+    "liabilities": "75000.00",
+    "equity": "0.00",
+    "is_balanced": true
+   },
+   {
+    "period_id": "23fd350c-9fa6-4ed9-8c08-6a1bc1f15ce1",
+    "period_name": "FY2026-M02",
+    "status": "OPEN",
+    "journal_count": 0,
+    "has_activity": false
+   }
+  ],
+  "totals": {
+   "revenue": "1000000.00",
+   "expenses": "200000.00",
+   "net_income": "800000.00",
+   "profit_margin_percent": 80.0,
+   "assets": "875000.00",
+   "liabilities": "75000.00",
+   "equity": "0.00",
+   "profitability": "profit"
+  },
+  "totals_note": "Totals add every posted period. Assets, liabilities and equity are the sum of period movements, which equals the closing position when the ledger starts empty.",
+  "cash_flows": {
+   "statement_available": false,
+   "note": "ASAVEXA does not yet produce a classified cash-flow statement (operating, investing, financing). Below is the movement on bank accounts that have been reconciled.",
+   "available": true,
+   "accounts": [
+    {
+     "id": "a6eafe4f-4cf7-4eb3-8ca2-ac21d612bc1c",
+     "code": "1000",
+     "name": "Cash at bank"
+    }
+   ],
+   "periods": [
+    {
+     "period_id": "2692ccf9-e8e2-45b6-996f-138a7108e8a3",
+     "period_name": "FY2026-M01",
+     "inflow": "1075000.00",
+     "outflow": "200000.00",
+     "net": "875000.00"
+    }
+   ],
+   "totals": {
+    "inflow": "1075000.00",
+    "outflow": "200000.00",
+    "net": "875000.00"
+   }
+  }
+ },
+ "evidence_quality": {
+  "status": "attention",
+  "attention": [
+   "1 posted journal(s) have no evidence attached.",
+   "2 bank transaction(s) are not reconciled.",
+   "1 exception(s) need attention."
+  ],
+  "transactions": {
+   "total_posted": 2,
+   "supported_verified": 1,
+   "evidence_unverified": 0,
+   "evidence_defective": 0,
+   "missing_evidence": 1,
+   "supported_percent": 50.0,
+   "with_any_evidence_percent": 50.0
+  },
+  "missing_evidence": {
+   "count": 1,
+   "items": [
+    {
+     "journal_id": "738727ba-85eb-47ff-b381-430ddd1ff476",
+     "journal_number": "JRN-000002",
+     "date": "2026-01-20",
+     "description": "January rent",
+     "amount": "200000.00",
+     "currency": "NGN"
+    }
+   ],
+   "truncated": false
+  },
+  "bank_reconciliation": {
+   "bank_transactions": 2,
+   "reconciled": 0,
+   "unreconciled": 2,
+   "by_status": {
+    "MATCHED": 1,
+    "UNMATCHED": 1
+   },
+   "reconciliations_by_status": {
+    "DRAFT": 1
+   },
+   "unreconciled_items": [
+    {
+     "id": "4773f0f8-0003-473f-b382-26a65a038128",
+     "date": "2026-01-05",
+     "description": "Deposit Kadena",
+     "amount": "1075000.00",
+     "direction": "debit",
+     "status": "MATCHED",
+     "currency": "NGN"
+    },
+    {
+     "id": "7d518b7b-70a4-46a6-9931-4ab136f6159e",
+     "date": "2026-01-28",
+     "description": "Unknown debit",
+     "amount": "5000.00",
+     "direction": "credit",
+     "status": "UNMATCHED",
+     "currency": "NGN"
+    }
+   ],
+   "truncated": false
+  },
+  "exceptions": {
+   "count": 1,
+   "items": [
+    {
+     "kind": "BANK_TRANSACTION_UNMATCHED",
+     "reference": "7d518b7b-70a4-46a6-9931-4ab136f6159e",
+     "detail": "Unknown debit (unmatched)",
+     "date": "2026-01-28"
+    }
+   ],
+   "truncated": false
+  },
+  "evidence_records": 1
+ },
+ "governance": {
+  "status": "attention",
+  "attention": [
+   "Segregation of duties: Journals: creator is not the poster \u2014 1 case(s) where one person did both.",
+   "1 active member(s) hold a role that can both create and post journals.",
+   "7 active control(s) have never been executed.",
+   "2 control exception(s): failing controls or unresolved findings."
+  ],
+  "approvals": {
+   "count": 3,
+   "by_action": {
+    "JOURNAL_POSTED": 2,
+    "EVIDENCE_VERIFIED": 1
+   },
+   "recent": [
+    {
+     "when": "2026-10-09T11:40:49.108806+00:00",
+     "who": "dara@meridian.test",
+     "action": "JOURNAL_POSTED",
+     "entity_type": "Journal",
+     "entity_id": "738727ba-85eb-47ff-b381-430ddd1ff476"
+    },
+    {
+     "when": "2026-10-09T11:40:49.108534+00:00",
+     "who": "kwame@meridian.test",
+     "action": "EVIDENCE_VERIFIED",
+     "entity_type": "EvidenceRecord",
+     "entity_id": "fef4cc20-9a1b-4fb0-bde0-ec4188505cb9"
+    },
+    {
+     "when": "2026-10-09T11:40:49.108098+00:00",
+     "who": "kwame@meridian.test",
+     "action": "JOURNAL_POSTED",
+     "entity_type": "Journal",
+     "entity_id": "ff5cb3fb-f4c7-4abc-a6f8-93e7b2c0ed78"
+    }
+   ]
+  },
+  "controls": {
+   "defined": 9,
+   "active": 9,
+   "executions": 2,
+   "latest_result_by_control": {
+    "PASS": 1,
+    "FAIL": 1
+   },
+   "never_executed": 7,
+   "last_executed_at": "2026-10-09T11:40:49.111052+00:00"
+  },
+  "segregation_of_duties": {
+   "status": "fail",
+   "checks": [
+    {
+     "key": "journal_post",
+     "label": "Journals: creator is not the poster",
+     "rule": "The person who drafted a journal must not be the person who posted it.",
+     "tested": 2,
+     "violations": 1,
+     "status": "fail",
+     "examples": [
+      {
+       "reference": "JRN-000002",
+       "person": "dara@meridian.test"
+      }
+     ]
+    },
+    {
+     "key": "evidence_verify",
+     "label": "Evidence: uploader is not the verifier",
+     "rule": "The person who uploaded evidence must not be the person who verified it.",
+     "tested": 1,
+     "violations": 0,
+     "status": "pass",
+     "examples": []
+    },
+    {
+     "key": "reconciliation_approve",
+     "label": "Reconciliations: preparer is not the approver",
+     "rule": "The person who prepared a reconciliation must not approve it.",
+     "tested": 0,
+     "violations": 0,
+     "status": "not_tested",
+     "examples": []
+    },
+    {
+     "key": "reconciliation_submit",
+     "label": "Reconciliations: submitter is not the approver",
+     "rule": "The person who submitted a reconciliation must not approve it.",
+     "tested": 0,
+     "violations": 0,
+     "status": "not_tested",
+     "examples": []
+    },
+    {
+     "key": "period_close",
+     "label": "Period close: requester is not the approver",
+     "rule": "The person who requested a period close must not approve it.",
+     "tested": 0,
+     "violations": 0,
+     "status": "not_tested",
+     "examples": []
+    },
+    {
+     "key": "control_review",
+     "label": "Controls: executor is not the reviewer",
+     "rule": "The person who ran a control must not be the one who reviews the result.",
+     "tested": 0,
+     "violations": 0,
+     "status": "not_tested",
+     "examples": []
+    }
+   ],
+   "role_conflicts": [
+    {
+     "person": "dara@meridian.test",
+     "role": "OWNER",
+     "conflict": "Can both create and post journals"
+    }
+   ],
+   "note": "A violation is a recorded fact: the same person appears as both maker and checker. In a one-person organisation this is expected, and it is still reported."
+  },
+  "control_exceptions": {
+   "count": 2,
+   "items": [
+    {
+     "kind": "CONTROL_FAIL",
+     "control": "ACC-002",
+     "name": "No unposted journals in period",
+     "severity": "HIGH",
+     "detail": "1 draft journal(s) remain unposted in this period.",
+     "when": "2026-10-09T11:40:49.111052+00:00"
+    },
+    {
+     "kind": "FINDING_OPEN",
+     "control": "ACC-002",
+     "name": "No unposted journals in period",
+     "severity": "HIGH",
+     "detail": "1 draft journal(s) remain unposted in this period.",
+     "when": "2026-10-09T11:40:49.111128+00:00"
+    }
+   ],
+   "truncated": false,
+   "findings_total": 1,
+   "findings_open": 1
+  }
+ },
+ "reporting": {
+  "status": "attention",
+  "attention": [
+   "ASAVEXA cannot yet produce: Statement of changes in equity; Statement of cash flows; Notes, including significant accounting policies; Comparative information; Related-party disclosures."
+  ],
+  "configured": true,
+  "framework": "IFRS",
+  "framework_name": "IFRS (full)",
+  "jurisdiction": "Nigeria",
+  "jurisdiction_code": "NG",
+  "entity_type": "Private company (larger, not an SME)",
+  "fiscal_year_start_month": 1,
+  "base_currency": "NGN",
+  "readiness": {
+   "mandatory_total": 7,
+   "mandatory_available": 2,
+   "missing": [
+    "Statement of changes in equity",
+    "Statement of cash flows",
+    "Notes, including significant accounting policies",
+    "Comparative information",
+    "Related-party disclosures"
+   ]
+  },
+  "reporting_periods": [
+   {
+    "id": "2692ccf9-e8e2-45b6-996f-138a7108e8a3",
+    "name": "FY2026-M01",
+    "start_date": "2026-01-01",
+    "end_date": "2026-01-31",
+    "status": "OPEN"
+   },
+   {
+    "id": "23fd350c-9fa6-4ed9-8c08-6a1bc1f15ce1",
+    "name": "FY2026-M02",
+    "start_date": "2026-02-01",
+    "end_date": "2026-02-28",
+    "status": "OPEN"
+   }
+  ],
+  "disclaimer": "These are suggested defaults, not legal or accounting advice. Confirm the framework with your regulator or a qualified accountant."
+ },
+ "audit_trail": {
+  "status": "ok",
+  "attention": [],
+  "total_events": 38,
+  "events_analysed": 38,
+  "truncated": false,
+  "first_event_at": "2026-10-09T11:40:48.549567+00:00",
+  "last_event_at": "2026-10-09T11:40:49.111201+00:00",
+  "by_category": {
+   "created": 30,
+   "changed": 1,
+   "approved": 3,
+   "other": 4
+  },
+  "by_person": [
+   {
+    "who": "dara@meridian.test",
+    "created": 21,
+    "changed": 0,
+    "approved": 1,
+    "other": 0,
+    "total": 22,
+    "first_at": "2026-10-09T11:40:48.549567+00:00",
+    "last_at": "2026-10-09T11:40:49.110540+00:00"
+   },
+   {
+    "who": "aisha@meridian.test",
+    "created": 9,
+    "changed": 0,
+    "approved": 0,
+    "other": 4,
+    "total": 13,
+    "first_at": "2026-10-09T11:40:49.107899+00:00",
+    "last_at": "2026-10-09T11:40:49.111201+00:00"
+   },
+   {
+    "who": "kwame@meridian.test",
+    "created": 0,
+    "changed": 1,
+    "approved": 2,
+    "other": 0,
+    "total": 3,
+    "first_at": "2026-10-09T11:40:49.108098+00:00",
+    "last_at": "2026-10-09T11:40:49.108534+00:00"
+   }
+  ],
+  "recent_events": [
+   {
+    "when": "2026-10-09T11:40:49.111201+00:00",
+    "who": "aisha@meridian.test",
+    "action": "FINDING_CREATED",
+    "category": "created",
+    "entity_type": "Finding",
+    "entity_id": "0afb9554-bbed-40ae-a5ca-1f546eb15af1",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.111093+00:00",
+    "who": "aisha@meridian.test",
+    "action": "CONTROL_EXECUTED",
+    "category": "created",
+    "entity_type": "ControlExecution",
+    "entity_id": "7a885f3b-dbbb-473a-a6b2-87b2272605e8",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110899+00:00",
+    "who": "aisha@meridian.test",
+    "action": "CONTROL_EXECUTED",
+    "category": "created",
+    "entity_type": "ControlExecution",
+    "entity_id": "2c76ce65-cb31-443b-8c96-92fe73baff9f",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110811+00:00",
+    "who": "aisha@meridian.test",
+    "action": "REPORT_GENERATED",
+    "category": "other",
+    "entity_type": "Report",
+    "entity_id": "2692ccf9-e8e2-45b6-996f-138a7108e8a3",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110540+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "c1779f13-9225-4775-b35d-33ee44525476",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110499+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "3cc97381-1bba-4ee1-bee0-e2eb97ee98b4",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110446+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "feba97d0-aa48-495e-9695-c182c9fcba49",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110400+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "7971f8e1-ef51-4f68-9608-f42c2e7926c9",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110324+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "07fa18dc-6a18-41ba-a05c-32507a80c80b",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110282+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "02c03dea-b2b8-45ae-8ad6-50840aed3f5d",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110239+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "3fa5d31e-276f-440e-8e18-b6cc827275b0",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110197+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "20246920-db51-4b88-b4a8-cb8193fc2f75",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110148+00:00",
+    "who": "dara@meridian.test",
+    "action": "CONTROL_DEFINED",
+    "category": "created",
+    "entity_type": "ControlDefinition",
+    "entity_id": "689cfd66-5ec4-4a56-ba6c-88ac55e92628",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.110034+00:00",
+    "who": "aisha@meridian.test",
+    "action": "EXCEPTION_CREATED",
+    "category": "created",
+    "entity_type": "BankTransaction",
+    "entity_id": "7d518b7b-70a4-46a6-9931-4ab136f6159e",
+    "reason": "No posted ledger entry on this account matches debit=0.00 credit=5000.00 within the configured date tolerance of 2026-01-28."
+   },
+   {
+    "when": "2026-10-09T11:40:49.109995+00:00",
+    "who": "aisha@meridian.test",
+    "action": "CANDIDATE_MATCH_GENERATED",
+    "category": "other",
+    "entity_type": "BankTransaction",
+    "entity_id": "7d518b7b-70a4-46a6-9931-4ab136f6159e",
+    "reason": "No posted ledger entry on this account matches debit=0.00 credit=5000.00 within the configured date tolerance of 2026-01-28."
+   },
+   {
+    "when": "2026-10-09T11:40:49.109767+00:00",
+    "who": "aisha@meridian.test",
+    "action": "TRANSACTION_IMPORTED",
+    "category": "created",
+    "entity_type": "BankTransaction",
+    "entity_id": "7d518b7b-70a4-46a6-9931-4ab136f6159e",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.109714+00:00",
+    "who": "aisha@meridian.test",
+    "action": "MATCH_ACCEPTED",
+    "category": "other",
+    "entity_type": "BankTransaction",
+    "entity_id": "4773f0f8-0003-473f-b382-26a65a038128",
+    "reason": "Unique candidate: journal JRN-000001 dated 2026-01-05 (debit=1075000.00, credit=0.00), 0 day(s) from the statement date \u2014 exact amount match, no other candidate in range."
+   },
+   {
+    "when": "2026-10-09T11:40:49.109680+00:00",
+    "who": "aisha@meridian.test",
+    "action": "CANDIDATE_MATCH_GENERATED",
+    "category": "other",
+    "entity_type": "BankTransaction",
+    "entity_id": "4773f0f8-0003-473f-b382-26a65a038128",
+    "reason": "Unique candidate: journal JRN-000001 dated 2026-01-05 (debit=1075000.00, credit=0.00), 0 day(s) from the statement date \u2014 exact amount match, no other candidate in range."
+   },
+   {
+    "when": "2026-10-09T11:40:49.109249+00:00",
+    "who": "aisha@meridian.test",
+    "action": "TRANSACTION_IMPORTED",
+    "category": "created",
+    "entity_type": "BankTransaction",
+    "entity_id": "4773f0f8-0003-473f-b382-26a65a038128",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.109043+00:00",
+    "who": "aisha@meridian.test",
+    "action": "RECONCILIATION_CREATED",
+    "category": "created",
+    "entity_type": "Reconciliation",
+    "entity_id": "26103888-0e47-4be2-b098-196d917b2935",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.108928+00:00",
+    "who": "dara@meridian.test",
+    "action": "JOURNAL_DRAFTED",
+    "category": "created",
+    "entity_type": "Journal",
+    "entity_id": "31c2fb8f-3eec-4ee3-b28f-1c3ea7f6e849",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.108806+00:00",
+    "who": "dara@meridian.test",
+    "action": "JOURNAL_POSTED",
+    "category": "approved",
+    "entity_type": "Journal",
+    "entity_id": "738727ba-85eb-47ff-b381-430ddd1ff476",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.108714+00:00",
+    "who": "dara@meridian.test",
+    "action": "JOURNAL_DRAFTED",
+    "category": "created",
+    "entity_type": "Journal",
+    "entity_id": "738727ba-85eb-47ff-b381-430ddd1ff476",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.108534+00:00",
+    "who": "kwame@meridian.test",
+    "action": "EVIDENCE_VERIFIED",
+    "category": "approved",
+    "entity_type": "EvidenceRecord",
+    "entity_id": "fef4cc20-9a1b-4fb0-bde0-ec4188505cb9",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.108505+00:00",
+    "who": "kwame@meridian.test",
+    "action": "EVIDENCE_STATUS_CHANGED",
+    "category": "changed",
+    "entity_type": "EvidenceRecord",
+    "entity_id": "fef4cc20-9a1b-4fb0-bde0-ec4188505cb9",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.108242+00:00",
+    "who": "aisha@meridian.test",
+    "action": "EVIDENCE_UPLOADED",
+    "category": "created",
+    "entity_type": "EvidenceRecord",
+    "entity_id": "fef4cc20-9a1b-4fb0-bde0-ec4188505cb9",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.108098+00:00",
+    "who": "kwame@meridian.test",
+    "action": "JOURNAL_POSTED",
+    "category": "approved",
+    "entity_type": "Journal",
+    "entity_id": "ff5cb3fb-f4c7-4abc-a6f8-93e7b2c0ed78",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.107899+00:00",
+    "who": "aisha@meridian.test",
+    "action": "JOURNAL_DRAFTED",
+    "category": "created",
+    "entity_type": "Journal",
+    "entity_id": "ff5cb3fb-f4c7-4abc-a6f8-93e7b2c0ed78",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.107544+00:00",
+    "who": "dara@meridian.test",
+    "action": "PERIOD_OPENED",
+    "category": "created",
+    "entity_type": "AccountingPeriod",
+    "entity_id": "23fd350c-9fa6-4ed9-8c08-6a1bc1f15ce1",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.107505+00:00",
+    "who": "dara@meridian.test",
+    "action": "PERIOD_OPENED",
+    "category": "created",
+    "entity_type": "AccountingPeriod",
+    "entity_id": "2692ccf9-e8e2-45b6-996f-138a7108e8a3",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.107438+00:00",
+    "who": "dara@meridian.test",
+    "action": "ACCOUNT_CREATED",
+    "category": "created",
+    "entity_type": "Account",
+    "entity_id": "670afb2c-0570-4e8d-91ec-8a987655ca99",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.107399+00:00",
+    "who": "dara@meridian.test",
+    "action": "ACCOUNT_CREATED",
+    "category": "created",
+    "entity_type": "Account",
+    "entity_id": "1bfa27ec-2e07-42b9-9660-526f4e3809f2",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.107330+00:00",
+    "who": "dara@meridian.test",
+    "action": "ACCOUNT_CREATED",
+    "category": "created",
+    "entity_type": "Account",
+    "entity_id": "f1161863-a4af-486c-aa2d-e6491b2af5f8",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:49.107273+00:00",
+    "who": "dara@meridian.test",
+    "action": "ACCOUNT_CREATED",
+    "category": "created",
+    "entity_type": "Account",
+    "entity_id": "a6eafe4f-4cf7-4eb3-8ca2-ac21d612bc1c",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:48.931831+00:00",
+    "who": "dara@meridian.test",
+    "action": "MEMBERSHIP_CREATED",
+    "category": "created",
+    "entity_type": "Membership",
+    "entity_id": "b4553511-90c7-4a67-9e47-f77fb8486554",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:48.731930+00:00",
+    "who": "dara@meridian.test",
+    "action": "MEMBERSHIP_CREATED",
+    "category": "created",
+    "entity_type": "Membership",
+    "entity_id": "af07dd1f-3627-4b7e-be67-d52764d3f94c",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:48.549877+00:00",
+    "who": "dara@meridian.test",
+    "action": "MEMBERSHIP_CREATED",
+    "category": "created",
+    "entity_type": "Membership",
+    "entity_id": "c41fbfa4-1da2-4376-ae9b-4d25f41755d9",
+    "reason": null
+   },
+   {
+    "when": "2026-10-09T11:40:48.549567+00:00",
+    "who": "dara@meridian.test",
+    "action": "ORGANISATION_CREATED",
+    "category": "created",
+    "entity_type": "Organisation",
+    "entity_id": "2f468ffa-e0fb-4896-b22d-469343d97316",
+    "reason": null
+   }
+  ],
+  "journal_provenance": [
+   {
+    "journal_id": "31c2fb8f-3eec-4ee3-b28f-1c3ea7f6e849",
+    "journal_number": "JRN-000003",
+    "status": "DRAFT",
+    "created_by": "dara@meridian.test",
+    "created_at": "2026-10-09T11:40:49.108895+00:00",
+    "posted_by": null,
+    "posted_at": null
+   },
+   {
+    "journal_id": "738727ba-85eb-47ff-b381-430ddd1ff476",
+    "journal_number": "JRN-000002",
+    "status": "POSTED",
+    "created_by": "dara@meridian.test",
+    "created_at": "2026-10-09T11:40:49.108676+00:00",
+    "posted_by": "dara@meridian.test",
+    "posted_at": "2026-10-09T11:40:49.108787+00:00"
+   },
+   {
+    "journal_id": "ff5cb3fb-f4c7-4abc-a6f8-93e7b2c0ed78",
+    "journal_number": "JRN-000001",
+    "status": "POSTED",
+    "created_by": "aisha@meridian.test",
+    "created_at": "2026-10-09T11:40:49.107821+00:00",
+    "posted_by": "kwame@meridian.test",
+    "posted_at": "2026-10-09T11:40:49.108050+00:00"
+   }
+  ],
+  "period_locks": []
+ }
+}

@@ -119,3 +119,49 @@ class StandardsRouterContractTestCase(unittest.TestCase):
         for route in ("/catalog", "/resolve", "/configuration"):
             self.assertIn(f'"{route}"', src)
             self.assertIn(f"/standards{route}", client)
+
+
+class PassportContractTestCase(unittest.TestCase):
+    def _router(self):
+        return ast.parse(_read(os.path.join(ROUTERS, "passport.py")))
+
+    def test_reading_requires_passport_manage_and_saving_requires_manage_settings(self):
+        src = _read(os.path.join(ROUTERS, "passport.py"))
+        tree = self._router()
+        get = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "get_passport")
+        put = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "save_structure")
+        self.assertIn("PASSPORT_MANAGE", " ".join(ast.unparse(d) for d in get.decorator_list))
+        self.assertIn("ORG_MANAGE_SETTINGS", " ".join(ast.unparse(d) for d in put.decorator_list))
+        self.assertIn("ORGANISATION_STRUCTURE_UPDATED", src)
+        self.assertIn("PASSPORT_GENERATED", src)
+
+    def test_every_query_is_scoped_to_the_callers_organisation(self):
+        # gather_inputs must pass org_id to every repository read; none may be unscoped.
+        src = _read(os.path.join(ROUTERS, "passport.py"))
+        body = src[src.index("def gather_inputs"):src.index("@router.get")]
+        for call in ("list_for_org(org_id", "list_for_reconciliation(org_id", "list_for_period(org_id", "list_recent_for_org(\n        org_id"):
+            self.assertIn(call, body, call)
+        self.assertNotIn("list_for_actor", body)
+
+    def test_the_passport_never_writes_financial_records(self):
+        body = _read(os.path.join(ROOT, "src", "asavexa", "passport", "builder.py"))
+        for forbidden in ("session", ".create(", ".update(", ".record(", "post_journal", "INSERT", "UPDATE "):
+            self.assertNotIn(forbidden, body, f"builder must be pure and read-only: found {forbidden!r}")
+
+    def test_structure_table_is_created_at_startup_and_outside_schema_sql(self):
+        main = _read(MAIN)
+        self.assertIn("ensure_structure_table", main)
+        self.assertIn("checkfirst=True", _read(os.path.join(ROOT, "src", "asavexa", "api", "db", "passport_models.py")))
+
+    def test_every_frontend_passport_call_has_a_matching_route(self):
+        client = _read(os.path.join(ROOT, "frontend", "src", "api", "client.js"))
+        src = _read(os.path.join(ROUTERS, "passport.py"))
+        self.assertIn('prefix="/passport"', src)
+        self.assertIn('"/passport"', client)
+        self.assertIn('"/passport/structure"', client)
+        self.assertIn('"/structure"', src)
+
+    def test_passport_page_is_routed_and_permission_gated_in_the_nav(self):
+        app = _read(os.path.join(ROOT, "frontend", "src", "app.js"))
+        self.assertIn('{ path: "/passport", name: "passport" }', app)
+        self.assertIn('permission: PERMISSIONS.PASSPORT_MANAGE', app)

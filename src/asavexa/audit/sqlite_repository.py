@@ -94,6 +94,18 @@ class SqliteAuditRepository:
         ).fetchall()
         return [self._row_to_event(r) for r in rows]
 
+    def list_recent_for_org(self, org_id: str, limit: int, exclude_action_prefix: Optional[str] = None):
+        """The most recent `limit` events (oldest first) and the matching total."""
+        where, params = "org_id=?", [org_id]
+        if exclude_action_prefix:
+            where += " AND action NOT LIKE ? ESCAPE '\\'"
+            params.append(exclude_action_prefix.replace("_", "\\_").replace("%", "\\%") + "%")
+        total = self.conn.execute(f"SELECT COUNT(*) FROM audit_events WHERE {where}", params).fetchone()[0]
+        rows = self.conn.execute(
+            f"SELECT * FROM audit_events WHERE {where} ORDER BY timestamp DESC LIMIT ?", params + [limit]
+        ).fetchall()
+        return [self._row_to_event(r) for r in reversed(rows)], total
+
     def list_for_actor(self, actor: str) -> List[AuditEvent]:
         rows = self.conn.execute(
             "SELECT * FROM audit_events WHERE actor=? ORDER BY timestamp",

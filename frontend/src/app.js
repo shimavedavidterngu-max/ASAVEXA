@@ -33,6 +33,7 @@ import { PeriodClose } from "./pages/PeriodClose.js";
 import { Compliance } from "./pages/Compliance.js";
 import { Administration } from "./pages/Administration.js";
 import { Standards } from "./pages/Standards.js";
+import { Passport } from "./pages/Passport.js";
 import { Diagnostics, formatReport } from "./pages/Diagnostics.js";
 import { runSelfTest } from "./lib/selftest.js";
 
@@ -59,6 +60,7 @@ const NAV_ITEMS = [
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
+  { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
   { path: "/diagnostics", label: "Connection & Self-Test", permission: null },
 ];
@@ -83,6 +85,7 @@ const routes = [
   { path: "/compliance/findings", name: "compliance-findings" },
   { path: "/compliance", name: "compliance" },
   { path: "/admin", name: "admin" },
+  { path: "/passport", name: "passport" },
   { path: "/standards", name: "standards" },
   { path: "/diagnostics", name: "diagnostics" },
 ];
@@ -132,6 +135,11 @@ let uiState = {
   defineForm: { domain: "ACCOUNTING", severity: "MEDIUM" }, defineError: null, definePending: false,
   findings: null, findingFilter: "", finding: null, findingError: null, remediation: null,
   reasonInputs: {}, remediationForm: {},
+
+  // Financial Passport
+  passport: null, passportError: null, passportRefreshing: false,
+  passportStructure: { owners: [], subsidiaries: [] }, passportStructureSaving: false,
+  passportStructureError: null, passportStructureSaved: false,
 
   // Standards & Policies
   standardsCatalog: null, standardsForm: {}, standardsPreview: null, standardsError: null,
@@ -293,6 +301,7 @@ function renderPage(matched, authState) {
   if (name === "period-close") return renderPeriodClose(authState, nav);
   if (name.startsWith("compliance")) return renderCompliance(name, params, authState, nav);
   if (name === "admin") return renderAdmin(authState, nav);
+  if (name === "passport") return renderPassport(authState);
   if (name === "standards") return renderStandards(authState);
   if (name === "diagnostics") return renderDiagnostics(authState);
 
@@ -1619,6 +1628,141 @@ async function handleSaveStandards() {
     uiState.standardsSaveError = err.message;
   } finally {
     uiState.standardsSaving = false;
+    render();
+  }
+}
+
+// ==================================================================
+// VERA Financial Passport
+// ==================================================================
+function structureFromPassport(passport) {
+  const o = (passport && passport.identity && passport.identity.ownership) || {};
+  const sb = (passport && passport.identity && passport.identity.subsidiaries) || {};
+  const text = (v) => (v === null || v === undefined ? "" : String(v));
+  return {
+    owners: (o.owners || []).map((x) => ({ name: text(x.name), kind: x.kind || "INDIVIDUAL", ownership_percent: text(x.ownership_percent), notes: text(x.notes) })),
+    subsidiaries: (sb.items || []).map((x) => ({
+      name: text(x.name), relationship: x.relationship || "SUBSIDIARY", jurisdiction: text(x.jurisdiction),
+      registration_number: text(x.registration_number), ownership_percent: text(x.ownership_percent),
+    })),
+  };
+}
+
+function renderPassport(authState) {
+  once("passportLoading", loadPassport);
+  return Passport({
+    role: authState.role,
+    loading: uiState.passportLoading, error: uiState.passportError, onRetry: () => reload("passportLoading"),
+    passport: uiState.passport, refreshing: uiState.passportRefreshing,
+    onRefresh: handleRefreshPassport, onDownload: handleDownloadPassport, onPrint: () => window.print(),
+    structureForm: uiState.passportStructure, structureSaving: uiState.passportStructureSaving,
+    structureError: uiState.passportStructureError, structureSaved: uiState.passportStructureSaved,
+    onStructureChange: (kind, i, field, value) => {
+      const rows = uiState.passportStructure[kind].map((r, idx) => (idx === i ? { ...r, [field]: value } : r));
+      uiState.passportStructure = { ...uiState.passportStructure, [kind]: rows };
+      uiState.passportStructureSaved = false;
+      render();
+    },
+    onAddRow: (kind) => {
+      const blank = kind === "owners"
+        ? { name: "", kind: "INDIVIDUAL", ownership_percent: "", notes: "" }
+        : { name: "", relationship: "SUBSIDIARY", jurisdiction: "", registration_number: "", ownership_percent: "" };
+      uiState.passportStructure = { ...uiState.passportStructure, [kind]: [...uiState.passportStructure[kind], blank] };
+      uiState.passportStructureSaved = false;
+      render();
+    },
+    onRemoveRow: (kind, i) => {
+      uiState.passportStructure = { ...uiState.passportStructure, [kind]: uiState.passportStructure[kind].filter((_, idx) => idx !== i) };
+      uiState.passportStructureSaved = false;
+      render();
+    },
+    onSaveStructure: handleSavePassportStructure,
+  });
+}
+
+async function loadPassport() {
+  uiState.passportError = null;
+  try {
+    uiState.passport = await api.getPassport();
+    uiState.passportStructure = structureFromPassport(uiState.passport);
+  } catch (err) {
+    uiState.passportError = err.message || "Could not build the Financial Passport.";
+  }
+}
+
+async function handleRefreshPassport() {
+  uiState.passportRefreshing = true;
+  uiState.passportError = null;
+  render();
+  try {
+    uiState.passport = await api.getPassport();
+    uiState.passportStructure = structureFromPassport(uiState.passport);
+  } catch (err) {
+    uiState.passportError = err.message || "Could not refresh the Financial Passport.";
+  } finally {
+    uiState.passportRefreshing = false;
+    render();
+  }
+}
+
+function handleDownloadPassport() {
+  const p = uiState.passport;
+  if (!p) return;
+  const blob = new Blob([JSON.stringify(p, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `vera-financial-passport-${String(p.generated_at || "").slice(0, 10)}-${String(p.fingerprint || "").slice(0, 8)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Percent fields are free text in the form; turn them into numbers (or
+// nothing) before they go to the API. Anything unparseable is sent as-is
+// so the server's validation message reaches the user instead of being
+// silently dropped.
+function structureToPayload(form) {
+  const pct = (v) => {
+    const t = String(v === undefined || v === null ? "" : v).trim().replace(/%$/, "");
+    if (t === "") return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : t;
+  };
+  const clean = (row, keys) => {
+    const out = {};
+    for (const k of keys) {
+      if (k === "ownership_percent") {
+        const v = pct(row[k]);
+        if (v !== undefined) out[k] = v;
+      } else {
+        const t = String(row[k] === undefined || row[k] === null ? "" : row[k]).trim();
+        if (t !== "" || k === "name") out[k] = t;
+      }
+    }
+    return out;
+  };
+  return {
+    owners: form.owners.map((r) => clean(r, ["name", "kind", "ownership_percent", "notes"])),
+    subsidiaries: form.subsidiaries.map((r) => clean(r, ["name", "relationship", "jurisdiction", "registration_number", "ownership_percent"])),
+  };
+}
+
+async function handleSavePassportStructure() {
+  uiState.passportStructureSaving = true;
+  uiState.passportStructureError = null;
+  uiState.passportStructureSaved = false;
+  render();
+  try {
+    await api.savePassportStructure(structureToPayload(uiState.passportStructure));
+    uiState.passport = await api.getPassport();
+    uiState.passportStructure = structureFromPassport(uiState.passport);
+    uiState.passportStructureSaved = true;
+  } catch (err) {
+    uiState.passportStructureError = err.message;
+  } finally {
+    uiState.passportStructureSaving = false;
     render();
   }
 }

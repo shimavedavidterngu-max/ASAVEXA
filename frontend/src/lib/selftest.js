@@ -443,6 +443,70 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
       (r.blocking_failures && r.blocking_failures.length ? `; blocking: ${r.blocking_failures.join(", ")}` : "");
   });
 
+  // ---------------- 10b. Financial Passport ----------------
+  const SECTIONS = ["identity", "financial_history", "evidence_quality", "governance", "reporting", "audit_trail"];
+  await step("Passport", "Passport builds with all six sections and a fingerprint", ["orgId"], async () => {
+    ctx.passport = await api.getPassport();
+    const p = ctx.passport;
+    for (const k of SECTIONS) check(p[k] && ["ok", "attention", "incomplete"].includes(p[k].status), `section ${k} missing or has no status`);
+    check(/^[0-9a-f]{64}$/.test(p.fingerprint || ""), "fingerprint missing or malformed");
+    check(p.schema_version, "no schema_version");
+    return SECTIONS.map((k) => `${k}: ${p[k].status}`).join(", ");
+  });
+  await step("Passport", "Passport figures agree with the Reporting module for the self-test period", ["passport", "posted", "period"], async () => {
+    const [is, bs] = await Promise.all([api.incomeStatement(ctx.period.id), api.balanceSheet(ctx.period.id)]);
+    const row = ctx.passport.financial_history.periods.find((x) => x.period_id === ctx.period.id);
+    check(row && row.has_activity, "the self-test period has no activity in the passport");
+    check(dec(row.expenses) === dec(is.total_expenses), `passport expenses ${row.expenses} vs report ${is.total_expenses}`);
+    check(dec(row.assets) === dec(bs.total_assets), `passport assets ${row.assets} vs report ${bs.total_assets}`);
+    check(dec(row.liabilities) === dec(bs.total_liabilities), `passport liabilities ${row.liabilities} vs report ${bs.total_liabilities}`);
+    return `expenses ${row.expenses}, assets ${row.assets}, liabilities ${row.liabilities} match the reports`;
+  });
+  await step("Passport", "Passport counts the self-test journal as supported by its evidence", ["passport", "posted", "evidence"], async () => {
+    const e = ctx.passport.evidence_quality;
+    check(e.transactions.total_posted >= 1, "no posted transactions counted");
+    check(!e.missing_evidence.items.some((x) => x.journal_id === ctx.journal.id), "the journal is listed as missing evidence although evidence is linked to it");
+    check(e.transactions.supported_verified + e.transactions.evidence_unverified + e.transactions.evidence_defective >= 1, "no journal has any evidence in the passport");
+    return `${e.transactions.total_posted} posted, ${e.transactions.supported_verified} verified, ${e.transactions.evidence_unverified} unverified, ${e.transactions.missing_evidence} missing`;
+  });
+  await step("Passport", "Passport audit trail shows who created and who posted the journal", ["passport", "posted"], async () => {
+    const j = ctx.passport.audit_trail.journal_provenance.find((x) => x.journal_id === ctx.journal.id);
+    check(j, "journal not found in the audit provenance");
+    check(j.created_by && j.created_at && j.posted_by && j.posted_at, `provenance incomplete: ${JSON.stringify(j)}`);
+    check(ctx.passport.audit_trail.by_person.length >= 1, "no people listed in the audit trail");
+    return `created by ${j.created_by}, posted by ${j.posted_by}`;
+  });
+  await step("Passport", "Segregation-of-duties check examines the journal", ["passport", "posted"], async () => {
+    const c = ctx.passport.governance.segregation_of_duties.checks.find((x) => x.key === "journal_post");
+    check(c && c.tested >= 1, "the journal creator/poster check tested nothing");
+    return `${c.tested} journal(s) tested, ${c.violations} with the same person creating and posting`;
+  });
+  await step("Passport", "Reading the passport twice gives the same fingerprint", ["passport"], async () => {
+    const again = await api.getPassport();
+    check(again.fingerprint === ctx.passport.fingerprint, "fingerprint changed although nothing changed (generating a passport must not alter it)");
+    return again.fingerprint.slice(0, 16) + "…";
+  });
+  await step("Passport", "Ownership above 100% is rejected with a clear message", ["orgId"], async () => {
+    const e = await expectRejected(() => api.savePassportStructure({
+      owners: [{ name: "SelfTest A", kind: "INDIVIDUAL", ownership_percent: 70 }, { name: "SelfTest B", kind: "INDIVIDUAL", ownership_percent: 50 }],
+      subsidiaries: [],
+    }), [400, 422]);
+    return `HTTP ${e.status}: ${e.message}`;
+  });
+  await step("Passport", "Recorded ownership persists (re-saved unchanged if one exists)", ["passport"], async () => {
+    const id = ctx.passport.identity;
+    if (!id.ownership.recorded) return "no ownership recorded yet — save skipped so your setup is not changed";
+    const keep = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined && o[k] !== null).map((k) => [k, o[k]]));
+    await api.savePassportStructure({
+      owners: id.ownership.owners.map((o) => keep(o, ["name", "kind", "ownership_percent", "notes"])),
+      subsidiaries: id.subsidiaries.items.map((o) => keep(o, ["name", "relationship", "jurisdiction", "registration_number", "ownership_percent"])),
+    });
+    const after = await api.getPassport();
+    check(after.identity.ownership.owners.length === id.ownership.owners.length, "owners changed on re-save");
+    check(after.identity.subsidiaries.count === id.subsidiaries.count, "subsidiaries changed on re-save");
+    return `${after.identity.ownership.owners.length} owner(s), ${after.identity.subsidiaries.count} subsidiary(ies)`;
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;
@@ -455,6 +519,9 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
       const e2 = await expectRejected(() => api.getEvidence(ctx.evidence.id));
       const journals = await api.listJournals();
       check(!journals.some((j) => j.id === ctx.journal.id), "organisation B can list organisation A's journals");
+      const pb = await api.getPassport();
+      check(pb.evidence_quality.transactions.total_posted === 0 && dec(pb.financial_history.totals.revenue) === 0 && !JSON.stringify(pb).includes(ctx.journal.id),
+        "organisation B's passport contains organisation A's data");
       return `journal → HTTP ${e1.status}, evidence → HTTP ${e2.status}, B sees 0 of A's records`;
     } finally {
       await api.selectOrganisation(ctx.orgId); // always return the session to your organisation

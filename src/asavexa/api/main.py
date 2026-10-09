@@ -110,7 +110,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, audit, auth, compliance, evidence, journals, organisation_profile, period_close, periods, reconciliation, reporting, standards
+from .routers import accounts, audit, auth, compliance, evidence, journals, organisation_profile, passport, period_close, periods, reconciliation, reporting, standards
 
 app = FastAPI(
     title="Asavexa",
@@ -212,6 +212,7 @@ app.include_router(compliance.router)
 app.include_router(audit.router)
 app.include_router(organisation_profile.router)
 app.include_router(standards.router)
+app.include_router(passport.router)
 
 
 @app.on_event("startup")
@@ -219,13 +220,19 @@ def _ensure_optional_tables() -> None:
     """Creates tables added after the initial migration (idempotent).
     A failure here is logged, never fatal: the rest of the API must
     still start even if this one table cannot be created."""
-    try:
-        from .db.profile_models import ensure_profile_table
-        ensure_profile_table()
-        from .db.standards_models import ensure_standards_table
-        ensure_standards_table()
-    except Exception:  # pragma: no cover - environment dependent
-        logger.exception("could not ensure organisation_profiles table")
+    from .db.passport_models import ensure_structure_table
+    from .db.profile_models import ensure_profile_table
+    from .db.standards_models import ensure_standards_table
+
+    for name, ensure in (
+        ("organisation_profiles", ensure_profile_table),
+        ("organisation_standards", ensure_standards_table),
+        ("organisation_structures", ensure_structure_table),
+    ):
+        try:
+            ensure()
+        except Exception:  # pragma: no cover - environment dependent
+            logger.exception("could not ensure table %s", name)
 
 
 # ----------------------------------------------------------------------
