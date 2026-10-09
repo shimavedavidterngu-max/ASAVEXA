@@ -227,6 +227,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "compliance.router": "/compliance",
         "audit.router": "/audit",
         "organisation_profile.router": "/organisation-profile",
+        "standards.router": "/standards",
     }
 
     def test_every_expected_router_registered_exactly_once(self):

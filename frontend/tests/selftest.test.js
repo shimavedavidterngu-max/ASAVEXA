@@ -1,0 +1,105 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { runSelfTest, summarise } from "../src/lib/selftest.js";
+import { ApiError, NetworkError } from "../src/api/client.js";
+
+// A small in-memory stand-in that enforces the same rules the real API
+// does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
+// correct expectations) — the real system is exercised by the
+// Connection & Self-Test page in the live app.
+function fakeApi({ breakEvidenceStatus = false, down = false } = {}) {
+  const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
+  let n = 0;
+  const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+  const bad = (st, m) => { throw new ApiError(st, { detail: m }); };
+  const uuid = (v) => /^[0-9a-f]{8}-/.test(v) || bad(400, "invalid id");
+  const log = (t, i, a) => { (db.audit[`${t}:${i}`] = db.audit[`${t}:${i}`] || []).push({ action: a }); };
+  const ex = {};
+  const api = {
+    async rawGet(p) { if (down) return { ok: false, status: 0, error: new NetworkError(new Error("x")) }; return { ok: true, status: 200, body: {}, ms: 5 }; },
+    async myOrganisations() { return db.orgs; },
+    async getOrganisationProfile() { return { org_id: db.org, ...db.profile, updated_by: db.profile.legal_name ? "u" : undefined }; },
+    async updateOrganisationProfile(p) { if (p.contact_email && !p.contact_email.includes("@")) bad(422, "contact_email invalid"); db.profile = p; log("Organisation", db.org, "ORGANISATION_PROFILE_UPDATED"); return { org_id: db.org, ...p }; },
+    async entityAuditTrail(t, i) { return db.audit[`${t}:${i}`] || []; },
+    async createAccount(b) { if (db.accounts.some((a) => a.code === b.code && a.org === db.org)) bad(409, "dup"); const a = { id: id(), org: db.org, ...b }; db.accounts.push(a); return a; },
+    async listAccounts() { return db.accounts.filter((a) => a.org === db.org); },
+    async openPeriod(b) { return { id: id(), status: "OPEN", ...b }; },
+    async createDraftJournal(b) {
+      const d = b.lines.reduce((s, l) => s + Number(l.debit_amount), 0), c = b.lines.reduce((s, l) => s + Number(l.credit_amount), 0);
+      if (d !== c) bad(409, "unbalanced");
+      for (const l of b.lines) if (!db.accounts.some((a) => a.id === l.account_id)) bad(404, "account not found");
+      const j = { id: id(), org: db.org, journal_number: "J-1", status: "DRAFT", ...b }; db.journals.push(j); log("Journal", j.id, "JOURNAL_CREATED"); return j;
+    },
+    async listJournals() { return db.journals.filter((j) => j.org === db.org); },
+    async getJournal(i) { uuid(i); const j = db.journals.find((x) => x.id === i && x.org === db.org); if (!j) bad(404, "journal not found"); return j; },
+    async postJournal(i) { const j = await api.getJournal(i); j.status = "POSTED"; log("Journal", i, "JOURNAL_POSTED"); return j; },
+    async journalAuditTrail(i) { return db.audit[`Journal:${i}`] || []; },
+    async uploadEvidence({ file, type, linkedJournalId }) {
+      if (linkedJournalId) uuid(linkedJournalId);
+      const text = await file.text();
+      if (db.evidence.some((e) => e.text === text)) bad(409, "duplicate");
+      const e = { id: id(), org: db.org, text, file_hash: "a".repeat(64), original_filename: file.name, size_bytes: text.length, content_type: "text/plain", linked_journal_id: linkedJournalId || null, status: "UPLOADED", uploaded_by: "u", uploaded_at: "t" };
+      db.evidence.push(e); log("EvidenceRecord", e.id, "EVIDENCE_UPLOADED"); return e;
+    },
+    async getEvidence(i) { const e = db.evidence.find((x) => x.id === i && x.org === db.org); if (!e) bad(404, "evidence not found"); return e; },
+    async listEvidence() { return db.evidence; },
+    async evidenceStatus(j) { const e = db.evidence.find((x) => x.linked_journal_id === j); return breakEvidenceStatus ? { status: e.status } : { status: e ? e.status : "MISSING", evidence_id: e && e.id }; },
+    async verifyEvidence() { bad(403, "maker-checker: cannot verify own upload"); },
+    async createReconciliation(b) { uuid(b.bank_account_id); if (!db.accounts.some((a) => a.id === b.bank_account_id)) bad(404, "bank account not found"); const r = { id: id(), status: "DRAFT", ...b }; db.recon.push(r); log("Reconciliation", r.id, "RECONCILIATION_CREATED"); return r; },
+    async importTransactions(r) { db.txn = [{ id: id(), status: "IMPORTED" }]; return {}; },
+    async listReconciliationTransactions() { return db.txn; },
+    async listReconciliations() { return db.recon; },
+    async getReconciliation(i) { return db.recon.find((r) => r.id === i); },
+    async trialBalance() { return { is_balanced: true, total_debits: "1075000.00", total_credits: "1075000.00" }; },
+    async incomeStatement() { return { total_expenses: "1000000.00" }; },
+    async balanceSheet() { return { total_assets: "75000.00", total_liabilities: "1075000.00" }; },
+    async generalLedger(p, a) { return { accounts: [{ account_id: a }] }; },
+    async traceLine(a) { uuid(a); return { entries: [{ journal_id: db.journals[0].id }] }; },
+    async evidenceCompleteness() { return { score: 1 }; },
+    async seedStandardControls() { return []; },
+    async listControls() { return ["ACC-001", "ACC-002", "ACC-003", "REC-001", "EVI-001", "EVI-002", "REP-001", "CLS-001", "CLS-002"].map((code) => ({ id: id(), code })); },
+    async executeControl(cid) { const e = { id: id(), result: cid.endsWith("1") ? "FAIL" : "PASS", explanation: "e", finding_id: cid.endsWith("1") ? "f1" : null }; ex[e.id] = e; return e; },
+    async listExecutions() { return Object.values(ex); },
+    async getFinding(i) { return { id: i, status: "OPEN", severity: "HIGH" }; },
+    async createFindingFromExecution() { return { id: "f1" }; },
+    async startFindingReview(i) { return { id: i, status: "UNDER_REVIEW" }; },
+    async markRemediationRequired(i) { return { id: i, status: "REMEDIATION_REQUIRED" }; },
+    async createRemediation() { return { id: "r1" }; },
+    async startRemediation() { return {}; },
+    async completeRemediation() { return {}; },
+    async verifyRemediation() { bad(409, "verifier must differ from completer"); },
+    async checkCloseReadiness() { return { is_ready: false, findings: [{}, {}], blocking_failures: ["X"] }; },
+    async standardsCatalog() { return { jurisdictions: [1], entity_types: [1], frameworks: [1] }; },
+    async resolveStandards(c) {
+      if (c.jurisdiction === "ZZ") bad(400, "Unknown jurisdiction");
+      if (c.policy_overrides && c.policy_overrides.INVENTORY_COSTING === "LIFO") bad(400, "LIFO not permitted");
+      return { framework: "IFRS_FOR_SMES", policies: [1], requirements: [1] };
+    },
+    async getStandardsConfiguration() { return db.std ? { configured: true, ...db.std, policies: [] } : { configured: false }; },
+    async saveStandardsConfiguration(c) { db.std = c; return c; },
+    async createOrganisation() { db.orgs.push({ id: "org2" }); return { id: "org2" }; },
+    async selectOrganisation(o) { db.org = o; return {}; },
+  };
+  return api;
+}
+
+test("self-test: every step passes (or warns on maker-checker) against a rule-enforcing stand-in", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const s = summarise(results);
+  const failed = results.filter((r) => r.status === "fail");
+  assert.deepEqual(failed, [], JSON.stringify(failed, null, 1));
+  assert.equal(s.skip, 0);
+  assert.ok(s.pass >= 50, `only ${s.pass} passed`);
+  assert.ok(s.warn >= 1, "maker-checker rejections should be reported as warnings");
+});
+
+test("self-test: a backend that omits evidence_id (the bug fixed in this release) is caught", async () => {
+  const results = await runSelfTest(fakeApi({ breakEvidenceStatus: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && /Show me the evidence/.test(r.name)));
+});
+
+test("self-test: a dead API is reported as a connectivity failure and dependent steps still complete safely", async () => {
+  const results = await runSelfTest(fakeApi({ down: true }), { orgId: "org1" });
+  assert.equal(results[0].status, "fail");
+  assert.match(results[0].detail, /NETWORK/);
+});

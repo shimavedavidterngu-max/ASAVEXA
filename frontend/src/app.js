@@ -32,10 +32,14 @@ import { Reporting } from "./pages/Reporting.js";
 import { PeriodClose } from "./pages/PeriodClose.js";
 import { Compliance } from "./pages/Compliance.js";
 import { Administration } from "./pages/Administration.js";
+import { Standards } from "./pages/Standards.js";
+import { Diagnostics, formatReport } from "./pages/Diagnostics.js";
+import { runSelfTest } from "./lib/selftest.js";
 
+const API_BASE_URL = "https://asavexa.onrender.com";
 const authStore = new AuthStore();
 const api = new ApiClient({
-  baseUrl: "https://asavexa.onrender.com",
+  baseUrl: API_BASE_URL,
   getToken: () => authStore.getToken(),
   onUnauthenticated: () => {
     authStore.clear();
@@ -55,6 +59,8 @@ const NAV_ITEMS = [
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
+  { path: "/standards", label: "Standards & Policies", permission: null },
+  { path: "/diagnostics", label: "Connection & Self-Test", permission: null },
 ];
 
 // Order matters for matchRoute (first match wins): a literal segment
@@ -77,6 +83,8 @@ const routes = [
   { path: "/compliance/findings", name: "compliance-findings" },
   { path: "/compliance", name: "compliance" },
   { path: "/admin", name: "admin" },
+  { path: "/standards", name: "standards" },
+  { path: "/diagnostics", name: "diagnostics" },
 ];
 
 let uiState = {
@@ -124,6 +132,13 @@ let uiState = {
   defineForm: { domain: "ACCOUNTING", severity: "MEDIUM" }, defineError: null, definePending: false,
   findings: null, findingFilter: "", finding: null, findingError: null, remediation: null,
   reasonInputs: {}, remediationForm: {},
+
+  // Standards & Policies
+  standardsCatalog: null, standardsForm: {}, standardsPreview: null, standardsError: null,
+  standardsPreviewError: null, standardsPreviewing: false, standardsSaving: false, standardsSaveError: null, standardsSaved: false,
+
+  // Diagnostics
+  diagConnection: null, diagConnectionRunning: false, diagResults: [], diagRunning: false, diagCopied: false,
 
   // Administration
   organisation: null, members: null, adminError: null,
@@ -278,6 +293,8 @@ function renderPage(matched, authState) {
   if (name === "period-close") return renderPeriodClose(authState, nav);
   if (name.startsWith("compliance")) return renderCompliance(name, params, authState, nav);
   if (name === "admin") return renderAdmin(authState, nav);
+  if (name === "standards") return renderStandards(authState);
+  if (name === "diagnostics") return renderDiagnostics(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -839,7 +856,11 @@ async function handleSubmitReconciliation(nav) {
   uiState.reconciliationFormError = null;
   render();
   try {
-    const r = await api.createReconciliation(uiState.reconciliationForm);
+    const bankAccount = (uiState.accounts || []).find((a) => a.id === uiState.reconciliationForm.bank_account_id);
+    const r = await api.createReconciliation({
+      ...uiState.reconciliationForm,
+      currency: (bankAccount && bankAccount.currency) || "USD",
+    });
     uiState.reconciliationForm = {};
     nav(`/reconciliation/${r.id}`);
   } catch (err) {
@@ -1393,3 +1414,211 @@ async function handleRevokeMember(authState, userId) {
 authStore.subscribe(() => {});
 router.start();
 render();
+
+
+// ==================================================================
+// Connection & Self-Test
+// ==================================================================
+function renderDiagnostics(authState) {
+  return Diagnostics({
+    baseUrl: API_BASE_URL, origin: window.location.origin,
+    connection: uiState.diagConnection, connectionRunning: uiState.diagConnectionRunning, onRunConnection: handleConnectionCheck,
+    running: uiState.diagRunning, results: uiState.diagResults, onRunSelfTest: () => handleRunSelfTest(authState),
+    copied: uiState.diagCopied, onCopyReport: handleCopyReport,
+  });
+}
+
+async function handleConnectionCheck() {
+  uiState.diagConnectionRunning = true;
+  render();
+  const lines = [];
+  let verdict = "";
+  let ok = false;
+  const health = await api.rawGet("/health");
+  if (health.error) {
+    // Distinguish "API is down" from "API is up but refusing this website" (CORS).
+    lines.push(`Health check failed: ${health.error.message}`);
+    verdict = health.error.diagnosis === "cors"
+      ? "The API is running, but it is refusing requests from this website (CORS). Add this website's address to CORS_ALLOWED_ORIGINS on the Render service, then redeploy."
+      : health.error.diagnosis === "offline"
+        ? "Your device appears to be offline."
+        : "The API did not answer. On the free Render plan the service sleeps when idle and can take up to a minute to wake — wait 60 seconds and try again. If it still fails, open the Render dashboard and check the service's Logs for a crash.";
+  } else {
+    lines.push(`/health → HTTP ${health.status} in ${health.ms} ms`);
+    const ready = await api.rawGet("/ready");
+    if (ready.error) {
+      lines.push(`/ready failed: ${ready.error.message}`);
+    } else {
+      lines.push(`/ready → HTTP ${ready.status} ${typeof ready.body === "object" ? JSON.stringify(ready.body) : ""}`);
+    }
+    if (!health.ok) {
+      verdict = `The API answered with an error (HTTP ${health.status}). Check the Render service logs.`;
+    } else if (ready.error || !ready.ok) {
+      verdict = "The API is running but cannot reach the database. Check DATABASE_URL on Render and that the database is running.";
+    } else {
+      const token = authStore.getToken();
+      try {
+        await api.myOrganisations();
+        lines.push("Signed-in request (/organisations/mine) → OK, so this website is allowed by CORS and your session works.");
+        ok = true;
+        verdict = "Everything is connected: website → API → database, and your sign-in works.";
+      } catch (err) {
+        lines.push(`Signed-in request failed: ${err.message}`);
+        verdict = token ? "The API and database are up, but a signed-in request failed — see the line above." : "The API and database are up. Sign in to test the authenticated path.";
+      }
+    }
+  }
+  uiState.diagConnection = { verdict, verdictOk: ok, lines };
+  uiState.diagConnectionRunning = false;
+  render();
+}
+
+async function handleRunSelfTest(authState) {
+  if (uiState.diagRunning) return;
+  uiState.diagRunning = true;
+  uiState.diagResults = [];
+  uiState.diagCopied = false;
+  render();
+  try {
+    await runSelfTest(api, {
+      orgId: authState.organisationId,
+      onResult: (r) => { uiState.diagResults = [...uiState.diagResults, r]; render(); },
+    });
+  } catch (err) {
+    uiState.diagResults = [...uiState.diagResults, { group: "Self-test", name: "Unexpected error", status: "fail", detail: String((err && err.message) || err), ms: 0 }];
+  } finally {
+    uiState.diagRunning = false;
+    render();
+  }
+}
+
+async function handleCopyReport() {
+  const text = formatReport(uiState.diagResults, { origin: window.location.origin, baseUrl: API_BASE_URL });
+  try {
+    await navigator.clipboard.writeText(text);
+    uiState.diagCopied = true;
+  } catch {
+    window.prompt("Copy this report:", text);
+  }
+  render();
+}
+
+
+// ==================================================================
+// Standards & Policies
+// ==================================================================
+let standardsPreviewSeq = 0;
+
+function renderStandards(authState) {
+  once("standardsLoading", loadStandards);
+  return Standards({
+    role: authState.role, organisationName: uiState.organisation && uiState.organisation.name,
+    loading: uiState.standardsLoading, error: uiState.standardsError, onRetry: () => reload("standardsLoading"),
+    catalog: uiState.standardsCatalog, form: uiState.standardsForm, preview: uiState.standardsPreview,
+    previewError: uiState.standardsPreviewError, previewing: uiState.standardsPreviewing,
+    saving: uiState.standardsSaving, saveError: uiState.standardsSaveError, saved: uiState.standardsSaved,
+    onFieldChange: handleStandardsFieldChange,
+    onPolicyChange: (code, value) => {
+      uiState.standardsForm = { ...uiState.standardsForm, policy_overrides: { ...(uiState.standardsForm.policy_overrides || {}), [code]: value } };
+      refreshStandardsPreview();
+    },
+    onUseRecommended: () => {
+      uiState.standardsForm = { ...uiState.standardsForm, framework: null, policy_overrides: {} };
+      refreshStandardsPreview();
+    },
+    onSave: handleSaveStandards,
+  });
+}
+
+async function loadStandards() {
+  uiState.standardsError = null;
+  try {
+    uiState.standardsCatalog = await api.standardsCatalog();
+    if (!uiState.organisation) {
+      const orgs = await api.myOrganisations().catch(() => []);
+      uiState.organisation = orgs.find((o) => o.id === authStore.getState().organisationId) || null;
+    }
+    const saved = await api.getStandardsConfiguration();
+    if (saved && saved.configured) {
+      uiState.standardsForm = {
+        jurisdiction: saved.jurisdiction, entity_type: saved.entity_type, framework: saved.framework,
+        policy_overrides: Object.fromEntries(saved.policies.filter((p) => p.overridden).map((p) => [p.code, p.effective])),
+      };
+      uiState.standardsPreview = saved;
+    } else {
+      uiState.standardsForm = {};
+      uiState.standardsPreview = null;
+    }
+    uiState.standardsPreviewError = null;
+    uiState.standardsSaved = false;
+  } catch (err) {
+    uiState.standardsError = err.message || "Could not load standards configuration.";
+  }
+}
+
+function handleStandardsFieldChange(field, value) {
+  const next = { ...uiState.standardsForm, [field]: value || null };
+  if (field === "jurisdiction" || field === "entity_type") {
+    // A new place or entity type means a new recommendation: start from its defaults.
+    next.framework = null;
+    next.policy_overrides = {};
+  } else if (field === "framework") {
+    next.policy_overrides = {};
+  }
+  uiState.standardsForm = next;
+  uiState.standardsSaved = false;
+  refreshStandardsPreview();
+}
+
+async function refreshStandardsPreview() {
+  const f = uiState.standardsForm;
+  uiState.standardsSaved = false;
+  if (!f.jurisdiction || !f.entity_type) {
+    uiState.standardsPreview = null;
+    uiState.standardsPreviewError = null;
+    render();
+    return;
+  }
+  const seq = ++standardsPreviewSeq;
+  uiState.standardsPreviewing = true;
+  uiState.standardsPreviewError = null;
+  render();
+  try {
+    const result = await api.resolveStandards({
+      jurisdiction: f.jurisdiction, entity_type: f.entity_type,
+      framework: f.framework || undefined, policy_overrides: f.policy_overrides || {},
+    });
+    if (seq !== standardsPreviewSeq) return; // a newer choice superseded this one
+    uiState.standardsPreview = result;
+  } catch (err) {
+    if (seq !== standardsPreviewSeq) return;
+    uiState.standardsPreviewError = err.message;
+  } finally {
+    if (seq === standardsPreviewSeq) {
+      uiState.standardsPreviewing = false;
+      render();
+    }
+  }
+}
+
+async function handleSaveStandards() {
+  const f = uiState.standardsForm;
+  uiState.standardsSaving = true;
+  uiState.standardsSaveError = null;
+  uiState.standardsSaved = false;
+  render();
+  try {
+    const saved = await api.saveStandardsConfiguration({
+      jurisdiction: f.jurisdiction, entity_type: f.entity_type,
+      framework: (uiState.standardsPreview && uiState.standardsPreview.framework) || f.framework || undefined,
+      policy_overrides: f.policy_overrides || {},
+    });
+    uiState.standardsPreview = saved;
+    uiState.standardsSaved = true;
+  } catch (err) {
+    uiState.standardsSaveError = err.message;
+  } finally {
+    uiState.standardsSaving = false;
+    render();
+  }
+}

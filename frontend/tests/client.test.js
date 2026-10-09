@@ -130,7 +130,7 @@ describe("ApiClient error mapping", () => {
     const client = new ApiClient({ fetchImpl, getToken: () => null });
     await assert.rejects(() => client.health(), (err) => {
       assert.equal(err.kind, "server_error");
-      assert.equal(err.message, "Internal Server Error");
+      assert.equal(err.message, "ASAVEXA encountered a server error while processing this request.");
       return true;
     });
   });
@@ -162,10 +162,36 @@ import assert2 from "node:assert/strict";
 
 t2("ApiError turns a FastAPI 422 validation list into a readable sentence", () => {
   const err = new ApiErrorForDescribe(422, { detail: [{ loc: ["body", "contact_email"], msg: "value is not a valid email address" }] });
-  assert2.equal(err.message, "contact_email: value is not a valid email address");
+  assert2.equal(err.message, "The submitted data is invalid. contact_email: value is not a valid email address");
 });
 
 t2("ApiError keeps string detail and domain-error message shapes", () => {
   assert2.equal(new ApiErrorForDescribe(400, { detail: "Nope" }).message, "Nope");
   assert2.equal(new ApiErrorForDescribe(409, { error: "X", message: "Conflict here" }).message, "Conflict here");
+});
+
+import { ApiClient as Client2, NetworkError as NetErr2 } from "../src/api/client.js";
+
+t2("every HTTP status gets its own message and none is described as a network failure", () => {
+  const msg = (st, body, path = "/accounts") => new ApiErrorForDescribe(st, body, path).message;
+  assert2.equal(msg(401, {}), "Your session has expired. Please sign in again.");
+  assert2.equal(msg(401, { detail: "Invalid email or password." }, "/auth/login"), "Invalid email or password.");
+  assert2.match(msg(403, { detail: "You do not have 'x'." }), /^You do not have permission to perform this action\./);
+  assert2.equal(msg(404, {}), "The requested ASAVEXA resource was not found.");
+  assert2.match(msg(422, { detail: [] }), /^The submitted data is invalid\./);
+  assert2.match(msg(500, { request_id: "r1" }), /^ASAVEXA encountered a server error while processing this request\. \(reference r1\)/);
+  assert2.equal(msg(409, { message: "Already exists." }), "Already exists.");
+  for (const st of [400, 401, 403, 404, 409, 422, 500]) assert2.ok(!/connect/i.test(msg(st, {})));
+});
+
+t2("a failed fetch is diagnosed: reachable-but-blocked is reported as CORS, dead is reported as unreachable", async () => {
+  const mk = (probeWorks) => new Client2({
+    baseUrl: "https://api.example",
+    fetchImpl: async (url, opts) => {
+      if (opts && opts.mode === "no-cors") { if (probeWorks) return {}; throw new TypeError("down"); }
+      throw new TypeError("Failed to fetch");
+    },
+  });
+  await assert2.rejects(() => mk(true).get("/accounts"), (e) => e instanceof NetErr2 && e.diagnosis === "cors" && /CORS_ALLOWED_ORIGINS/.test(e.message));
+  await assert2.rejects(() => mk(false).get("/accounts"), (e) => e instanceof NetErr2 && e.diagnosis === "unreachable" && e.message === "Unable to connect to the ASAVEXA API. Please check the API service.");
 });

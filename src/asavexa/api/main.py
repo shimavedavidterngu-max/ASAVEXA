@@ -66,6 +66,7 @@ from ..identity.domain.errors import (
     UserNotFoundError,
     WeakPasswordError,
 )
+from ..standards.errors import AsavexaStandardsError
 from ..reconciliation.domain.errors import (
     AsavexaReconciliationError,
     BankAccountNotFoundError,
@@ -109,7 +110,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, audit, auth, compliance, evidence, journals, organisation_profile, period_close, periods, reconciliation, reporting
+from .routers import accounts, audit, auth, compliance, evidence, journals, organisation_profile, period_close, periods, reconciliation, reporting, standards
 
 app = FastAPI(
     title="Asavexa",
@@ -210,6 +211,7 @@ app.include_router(period_close.router)
 app.include_router(compliance.router)
 app.include_router(audit.router)
 app.include_router(organisation_profile.router)
+app.include_router(standards.router)
 
 
 @app.on_event("startup")
@@ -220,6 +222,8 @@ def _ensure_optional_tables() -> None:
     try:
         from .db.profile_models import ensure_profile_table
         ensure_profile_table()
+        from .db.standards_models import ensure_standards_table
+        ensure_standards_table()
     except Exception:  # pragma: no cover - environment dependent
         logger.exception("could not ensure organisation_profiles table")
 
@@ -283,6 +287,11 @@ def _error_response(
             "request_id": request_id,
         },
     )
+
+
+@app.exception_handler(AsavexaStandardsError)
+async def handle_standards_error(request: Request, exc: AsavexaStandardsError):
+    return _error_response(request, exc, 400)
 
 
 @app.exception_handler(AsavexaAccountingError)

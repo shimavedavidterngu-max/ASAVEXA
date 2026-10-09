@@ -19,17 +19,19 @@
  */
 
 export class ApiError extends Error {
-  constructor(status, body) {
-    super(ApiError.describe(status, body));
+  constructor(status, body, path) {
+    super(ApiError.describe(status, body, path));
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.path = path;
+    this.requestId = (body && body.request_id) || null;
   }
 
-  /** Turns any backend error shape into one readable sentence —
-   * including FastAPI's 422 validation lists, which would otherwise
-   * print as "[object Object]". */
-  static describe(status, body) {
+  /** The server's own explanation, as one readable sentence — including
+   * FastAPI's 422 validation lists, which would otherwise print as
+   * "[object Object]". */
+  static serverDetail(body) {
     const detail = body && body.detail;
     if (Array.isArray(detail)) {
       const parts = detail.map((d) => {
@@ -40,7 +42,26 @@ export class ApiError extends Error {
       if (parts.length) return parts.join("; ");
     }
     if (typeof detail === "string" && detail) return detail;
-    return (body && body.message) || `Request failed (${status})`;
+    return (body && body.message) || "";
+  }
+
+  /** One clear message per kind of failure. A real HTTP response is
+   * never described as a connection problem. Login/registration 401s
+   * keep the server's own wording (wrong password is not an expired
+   * session). */
+  static describe(status, body, path) {
+    const server = ApiError.serverDetail(body);
+    const isAuthCall = typeof path === "string" && path.startsWith("/auth/") && !path.startsWith("/auth/select");
+    const join = (friendly) => (server && !friendly.includes(server) ? `${friendly} ${server}` : friendly);
+    if (status === 401) return isAuthCall && server ? server : "Your session has expired. Please sign in again.";
+    if (status === 403) return join("You do not have permission to perform this action.");
+    if (status === 404) return server ? server : "The requested ASAVEXA resource was not found.";
+    if (status === 422) return join("The submitted data is invalid.");
+    if (status >= 500) {
+      const ref = body && body.request_id ? ` (reference ${body.request_id})` : "";
+      return `ASAVEXA encountered a server error while processing this request.${ref}`;
+    }
+    return server || `Request failed (${status})`;
   }
 
   /** UX-level classification — mirrors the backend's own status
@@ -58,10 +79,19 @@ export class ApiError extends Error {
 }
 
 export class NetworkError extends Error {
-  constructor(cause) {
-    super("Could not reach the ASAVEXA API. Check your connection and try again.");
+  /** `diagnosis`: "offline" | "cors" | "unreachable" (see ApiClient._diagnose). */
+  constructor(cause, { diagnosis = "unreachable", origin = null, url = null } = {}) {
+    let message = "Unable to connect to the ASAVEXA API. Please check the API service.";
+    if (diagnosis === "offline") message = "Your device appears to be offline. Please check your internet connection.";
+    if (diagnosis === "cors") {
+      message = `The ASAVEXA API is running but is refusing requests from this website${origin ? ` (${origin})` : ""}. ` +
+        "Add this address to CORS_ALLOWED_ORIGINS on the API service and redeploy it.";
+    }
+    super(message);
     this.name = "NetworkError";
     this.cause = cause;
+    this.diagnosis = diagnosis;
+    this.url = url;
   }
 }
 
@@ -100,7 +130,7 @@ export class ApiClient {
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
     } catch (cause) {
-      throw new NetworkError(cause);
+      throw await this._networkError(cause, url);
     }
 
     let parsed = null;
@@ -114,11 +144,56 @@ export class ApiClient {
     }
 
     if (!response.ok) {
-      const error = new ApiError(response.status, parsed);
+      const error = new ApiError(response.status, parsed, path);
       if (response.status === 401) this.onUnauthenticated();
       throw error;
     }
     return parsed;
+  }
+
+  /** A browser reports every failed fetch the same way ("Failed to
+   * fetch"): server down, DNS, or a CORS refusal. Tell them apart with a
+   * second, deliberately CORS-exempt probe (mode: "no-cors"): it
+   * succeeds (opaque response) whenever the server answers at all. So
+   * "normal request failed but the no-cors probe worked" means the API
+   * is up and is refusing this website's origin. */
+  async _networkError(cause, url) {
+    const origin = typeof location !== "undefined" ? location.origin : null;
+    const info = { diagnosis: "unreachable", origin, url };
+    try {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        info.diagnosis = "offline";
+      } else {
+        const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+        try {
+          await this._fetch(this.baseUrl + "/health", { mode: "no-cors", signal: ctl ? ctl.signal : undefined });
+          info.diagnosis = "cors";
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      }
+    } catch {
+      // probe failed too: genuinely unreachable
+    }
+    if (typeof console !== "undefined") console.error("[ASAVEXA] request failed before any response", info, cause);
+    return new NetworkError(cause, info);
+  }
+
+  /** Unauthenticated, uncooked GET for the Diagnostics page: returns
+   * status/body instead of throwing on non-2xx. */
+  async rawGet(path) {
+    const started = Date.now();
+    try {
+      const response = await this._fetch(this.baseUrl + path, { headers: { Accept: "application/json" } });
+      const text = await response.text();
+      let body = text;
+      try { body = JSON.parse(text); } catch { /* keep text */ }
+      return { ok: response.ok, status: response.status, body, ms: Date.now() - started };
+    } catch (cause) {
+      const err = await this._networkError(cause, this.baseUrl + path);
+      return { ok: false, status: 0, body: null, ms: Date.now() - started, error: err };
+    }
   }
 
   get(path, query) {
@@ -158,7 +233,7 @@ export class ApiClient {
     try {
       response = await this._fetch(this.baseUrl + path, { method: "POST", headers, body: formData });
     } catch (cause) {
-      throw new NetworkError(cause);
+      throw await this._networkError(cause, this.baseUrl + path);
     }
     let parsed = null;
     const text = await response.text();
@@ -170,7 +245,7 @@ export class ApiClient {
       }
     }
     if (!response.ok) {
-      const error = new ApiError(response.status, parsed);
+      const error = new ApiError(response.status, parsed, path);
       if (response.status === 401) this.onUnauthenticated();
       throw error;
     }
@@ -201,6 +276,18 @@ export class ApiClient {
   }
   updateOrganisationProfile(profile) {
     return this.put("/organisation-profile", profile);
+  }
+  standardsCatalog() {
+    return this.get("/standards/catalog");
+  }
+  resolveStandards(config) {
+    return this.post("/standards/resolve", config);
+  }
+  getStandardsConfiguration() {
+    return this.get("/standards/configuration");
+  }
+  saveStandardsConfiguration(config) {
+    return this.put("/standards/configuration", config);
   }
   myOrganisations() {
     return this.get("/organisations/mine");
@@ -349,7 +436,7 @@ export class ApiClient {
     return this.get("/reports/balance-sheet", { period_id: periodId });
   }
   generalLedger(periodId, accountId) {
-    return this.get("/reports/general-ledger", { period_id: periodId, account_id: accountId });
+    return this.get("/reports/general-ledger", { period_id: periodId, account_ids: accountId });
   }
   traceLine(accountId, periodId) {
     return this.get("/reports/trace", { account_id: accountId, period_id: periodId });

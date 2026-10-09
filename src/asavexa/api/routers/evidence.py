@@ -60,8 +60,10 @@ def get_status_for_reference(
     """The API-level implementation of 'Show Me the Number': given a
     journal id (or transaction ref), returns its evidence status, or
     the literal MISSING sentinel if nothing has been linked yet."""
-    status = vault.get_status_for_reference(org_id, journal_id=journal_id, transaction_ref=transaction_ref)
-    return EvidenceStatusForReferenceOut(status=status)
+    record = vault.find_record_for_reference(org_id, journal_id=journal_id, transaction_ref=transaction_ref)
+    if record is None:
+        return EvidenceStatusForReferenceOut(status=vault.get_status_for_reference(org_id, journal_id=journal_id, transaction_ref=transaction_ref))
+    return EvidenceStatusForReferenceOut(status=record.status.value, evidence_id=record.id)
 
 
 @router.get("/{evidence_id}", response_model=EvidenceOut, dependencies=[Depends(require_permission(EVIDENCE_READ))])

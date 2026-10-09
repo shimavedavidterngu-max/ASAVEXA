@@ -38,3 +38,4 @@ class RejectEvidenceRequest(BaseModel):
 
 class EvidenceStatusForReferenceOut(BaseModel):
     status: str  # "MISSING" or an EvidenceStatus value
+    evidence_id: Optional[str] = None  # the linked record, when there is one

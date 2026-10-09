@@ -127,6 +127,18 @@ class EvidenceVault:
     def list_for_org(self, org_id: str) -> List[EvidenceRecord]:
         return self.evidence.list_for_org(org_id)
 
+    def find_record_for_reference(
+        self, org_id: str, journal_id: Optional[str] = None, transaction_ref: Optional[str] = None
+    ):
+        """The evidence record linked to a journal (or, failing that, a
+        transaction reference), or None."""
+        record = None
+        if journal_id is not None:
+            record = self.evidence.find_for_journal(org_id, journal_id)
+        if record is None and transaction_ref is not None:
+            record = self.evidence.find_for_transaction_ref(org_id, transaction_ref)
+        return record
+
     def get_status_for_reference(
         self, org_id: str, journal_id: Optional[str] = None, transaction_ref: Optional[str] = None
     ) -> str:
@@ -136,11 +148,7 @@ class EvidenceVault:
         record is linked to the given journal/transaction, otherwise the
         record's actual status value.
         """
-        record = None
-        if journal_id is not None:
-            record = self.evidence.find_for_journal(org_id, journal_id)
-        if record is None and transaction_ref is not None:
-            record = self.evidence.find_for_transaction_ref(org_id, transaction_ref)
+        record = self.find_record_for_reference(org_id, journal_id, transaction_ref)
         return record.status.value if record is not None else MISSING
 
     # ------------------------------------------------------------------
