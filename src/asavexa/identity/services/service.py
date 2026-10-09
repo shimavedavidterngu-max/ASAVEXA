@@ -16,12 +16,14 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
+from ...audit.entity_ids import db_entity_id
 from ...audit.models import AuditEvent
 from ...audit.repository import AuditRepository
 from ..domain import password as password_utils
 from ..domain import tokens as token_utils
 from ..domain.enums import AuditAction, MembershipStatus, Role
 from ..domain.errors import (
+    AccountLockedError,
     DuplicateEmailError,
     DuplicateMembershipError,
     InactiveUserError,
@@ -205,20 +207,24 @@ class IdentityService:
     # ------------------------------------------------------------------
     # Authentication
     # ------------------------------------------------------------------
-    def authenticate(self, email: str, password: str) -> tuple[User, str]:
-        """Returns (user, raw_session_token). The raw token is shown to
-        the caller exactly once — only its hash is ever stored.
+    MAX_FAILED_SIGNINS = 10
+    LOCK_WINDOW = timedelta(minutes=15)
 
-        Always calls verify_password() exactly once on every path,
-        including when no account matches the given email — verifying
-        against password_utils.DUMMY_HASH in that case — so a
-        nonexistent-email attempt and a wrong-password attempt cost the
-        same PBKDF2 work and are not distinguishable by response
-        timing. Found missing during the Phase 4 security audit."""
+    def verify_credentials(self, email: str, password: str) -> User:
+        """Checks the password and returns the user. Always calls verify_password() exactly once on every path,
+        including when no account matches the given email — verifying against password_utils.DUMMY_HASH in that
+        case — so a nonexistent-email attempt and a wrong-password attempt cost the same PBKDF2 work and are not
+        distinguishable by response timing (found during the Phase 4 security audit).
+
+        After MAX_FAILED_SIGNINS failures within LOCK_WINDOW the account (or the email, if there is no such account,
+        so the lock does not reveal which emails exist) refuses further attempts until the window passes."""
         user = self.users.get_by_email(email)
+        who = user.id if user is not None else email
+        if self.audit.count_recent_for_actor(who, AuditAction.LOGIN_FAILED.value, _now() - self.LOCK_WINDOW) >= self.MAX_FAILED_SIGNINS:
+            raise AccountLockedError("Too many failed sign-in attempts. Please wait 15 minutes and try again.")
         if user is None:
             password_utils.verify_password(password, password_utils.DUMMY_HASH)
-            self._log(AuditAction.LOGIN_FAILED, email, "User", email, reason="no such account")
+            self._log(AuditAction.LOGIN_FAILED, email, "User", db_entity_id(email), reason="no such account")
             raise InvalidCredentialsError("Invalid email or password.")
         if not user.is_active:
             password_utils.verify_password(password, password_utils.DUMMY_HASH)
@@ -227,7 +233,11 @@ class IdentityService:
         if not password_utils.verify_password(password, user.password_hash):
             self._log(AuditAction.LOGIN_FAILED, user.id, "User", user.id, reason="wrong password")
             raise InvalidCredentialsError("Invalid email or password.")
+        return user
 
+    def issue_session(self, user: User) -> tuple:
+        """Creates a session for an already-verified user. Returns (Session, raw_token); the raw token is shown to
+        the caller exactly once — only its hash is ever stored."""
         raw_token = token_utils.generate_token()
         session = Session(
             id=_new_id(), user_id=user.id, token_hash=token_utils.hash_token(raw_token),
@@ -235,6 +245,12 @@ class IdentityService:
         )
         self.sessions.create(session)
         self._log(AuditAction.LOGIN_SUCCEEDED, user.id, "User", user.id)
+        return session, raw_token
+
+    def authenticate(self, email: str, password: str) -> tuple[User, str]:
+        """Returns (user, raw_session_token)."""
+        user = self.verify_credentials(email, password)
+        _, raw_token = self.issue_session(user)
         return user, raw_token
 
     def select_organisation(self, raw_token: str, org_id: str) -> Session:

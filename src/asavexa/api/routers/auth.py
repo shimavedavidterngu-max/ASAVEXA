@@ -1,13 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ...identity.domain.enums import Role
 from ...identity.services.service import IdentityService
-from ..deps import get_bearer_token, get_current_actor, get_identity_service
+from ...security.context import SecurityContext
+from .. import ratelimit
+from ..deps import get_bearer_token, get_current_actor, get_identity_service, get_security
 from ..schemas.auth import (
     AddMembershipRequest,
     ChangeRoleRequest,
     LoginRequest,
     LoginResponse,
+    MfaVerifyRequest,
+    OidcCallbackRequest,
+    OidcStartRequest,
     MembershipOut,
     OrganisationCreate,
     OrganisationOut,
@@ -26,9 +31,37 @@ def register(body: RegisterRequest, identity: IdentityService = Depends(get_iden
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(body: LoginRequest, identity: IdentityService = Depends(get_identity_service)):
-    user, token = identity.authenticate(body.email, body.password)
-    return LoginResponse(user=user, token=token)
+def login(request: Request, body: LoginRequest, security: SecurityContext = Depends(get_security)):
+    """Password step. If the account has multi-factor sign-in on, no session is created yet: the response carries a
+    short-lived single-use `challenge` that POST /auth/mfa/verify exchanges (with the authenticator code) for the session."""
+    ratelimit.throttle(ratelimit.LOGIN, request)
+    r = security.login(body.email, body.password, ratelimit.client_ip(request), request.headers.get("user-agent"))
+    return LoginResponse(**r)
+
+
+@router.post("/mfa/verify", response_model=LoginResponse)
+def mfa_verify(request: Request, body: MfaVerifyRequest, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.MFA, request)
+    return LoginResponse(**security.login_with_mfa(body.challenge, body.code, ratelimit.client_ip(request), request.headers.get("user-agent")))
+
+
+@router.get("/oidc/config")
+def oidc_config(security: SecurityContext = Depends(get_security)):
+    """Lets the sign-in page show a single sign-on button only when it is actually set up."""
+    return {"enabled": security.oidc_cfg is not None and security.keys is not None,
+            "name": getattr(security.oidc_cfg, "name", None) if security.oidc_cfg else None}
+
+
+@router.post("/oidc/start")
+def oidc_start(request: Request, body: OidcStartRequest, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.OIDC, request)
+    return security.oidc().start(body.binding)
+
+
+@router.post("/oidc/callback", response_model=LoginResponse)
+def oidc_callback(request: Request, body: OidcCallbackRequest, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.OIDC, request)
+    return LoginResponse(**security.oidc_login(body.code, body.state, body.binding, ratelimit.client_ip(request), request.headers.get("user-agent")))
 
 
 @router.post("/logout", status_code=204)
@@ -58,11 +91,14 @@ def select_organisation(
     body: SelectOrganisationRequest,
     token: str = Depends(get_bearer_token),
     identity: IdentityService = Depends(get_identity_service),
+    security: SecurityContext = Depends(get_security),
 ):
     """Also takes the raw token directly, for the same reason as
     logout — select_organisation needs to look the session up by its
     token hash and then mutate it."""
     session = identity.select_organisation(token, body.org_id)
+    security.check_session(session)
+    security.gate_org(session, body.org_id)   # an organisation can require multi-factor sign-in before it can be opened
     # The frontend (frontend/src/app.js) destructures `{ role }` from
     # this response immediately after calling it — select_organisation
     # itself returns a Session, which has no role field (role lives on

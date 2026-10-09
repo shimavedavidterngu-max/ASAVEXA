@@ -2,11 +2,13 @@
 the Accounting Engine, Identity module, and Evidence Vault adapters."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ...audit.entity_ids import db_entity_id
 from ...audit.models import AuditEvent
 from .audit_models import AuditEventORM
 
@@ -27,19 +29,21 @@ class SqlAlchemyAuditRepository:
     def record(self, event: AuditEvent) -> AuditEvent:
         row = AuditEventORM(
             id=event.id, org_id=event.org_id, entity_type=event.entity_type,
-            entity_id=event.entity_id, action=event.action, actor=event.actor,
+            entity_id=db_entity_id(event.entity_id), action=event.action, actor=event.actor,
             timestamp=event.timestamp, previous_value=event.previous_value,
             new_value=event.new_value, reason=event.reason,
             related_record_id=event.related_record_id,
         )
         self.session.add(row)
+        from .audit_chain_hook import chain_event
+        chain_event(self.session, event)
         return event
 
     def list_for_entity(
         self, entity_type: str, entity_id: str, org_id: Optional[str] = None
     ) -> List[AuditEvent]:
         query = select(AuditEventORM).where(
-            AuditEventORM.entity_type == entity_type, AuditEventORM.entity_id == entity_id
+            AuditEventORM.entity_type == entity_type, AuditEventORM.entity_id == db_entity_id(entity_id)
         )
         if org_id is not None:
             query = query.where(AuditEventORM.org_id == org_id)
@@ -71,3 +75,9 @@ class SqlAlchemyAuditRepository:
             select(AuditEventORM).where(AuditEventORM.actor == actor).order_by(AuditEventORM.timestamp)
         ).all()
         return [_row_to_domain(r) for r in rows]
+
+    def count_recent_for_actor(self, actor: str, action: str, since: datetime) -> int:
+        return self.session.scalar(
+            select(func.count()).select_from(AuditEventORM).where(
+                AuditEventORM.actor == actor, AuditEventORM.action == action, AuditEventORM.timestamp >= since)
+        ) or 0

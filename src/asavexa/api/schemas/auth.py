@@ -26,8 +26,28 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    user: UserOut
-    token: str
+    """Either a finished sign-in (user + token) or, when the account has multi-factor sign-in on, a challenge
+    that /auth/mfa/verify turns into one."""
+    user: Optional[UserOut] = None
+    token: Optional[str] = None
+    mfa_required: bool = False
+    challenge: Optional[str] = None
+    mfa_verified: bool = False
+
+
+class MfaVerifyRequest(BaseModel):
+    challenge: str
+    code: str
+
+
+class OidcStartRequest(BaseModel):
+    binding: str
+
+
+class OidcCallbackRequest(BaseModel):
+    code: str
+    state: str
+    binding: str
 
 
 class OrganisationCreate(BaseModel):

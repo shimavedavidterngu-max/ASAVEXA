@@ -34,9 +34,12 @@ def _now() -> datetime:
 
 
 class EvidenceVault:
-    def __init__(self, evidence: EvidenceRepository, audit: AuditRepository):
+    def __init__(self, evidence: EvidenceRepository, audit: AuditRepository, blobs=None):
+        """blobs: optional encrypted file storage (security.blobs.BlobService). Without it the vault keeps only the
+        record and the file's fingerprint, exactly as before."""
         self.evidence = evidence
         self.audit = audit
+        self.blobs = blobs
 
     # ------------------------------------------------------------------
     def upload_evidence(
@@ -69,6 +72,10 @@ class EvidenceVault:
             uploaded_at=_now(), linked_journal_id=linked_journal_id,
             linked_transaction_ref=linked_transaction_ref, metadata=metadata or {},
         )
+        if self.blobs is not None:
+            # The file is encrypted and stored FIRST: if storage fails, no record is created for a file that is not there.
+            self.blobs.put(org_id, record.id, content)
+            record.metadata = {**record.metadata, "content_stored": True}
         self.evidence.create(record)
         self._log(
             AuditAction.EVIDENCE_UPLOADED, uploaded_by, record.id, org_id,
@@ -123,6 +130,21 @@ class EvidenceVault:
 
     def get_evidence(self, org_id: str, evidence_id: str) -> EvidenceRecord:
         return self._get(org_id, evidence_id)
+
+    def content_info(self, org_id: str, evidence_id: str) -> Optional[dict]:
+        """Where and how the file is stored (never the key), or None when no file is stored."""
+        self._get(org_id, evidence_id)
+        return self.blobs.info(org_id, evidence_id) if self.blobs is not None else None
+
+    def read_content(self, org_id: str, evidence_id: str) -> bytes:
+        """The decrypted file, checked against its stored fingerprint. Raises if no file is stored."""
+        record = self._get(org_id, evidence_id)
+        if self.blobs is None:
+            raise EvidenceNotFoundError("File storage is not switched on, so only the record and fingerprint are kept.")
+        data = self.blobs.get(org_id, evidence_id)
+        if rules.compute_file_hash(data) != record.file_hash:
+            raise EvidenceNotFoundError("The stored file does not match the evidence record's fingerprint.")
+        return data
 
     def list_for_org(self, org_id: str) -> List[EvidenceRecord]:
         return self.evidence.list_for_org(org_id)

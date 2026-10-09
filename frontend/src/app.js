@@ -40,6 +40,8 @@ import { PassportSharing, newWizard, presetRange, validateStep, buildSharePayloa
 import { SharedPassport } from "./pages/SharedPassport.js";
 import { Diagnostics, formatReport } from "./pages/Diagnostics.js";
 import { runSelfTest } from "./lib/selftest.js";
+import { Security, visibleTabs } from "./pages/Security.js";
+import { makeBinding, parseOidcReturn, interpretLogin, parseRegions } from "./lib/signin.js";
 
 const API_BASE_URL = "https://asavexa.onrender.com";
 const authStore = new AuthStore();
@@ -48,6 +50,7 @@ const api = new ApiClient({
   getToken: () => authStore.getToken(),
   onUnauthenticated: () => {
     authStore.clear();
+    resetSecurityState();
     render();
   },
 });
@@ -69,6 +72,7 @@ const NAV_ITEMS = [
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
+  { path: "/security", label: "Security", permission: null },
   { path: "/diagnostics", label: "Connection & Self-Test", permission: null },
 ];
 
@@ -98,11 +102,13 @@ const routes = [
   { path: "/passport", name: "passport" },
   { path: "/shared/:token", name: "shared" },
   { path: "/standards", name: "standards" },
+  { path: "/security", name: "security" },
   { path: "/diagnostics", name: "diagnostics" },
 ];
 
 let uiState = {
   loginMode: "login", loginError: null, loginPending: false,
+  mfaChallenge: null, ssoConfig: null, secNoOrg: false, sec: null,
   auditQuery: "", auditJournal: null, auditChain: null, auditError: null,
 
   // Accounting
@@ -222,10 +228,22 @@ function render() {
         Login({
           mode: uiState.loginMode, pending: uiState.loginPending, error: uiState.loginError,
           onSubmit: handleAuthSubmit, onSwitchMode: (m) => { uiState.loginMode = m; uiState.loginError = null; render(); },
+          mfaStep: !!uiState.mfaChallenge, onMfaSubmit: handleMfaSubmit,
+          onMfaCancel: () => { uiState.mfaChallenge = null; uiState.loginError = null; render(); },
+          sso: uiState.ssoConfig, onSso: handleSsoStart,
         })
       ),
       root
     );
+    return;
+  }
+
+  if (!authState.organisationId && uiState.secNoOrg) {
+    // Setting up two-step sign-in must be possible BEFORE an organisation is open (an organisation can require it).
+    once("secLoading", () => loadSecurity(authState));
+    mount(h("div", { style: "max-width:960px; margin:24px auto; padding:0 16px;" },
+      h("button", { className: "btn btn-secondary", style: "margin-bottom:12px;", onClick: () => { uiState.secNoOrg = false; render(); } }, "← Back to organisations"),
+      renderSecurityPage({ ...authState, role: null })), root);
     return;
   }
 
@@ -235,10 +253,16 @@ function render() {
         OrganisationPicker({
           organisations: orgs,
           onSelect: async (orgId) => {
-            const { role } = await api.selectOrganisation(orgId);
-            authStore.setOrganisation(orgId, role);
+            try {
+              const { role } = await api.selectOrganisation(orgId);
+              authStore.setOrganisation(orgId, role);
+            } catch (err) {
+              // e.g. this organisation requires two-step sign-in and this session has not used it
+              window.alert(err.message || "Could not open this organisation.");
+            }
             render();
           },
+          onSecurity: () => { uiState.secNoOrg = true; render(); },
           onCreateNew: async () => {
             const name = window.prompt("Organisation name:");
             if (!name) return;
@@ -359,6 +383,7 @@ function renderPage(matched, authState) {
   if (name === "passport") return renderPassport(authState, nav);
   if (name === "standards") return renderStandards(authState);
   if (name === "diagnostics") return renderDiagnostics(authState);
+  if (name === "security") return renderSecurityPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -418,8 +443,10 @@ async function handleAuthSubmit({ email, password }) {
     if (uiState.loginMode === "register") {
       await api.register(email, password);
     }
-    const { user, token } = await api.login(email, password);
-    authStore.setSession(token, user);
+    const result = interpretLogin(await api.login(email, password));
+    if (result.kind === "mfa") uiState.mfaChallenge = result.challenge;
+    else if (result.kind === "done") authStore.setSession(result.token, result.user);
+    else uiState.loginError = result.message;
   } catch (err) {
     uiState.loginError = err.message;
   } finally {
@@ -428,9 +455,85 @@ async function handleAuthSubmit({ email, password }) {
   }
 }
 
+async function handleMfaSubmit({ code }) {
+  uiState.loginPending = true;
+  uiState.loginError = null;
+  render();
+  try {
+    const result = interpretLogin(await api.verifyMfa(uiState.mfaChallenge, code));
+    if (result.kind === "done") {
+      uiState.mfaChallenge = null;
+      authStore.setSession(result.token, result.user);
+    } else {
+      uiState.loginError = result.message || "That code was not accepted.";
+    }
+  } catch (err) {
+    uiState.loginError = err.message;
+    // an expired sign-in cannot be retried with the same challenge: go back to the password step
+    if (/expired|start again/i.test(err.message || "")) uiState.mfaChallenge = null;
+  } finally {
+    uiState.loginPending = false;
+    render();
+  }
+}
+
+// ---- single sign-on: leave for the identity provider, and come back with ?code&state ----
+const SSO_BINDING_KEY = "asavexa.sso.binding";
+
+async function loadSsoConfig() {
+  try {
+    uiState.ssoConfig = await api.oidcConfig();
+  } catch {
+    uiState.ssoConfig = { enabled: false };
+  }
+  render();
+}
+
+async function handleSsoStart() {
+  uiState.loginPending = true; uiState.loginError = null; render();
+  try {
+    const binding = makeBinding();
+    sessionStorage.setItem(SSO_BINDING_KEY, binding);
+    const { url } = await api.oidcStart(binding);
+    window.location.assign(url);
+    return;
+  } catch (err) {
+    uiState.loginError = err.message;
+  }
+  uiState.loginPending = false;
+  render();
+}
+
+async function handleSsoReturn() {
+  const ret = parseOidcReturn(window.location.search);
+  if (!ret) return;
+  const binding = sessionStorage.getItem(SSO_BINDING_KEY);
+  sessionStorage.removeItem(SSO_BINDING_KEY);
+  window.history.replaceState({}, "", window.location.pathname + window.location.hash);   // never leave the one-time code in the address bar
+  if (ret.error) { uiState.loginError = `Single sign-on was not completed: ${ret.error}`; return; }
+  uiState.loginPending = true; render();
+  try {
+    const result = interpretLogin(await api.oidcCallback(ret.code, ret.state, binding || ""));
+    if (result.kind === "mfa") uiState.mfaChallenge = result.challenge;
+    else if (result.kind === "done") authStore.setSession(result.token, result.user);
+    else uiState.loginError = result.message;
+  } catch (err) {
+    uiState.loginError = err.message;
+  } finally {
+    uiState.loginPending = false;
+    render();
+  }
+}
+
+function resetSecurityState() {
+  uiState.sec = null; uiState.secNoOrg = false; uiState.mfaChallenge = null;
+  loadedOnce.delete("secLoading");
+}
+
 function handleLogout() {
   api.logout().finally(() => {
     authStore.clear();
+    resetSecurityState();
     render();
   });
 }
@@ -760,6 +863,7 @@ function renderEvidence(name, params, authState, nav) {
       role: authState.role, view: "detail", loading: uiState.evidenceDetailLoading, detailError: uiState.evidenceDetailError,
       detail: uiState.evidenceDetail, onNavigate: nav, onRetry: () => loadEvidenceDetail(params.id),
       onVerify: handleVerifyEvidence, onReject: handleRejectEvidence,
+      storage: uiState.evidenceStorage, onDownload: handleDownloadEvidence, downloadError: uiState.evidenceDownloadError, downloading: uiState.evidenceDownloading,
       rejectReason: uiState.evidenceRejectReason, onRejectReasonChange: (v) => { uiState.evidenceRejectReason = v; render(); },
     });
   }
@@ -827,6 +931,19 @@ async function handleSubmitEvidenceUpload() {
   }
 }
 
+async function handleDownloadEvidence(id) {
+  uiState.evidenceDownloading = true; uiState.evidenceDownloadError = null; render();
+  try {
+    const { blob, filename } = await api.downloadEvidence(id);
+    saveBlob(blob, filename);
+  } catch (err) {
+    uiState.evidenceDownloadError = err.message || "Could not download the file.";
+  } finally {
+    uiState.evidenceDownloading = false;
+    render();
+  }
+}
+
 async function loadEvidenceDetail(id) {
   uiState.evidenceDetailLoading = true;
   uiState.evidenceDetailError = null;
@@ -834,6 +951,8 @@ async function loadEvidenceDetail(id) {
   render();
   try {
     uiState.evidenceDetail = await api.getEvidence(id);
+    uiState.evidenceStorage = await api.evidenceStorage(id).catch(() => null);
+    uiState.evidenceDownloadError = null;
   } catch (err) {
     uiState.evidenceDetailError = err.message || "Evidence not found.";
   } finally {
@@ -1478,6 +1597,8 @@ async function handleRevokeMember(authState, userId) {
 authStore.subscribe(() => {});
 router.start();
 render();
+loadSsoConfig();
+handleSsoReturn();
 
 
 // ==================================================================
@@ -2195,4 +2316,126 @@ async function handleSharedDownload() {
     s.downloading = false;
     render();
   }
+}
+
+
+// ----------------------------------------------------------------------
+// Security page
+// ----------------------------------------------------------------------
+function newSec() {
+  return { tab: "me", me: null, overview: null, alerts: null, retention: null, vendors: null, residency: null, requests: null, health: null,
+    auditResult: null, rotateResult: null, mfa: {}, notice: null, error: null, confirmErase: false, ackTarget: null, disposeTarget: null, d: {} };
+}
+
+function renderSecurityPage(authState) {
+  if (!uiState.sec) uiState.sec = newSec();
+  const sec = uiState.sec;
+  if (authState.organisationId || !uiState.secNoOrg) once("secLoading", () => loadSecurity(authState));
+  return Security({ role: authState.role, sec, loading: uiState.secLoading, onRetry: () => { loadedOnce.delete("secLoading"); render(); }, actions: securityActions(authState) });
+}
+
+async function loadSecurity(authState) {
+  const sec = uiState.sec || (uiState.sec = newSec());
+  sec.error = null;
+  try {
+    sec.me = await api.mySecurity();
+  } catch (err) {
+    sec.error = err.message;
+    return;
+  }
+  if (!authState.organisationId || !allowed(authState.role, PERMISSIONS.SECURITY_MANAGE)) return;
+  const [overview, alerts, retention, vendors, residency, requests] = await Promise.allSettled([
+    api.securityOverview(), api.listSecurityAlerts(), api.getRetention(), api.listVendors(), api.residencyReport(), api.privacyRequests(),
+  ]);
+  const val = (r) => (r.status === "fulfilled" ? r.value : null);
+  Object.assign(sec, { overview: val(overview), alerts: val(alerts), retention: val(retention), vendors: val(vendors), residency: val(residency), requests: val(requests) });
+  const failed = [overview, alerts, retention, vendors, residency, requests].find((r) => r.status === "rejected");
+  if (failed) sec.error = failed.reason && failed.reason.message ? failed.reason.message : "Part of this page could not be loaded.";
+}
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function securityActions(authState) {
+  const sec = uiState.sec;
+  const refresh = async () => { loadedOnce.delete("secLoading"); await loadSecurity(authState); render(); };
+  /** Runs one action; any failure is shown on the page, never swallowed. */
+  const run = async (fn, okNotice) => {
+    sec.error = null; sec.notice = null;
+    try { await fn(); if (okNotice) sec.notice = okNotice; } catch (err) { sec.error = err.message || "That did not work."; }
+    render();
+  };
+  const mfaRun = async (fn) => {
+    sec.mfa.error = null; sec.mfa.pending = true; render();
+    try { await fn(); } catch (err) { sec.mfa.error = err.message; }
+    sec.mfa.pending = false; render();
+  };
+  return {
+    // Switching tab re-reads everything quietly, so a figure changed elsewhere (e.g. someone just turned two-step sign-in on) is never stale.
+    setTab: (t) => { sec.tab = t; sec.error = null; sec.notice = null; render(); loadSecurity(authState).then(render, render); },
+    // two-step sign-in
+    mfaCodeChange: (v) => { sec.d.mfaCode = v; },
+    mfaBegin: () => mfaRun(async () => { sec.mfa.setup = await api.mfaBegin(); }),
+    mfaCancelSetup: () => { sec.mfa.setup = null; sec.mfa.error = null; render(); },
+    mfaConfirm: () => mfaRun(async () => {
+      const r = await api.mfaConfirm((sec.d.mfaCode || "").trim());
+      sec.mfa.setup = null; sec.mfa.recovery = r.recovery_codes; sec.d.mfaCode = "";
+      sec.me = await api.mySecurity();
+    }),
+    mfaNewRecovery: () => mfaRun(async () => {
+      sec.mfa.recovery = (await api.mfaRecoveryCodes((sec.d.mfaCode || "").trim())).recovery_codes; sec.d.mfaCode = "";
+      sec.me = await api.mySecurity();
+    }),
+    mfaDisable: () => mfaRun(async () => { await api.mfaDisable((sec.d.mfaCode || "").trim()); sec.d.mfaCode = ""; sec.me = await api.mySecurity(); }),
+    mfaDismissRecovery: () => { sec.mfa.recovery = null; render(); },
+    // devices
+    revokeSession: (id) => run(async () => { await api.revokeSession(id); sec.me = await api.mySecurity(); }, "That device was signed out."),
+    revokeOthers: () => run(async () => { const r = await api.revokeOtherSessions(); sec.me = await api.mySecurity(); sec.notice = `${r.revoked} other device(s) signed out.`; }),
+    // own data
+    exportData: () => run(async () => {
+      const doc = await api.exportMyData();
+      saveBlob(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }), "my-asavexa-data.json");
+    }, "Your data was downloaded."),
+    startErase: () => { sec.confirmErase = true; render(); },
+    cancelErase: () => { sec.confirmErase = false; render(); },
+    requestErasure: () => run(async () => { await api.requestErasure(); sec.confirmErase = false; sec.me = await api.mySecurity(); }, "Your erasure request was sent to the organisation's owners."),
+    // organisation rules
+    setRequireMfa: (on) => run(async () => { await api.updateSecuritySettings({ require_mfa: !!on }); sec.overview = await api.securityOverview(); }, on ? "Two-step sign-in is now required." : "Two-step sign-in is no longer required."),
+    regionsChange: (v) => { sec.d.regions = v; },
+    saveRegions: () => run(async () => {
+      await api.updateSecuritySettings({ allowed_regions: parseRegions(sec.d.regions ?? ((sec.overview.residency || {}).allowed_regions || []).join(",")) });
+      sec.overview = await api.securityOverview(); sec.residency = await api.residencyReport();
+    }, "Regions saved."),
+    rotateKeys: () => run(async () => { sec.rotateResult = await api.rotateKeys(); sec.overview = await api.securityOverview(); }),
+    checkHealth: () => run(async () => { sec.health = await api.securityHealth(); }),
+    // alerts
+    refreshAlerts: () => run(async () => { const r = await api.refreshSecurityAlerts(); sec.alerts = r.alerts; sec.notice = r.new ? `${r.new} new alert(s) found.` : "No new alerts."; }),
+    ackStart: (id) => { sec.ackTarget = id; sec.d.ackNote = ""; render(); },
+    ackNoteChange: (v) => { sec.d.ackNote = v; },
+    ackConfirm: (id) => run(async () => { await api.acknowledgeAlert(id, sec.d.ackNote || ""); sec.ackTarget = null; sec.alerts = await api.listSecurityAlerts(); }),
+    // audit trail
+    verifyAudit: () => run(async () => { sec.auditResult = await api.verifyAuditChain(); }),
+    // retention
+    retDaysChange: (v) => { sec.d.retDays = v; },
+    saveRetention: () => run(async () => { await api.setRetention(parseInt(sec.d.retDays, 10)); sec.retention = await api.getRetention(); }, "Retention saved."),
+    holdReasonChange: (v) => { sec.d.holdReason = v; },
+    holdEvidenceChange: (v) => { sec.d.holdEvidence = v; },
+    placeHold: () => run(async () => { await api.placeHold(sec.d.holdReason || "", (sec.d.holdEvidence || "").trim() || null); sec.retention = await api.getRetention(); }, "Legal hold placed."),
+    releaseHold: (id) => run(async () => { await api.releaseHold(id); sec.retention = await api.getRetention(); }, "Hold released."),
+    disposeStart: (id) => { sec.disposeTarget = id; sec.d.disposeReason = ""; render(); },
+    disposeReasonChange: (v) => { sec.d.disposeReason = v; },
+    disposeConfirm: (id) => run(async () => { await api.disposeEvidence(id, sec.d.disposeReason || ""); sec.disposeTarget = null; sec.retention = await api.getRetention(); }, "The file was disposed of. The record and fingerprint are kept."),
+    // privacy requests
+    decideNoteChange: (v) => { sec.d.decideNote = v; },
+    decide: (id, approve) => run(async () => { await api.decidePrivacyRequest(id, approve, sec.d.decideNote || ""); sec.requests = await api.privacyRequests(); }, approve ? "Erasure completed." : "Request declined."),
+    // vendors
+    vendorChange: (k, v) => { sec.d.vendor = { ...(sec.d.vendor || {}), [k]: v }; },
+    addVendor: () => run(async () => { await api.addVendor({ name: "", ...(sec.d.vendor || {}) }); sec.vendors = await api.listVendors(); sec.residency = await api.residencyReport(); sec.d.vendor = {}; }, "Vendor added."),
+    seedVendors: () => run(async () => { await api.seedVendors(); sec.vendors = await api.listVendors(); }, "Added. Their risk shows as unconfirmed until you record the facts."),
+  };
 }

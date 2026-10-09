@@ -24,3 +24,5 @@ python-dotenv>=1.0
 # from this file)
 pytest>=8.0
 httpx>=0.27
+cryptography>=42
+PyJWT[crypto]>=2.8

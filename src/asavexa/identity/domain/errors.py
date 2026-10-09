@@ -87,3 +87,7 @@ class PermissionDeniedError(AsavexaIdentityError):
     "never expose ... organisation data to an unauthorised user", which
     includes not confirming or denying that a membership exists at all.
     """
+
+
+class AccountLockedError(AsavexaIdentityError):
+    """Too many failed sign-ins in a short time. The lock lifts by itself; it exists to stop password guessing."""

@@ -266,8 +266,72 @@ export class ApiClient {
   login(email, password) {
     return this.post("/auth/login", { email, password });
   }
+  /** Second step of sign-in for accounts with multi-factor on: the challenge from login() plus the 6-digit (or recovery) code. */
+  verifyMfa(challenge, code) {
+    return this.post("/auth/mfa/verify", { challenge, code });
+  }
+  oidcConfig() {
+    return this.get("/auth/oidc/config");
+  }
+  oidcStart(binding) {
+    return this.post("/auth/oidc/start", { binding });
+  }
+  oidcCallback(code, state, binding) {
+    return this.post("/auth/oidc/callback", { code, state, binding });
+  }
   logout() {
     return this.post("/auth/logout");
+  }
+
+  // ---- Security & infrastructure (src/asavexa/api/routers/security.py) ----
+  mySecurity() { return this.get("/security/me"); }
+  mfaBegin() { return this.post("/security/me/mfa/begin"); }
+  mfaConfirm(code) { return this.post("/security/me/mfa/confirm", { code }); }
+  mfaDisable(code) { return this.post("/security/me/mfa/disable", { code }); }
+  mfaRecoveryCodes(code) { return this.post("/security/me/mfa/recovery-codes", { code }); }
+  revokeSession(id) { return this.delete(`/security/me/sessions/${encodeURIComponent(id)}`); }
+  revokeOtherSessions() { return this.post("/security/me/sessions/revoke-others"); }
+  exportMyData() { return this.get("/security/me/export"); }
+  requestErasure() { return this.post("/security/me/erasure-request"); }
+  securityOverview() { return this.get("/security/overview"); }
+  securityMembers() { return this.get("/security/members"); }
+  updateSecuritySettings(body) { return this.put("/security/settings", body); }
+  rotateKeys(toKeyId) { return this.post("/security/keys/rotate", { to_key_id: toKeyId || null }); }
+  verifyAuditChain() { return this.get("/security/audit/verify"); }
+  securityHealth() { return this.get("/security/health"); }
+  listSecurityAlerts(status) { return this.get("/security/alerts", status ? { status } : undefined); }
+  refreshSecurityAlerts() { return this.post("/security/alerts/refresh"); }
+  acknowledgeAlert(id, note) { return this.post(`/security/alerts/${encodeURIComponent(id)}/acknowledge`, { note }); }
+  getRetention() { return this.get("/security/retention"); }
+  setRetention(evidenceDays) { return this.put("/security/retention", { evidence_days: evidenceDays }); }
+  placeHold(reason, evidenceId) { return this.post("/security/retention/holds", { reason, evidence_id: evidenceId || null }); }
+  releaseHold(id) { return this.post(`/security/retention/holds/${encodeURIComponent(id)}/release`); }
+  disposeEvidence(id, reason) { return this.post(`/security/retention/dispose/${encodeURIComponent(id)}`, { reason }); }
+  privacyRequests() { return this.get("/security/privacy/requests"); }
+  decidePrivacyRequest(id, approve, note) { return this.post(`/security/privacy/requests/${encodeURIComponent(id)}/decide`, { approve, note: note || "" }); }
+  residencyReport() { return this.get("/security/residency"); }
+  listVendors() { return this.get("/security/vendors"); }
+  addVendor(v) { return this.post("/security/vendors", v); }
+  updateVendor(id, v) { return this.put(`/security/vendors/${encodeURIComponent(id)}`, v); }
+  seedVendors() { return this.post("/security/vendors/seed"); }
+  evidenceStorage(id) { return this.get(`/evidence/${encodeURIComponent(id)}/storage`); }
+
+  /** The decrypted original of an evidence file, as a Blob (the server sends it as a forced download). */
+  async downloadEvidence(id) {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/evidence/${encodeURIComponent(id)}/content`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, `/evidence/${id}/content`);
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "evidence" };
   }
   me() {
     return this.get("/auth/me");

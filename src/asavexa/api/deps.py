@@ -27,6 +27,9 @@ from ..identity.domain.errors import (
 )
 from ..identity.domain.models import Session as IdentitySession
 from ..identity.services.service import IdentityService
+from ..security.context import SecurityContext
+from ..security.errors import SessionPolicyError
+from .security_wiring import build_security, make_blobs
 from .db.audit_sqlalchemy_repository import SqlAlchemyAuditRepository
 from .db.base import get_session
 from .db.evidence_sqlalchemy_repository import SqlAlchemyEvidenceRepository
@@ -81,6 +84,10 @@ def get_identity_service(session=Depends(get_session)) -> IdentityService:
     )
 
 
+def get_security(session=Depends(get_session), identity: IdentityService = Depends(get_identity_service)) -> SecurityContext:
+    return build_security(session, identity)
+
+
 def get_accounting_engine(session=Depends(get_session)) -> AccountingEngine:
     return AccountingEngine(
         accounts=SqlAlchemyAccountRepository(session),
@@ -94,6 +101,7 @@ def get_evidence_vault(session=Depends(get_session)) -> EvidenceVault:
     return EvidenceVault(
         evidence=SqlAlchemyEvidenceRepository(session),
         audit=SqlAlchemyAuditRepository(session),
+        blobs=make_blobs(session),
     )
 
 
@@ -186,28 +194,37 @@ def get_bearer_token(credentials: HTTPAuthorizationCredentials = Depends(_bearer
 def get_current_session(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     identity: IdentityService = Depends(get_identity_service),
+    security: SecurityContext = Depends(get_security),
 ) -> IdentitySession:
     try:
-        return identity.validate_session(credentials.credentials)
+        session = identity.validate_session(credentials.credentials)
+        security.check_session(session)      # idle timeout; signs the session out for real if it has been idle too long
+        return session
     except SessionNotFoundError:
         raise HTTPException(status_code=401, detail="Invalid or unknown session token.")
     except SessionExpiredError:
         raise HTTPException(status_code=401, detail="Session expired — please log in again.")
     except SessionRevokedError:
         raise HTTPException(status_code=401, detail="Session has been logged out.")
+    except SessionPolicyError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
 
 
 def get_current_actor(session: IdentitySession = Depends(get_current_session)) -> str:
     return session.user_id
 
 
-def get_current_org(session: IdentitySession = Depends(get_current_session)) -> str:
+def get_current_org(
+    session: IdentitySession = Depends(get_current_session),
+    security: SecurityContext = Depends(get_security),
+) -> str:
     if session.org_id is None:
         raise HTTPException(
             status_code=400,
             detail="No organisation selected on this session — call "
                    "POST /auth/select-organisation first.",
         )
+    security.gate_org(session, session.org_id)   # organisations can require multi-factor sign-in
     return session.org_id
 
 

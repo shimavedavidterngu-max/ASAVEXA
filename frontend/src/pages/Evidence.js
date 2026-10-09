@@ -24,6 +24,7 @@ export function Evidence({
   uploadForm, uploadError, uploadPending, uploadFile,
   onNavigate, onRetry, onUploadFieldChange, onFileSelected, onSubmitUpload,
   onVerify, onReject, rejectReason, onRejectReasonChange,
+  storage, onDownload, downloadError, downloading,
 }) {
   if (!allowed(role, PERMISSIONS.EVIDENCE_READ)) {
     return h("div", { className: "empty-state card" },
@@ -39,7 +40,7 @@ export function Evidence({
       h("div", { className: "breadcrumbs" },
         h("a", { href: "#/evidence", onClick: (e) => { e.preventDefault(); onNavigate("/evidence"); } }, "Evidence"),
         h("span", {}, "/"), h("span", {}, detail.original_filename || detail.id)),
-      evidenceDetail({ role, detail, onVerify, onReject, rejectReason, onRejectReasonChange }),
+      evidenceDetail({ role, detail, onVerify, onReject, rejectReason, onRejectReasonChange, storage, onDownload, downloadError, downloading }),
     ]);
   }
 
@@ -131,7 +132,7 @@ function uploadCard({ uploadForm, uploadError, uploadPending, uploadFile, onUplo
   );
 }
 
-function evidenceDetail({ role, detail, onVerify, onReject, rejectReason, onRejectReasonChange }) {
+function evidenceDetail({ role, detail, onVerify, onReject, rejectReason, onRejectReasonChange, storage, onDownload, downloadError, downloading }) {
   const canDecide = detail.status === "UPLOADED" || detail.status === "INCOMPLETE" || detail.status === "DUPLICATE" || detail.status === "CONFLICTING";
   return h(
     "div",
@@ -156,6 +157,13 @@ function evidenceDetail({ role, detail, onVerify, onReject, rejectReason, onReje
         detail.verified_by ? detailRow("Verified by", `${detail.verified_by} · ${detail.verified_at || ""}`) : null,
         detail.rejection_reason ? detailRow("Rejection reason", detail.rejection_reason) : null
       ),
+      h("div", { id: "evidence-file", style: "margin-top:12px; font-size:13.5px;" },
+        storage && storage.stored
+          ? h("div", {},
+              h("span", {}, `The original file is stored encrypted (${(storage.info && storage.info.backend) || "storage"}). `),
+              h("button", { className: "btn btn-secondary", id: "download-evidence", disabled: !!downloading, onClick: () => onDownload && onDownload(detail.id) }, downloading ? "Preparing…" : "Download original"),
+              downloadError ? h("div", { className: "alert alert-error", style: "margin-top:8px;" }, downloadError) : null)
+          : h("span", { style: "color: var(--ink-500);" }, "Only the record and its fingerprint are kept for this item; the file itself is not stored.")),
       canDecide
         ? PermissionGate({ role, permission: PERMISSIONS.EVIDENCE_VERIFY },
             h(

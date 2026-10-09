@@ -132,8 +132,8 @@ class SqliteUserRepository:
 
     def update(self, user: User) -> User:
         self.conn.execute(
-            "UPDATE users SET password_hash=?, is_active=?, mfa_enabled=? WHERE id=?",
-            (user.password_hash, int(user.is_active), int(user.mfa_enabled), user.id),
+            "UPDATE users SET email=?, password_hash=?, is_active=?, mfa_enabled=? WHERE id=?",
+            (user.email, user.password_hash, int(user.is_active), int(user.mfa_enabled), user.id),
         )
         self.conn.commit()
         return user

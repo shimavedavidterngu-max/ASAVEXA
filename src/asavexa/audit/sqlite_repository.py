@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
+from .entity_ids import db_entity_id
 from .models import AuditEvent
 
 SCHEMA = """
@@ -50,7 +51,7 @@ class SqliteAuditRepository:
             "action, actor, timestamp, previous_value, new_value, reason, "
             "related_record_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
-                event.id, event.org_id, event.entity_type, event.entity_id,
+                event.id, event.org_id, event.entity_type, db_entity_id(event.entity_id),
                 event.action, event.actor, event.timestamp.isoformat(),
                 json.dumps(event.previous_value) if event.previous_value is not None else None,
                 json.dumps(event.new_value) if event.new_value is not None else None,
@@ -77,13 +78,13 @@ class SqliteAuditRepository:
             rows = self.conn.execute(
                 "SELECT * FROM audit_events WHERE org_id=? AND entity_type=? "
                 "AND entity_id=? ORDER BY timestamp",
-                (org_id, entity_type, entity_id),
+                (org_id, entity_type, db_entity_id(entity_id)),
             ).fetchall()
         else:
             rows = self.conn.execute(
                 "SELECT * FROM audit_events WHERE entity_type=? AND entity_id=? "
                 "ORDER BY timestamp",
-                (entity_type, entity_id),
+                (entity_type, db_entity_id(entity_id)),
             ).fetchall()
         return [self._row_to_event(r) for r in rows]
 
@@ -113,3 +114,13 @@ class SqliteAuditRepository:
             (actor,),
         ).fetchall()
         return [self._row_to_event(r) for r in rows]
+
+    def count_recent_for_actor(self, actor: str, action: str, since: datetime) -> int:
+        """How many events of one action this actor has since a moment (used for sign-in lockout)."""
+        rows = self.conn.execute("SELECT timestamp FROM audit_events WHERE actor=? AND action=?", (actor, action)).fetchall()
+        floor = since if since.tzinfo else since.replace(tzinfo=timezone.utc)
+        n = 0
+        for r in rows:
+            t = datetime.fromisoformat(r[0])
+            n += (t if t.tzinfo else t.replace(tzinfo=timezone.utc)) >= floor
+        return n

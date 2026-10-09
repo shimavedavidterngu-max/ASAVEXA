@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 COPY schema.sql alembic.ini ./
+COPY scripts/ ./scripts/
 COPY migrations/ ./migrations/
 
 # Non-root execution (Phase 7, Step 3 — found missing during this

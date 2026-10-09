@@ -54,6 +54,7 @@ from ..identity.domain.errors import (
     DuplicateEmailError,
     DuplicateMembershipError,
     InactiveUserError,
+    AccountLockedError,
     InvalidCredentialsError,
     LastOwnerError,
     MembershipNotFoundError,
@@ -66,6 +67,8 @@ from ..identity.domain.errors import (
     UserNotFoundError,
     WeakPasswordError,
 )
+from ..security.errors import SecurityError
+from ..security.monitoring import SECURITY_HEADERS, Metrics
 from ..ai.errors import AiSubjectNotFoundError, AiValidationError, AsavexaAiError
 from ..ingestion.errors import IngestionError
 from ..passport.errors import (
@@ -118,7 +121,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, ai, audit, auth, compliance, evidence, ingestion, journals, organisation_profile, passport, period_close, periods, reconciliation, reporting, shared_passport, standards
+from .routers import accounts, ai, audit, auth, compliance, evidence, ingestion, journals, organisation_profile, passport, period_close, periods, reconciliation, reporting, security, shared_passport, standards
 
 app = FastAPI(
     title="Asavexa",
@@ -173,6 +176,7 @@ app.add_middleware(
 # docs/security-architecture.md for the audit trail's own guarantees,
 # unaffected by anything below.
 logger = logging.getLogger("asavexa")
+metrics = Metrics()
 
 
 @app.middleware("http")
@@ -204,6 +208,11 @@ async def request_id_and_logging_middleware(request: Request, call_next):
         },
     )
     response.headers["X-Request-ID"] = request_id
+    if not request.url.path.startswith(("/docs", "/redoc", "/openapi.json")):   # the interactive docs need scripts, so skip the strict policy there
+        for header, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(header, value)
+    metrics.inc("requests")
+    metrics.inc(f"status.{response.status_code // 100}xx")
     return response
 
 app.include_router(auth.router)
@@ -224,6 +233,7 @@ app.include_router(passport.router)
 app.include_router(ai.router)
 app.include_router(ingestion.router)
 app.include_router(shared_passport.router)
+app.include_router(security.router)
 
 
 @app.on_event("startup")
@@ -234,12 +244,14 @@ def _ensure_optional_tables() -> None:
     from .db.passport_models import ensure_share_tables, ensure_structure_table
     from .db.profile_models import ensure_profile_table
     from .db.standards_models import ensure_standards_table
+    from .db.security_models import ensure_security_tables
 
     for name, ensure in (
         ("organisation_profiles", ensure_profile_table),
         ("organisation_standards", ensure_standards_table),
         ("organisation_structures", ensure_structure_table),
         ("passport_shares", ensure_share_tables),
+        ("security_docs", ensure_security_tables),
     ):
         try:
             ensure()
@@ -324,6 +336,16 @@ async def handle_passport_error(request: Request, exc: AsavexaPassportError):
     return _error_response(request, exc, 400)
 
 
+@app.exception_handler(SecurityError)
+async def handle_security_error(request: Request, exc: SecurityError):
+    """Each security error carries its own HTTP status (e.g. MfaRequiredError 403, MfaLockedError 429, KeysNotConfiguredError 503).
+    The error name is kept so the web app can react to it (for instance by asking for an authenticator code)."""
+    metrics.inc(f"security_error.{type(exc).__name__}")
+    response = _error_response(request, exc, getattr(exc, "status", 400))
+    response.headers.update(_cors_headers_for(request))
+    return response
+
+
 @app.exception_handler(IngestionError)
 async def handle_ingestion_error(request: Request, exc: IngestionError):
     return _error_response(request, exc, 400)
@@ -347,6 +369,8 @@ def handle_accounting_error(request: Request, exc: AsavexaAccountingError):
 def handle_identity_error(request: Request, exc: AsavexaIdentityError):
     if isinstance(exc, PermissionDeniedError):
         return _error_response(request, exc, 403)
+    if isinstance(exc, AccountLockedError):
+        return _error_response(request, exc, 429)
     if isinstance(exc, _IDENTITY_UNAUTHORIZED):
         return _error_response(request, exc, 401)
     if isinstance(exc, _IDENTITY_NOT_FOUND):
@@ -508,8 +532,15 @@ def ready(session=Depends(get_session)):
     try:
         session.execute(text("SELECT 1"))
     except Exception as exc:
+        logger.error("readiness_check_failed", extra={"error_type": type(exc).__name__})
         return JSONResponse(
             status_code=503,
-            content={"status": "not_ready", "detail": f"database unreachable: {exc}"},
+            content={"status": "not_ready", "detail": "database unreachable"},
         )
     return {"status": "ready"}
+
+
+@app.get("/metrics-lite")
+def metrics_lite():
+    """Request and error counters since this process started. Counts only: no paths, no people, no data."""
+    return metrics.snapshot()

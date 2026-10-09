@@ -733,6 +733,109 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     return `INVOICE evidence ${ev.status}; journals unchanged`;
   });
 
+  // ---------------- 10f. Advanced security & infrastructure ----------------
+  // These never switch anything on or off. Where a feature is simply not configured on the server (no encryption keys,
+  // no file storage) the step reports a WARNING that says so, never a pass.
+  const notConfigured = (what) => Object.assign(new Error(`${what} is not switched on on the server yet (needs ASAVEXA_KEYS). Nothing is wrong, but it is not protecting you yet.`), { warn: true });
+
+  await step("Security", "The security overview tells the truth about what is switched on", ["orgId"], async () => {
+    const o = await api.securityOverview();
+    check(o.encryption && o.audit_chain && o.mfa && o.storage && o.retention, "the overview is missing sections");
+    if (!o.encryption.configured) throw notConfigured("Encryption");
+    return `keys: ${o.encryption.keys.join(",")}; storage: ${o.storage.enabled ? o.storage.backend : "off"}; two-step: ${o.mfa.with_mfa}/${o.mfa.members}`;
+  });
+
+  await step("Security", "Your device list never exposes secrets", ["orgId"], async () => {
+    const me = await api.mySecurity();
+    check(Array.isArray(me.sessions) && me.sessions.some((x) => x.current), "this session is not listed as the current device");
+    const text = JSON.stringify(me);
+    check(!/token_hash|password|secret/i.test(text), "the device list contains something secret");
+    return `${me.sessions.length} session(s); signs out after ${me.idle_minutes} idle minutes`;
+  });
+
+  await step("Security", "A wrong two-step code is refused and does not switch it on", ["orgId"], async () => {
+    const me = await api.mySecurity();
+    if (!me.mfa_available) throw notConfigured("Two-step sign-in");
+    if (me.mfa.enabled) {
+      const e = await expectRejected(() => api.mfaDisable("000000"), [400, 401, 403, 429]);
+      return `already on; wrong code refused: HTTP ${e.status}`;
+    }
+    const begun = await api.mfaBegin();
+    check(begun.secret && begun.secret.length >= 16 && /^otpauth:\/\//.test(begun.otpauth_uri), "no setup key returned");
+    const e = await expectRejected(() => api.mfaConfirm("000000"), [400, 401, 403, 429]);
+    const after = await api.mySecurity();
+    check(!after.mfa.enabled, "a wrong code switched two-step sign-in on");
+    return `HTTP ${e.status}; still off`;
+  });
+
+  await step("Security", "The audit trail's tamper-evident chain checks out", ["orgId"], async () => {
+    const r = await api.verifyAuditChain();
+    if (r.enabled === false) throw notConfigured("The tamper-evident audit chain");
+    check(r.ok === true, `the chain reports ${r.problem_count} problem(s): ${JSON.stringify((r.problems || []).slice(0, 3))}`);
+    if (!r.links) throw Object.assign(new Error("The chain is switched on but holds no events yet, so there is nothing to verify."), { warn: true });
+    return `${r.links} events chained, intact${r.unchained_events ? `; ${r.unchained_events} older events pre-date the chain` : ""}`;
+  });
+
+  await step("Security", "The evidence file is stored encrypted and downloads back byte-for-byte", ["evidence"], async () => {
+    const info = await api.evidenceStorage(ctx.evidence.id);
+    if (!info.stored) throw Object.assign(new Error("File storage is off, so only the record and fingerprint are kept (set ASAVEXA_KEYS to store the file encrypted)."), { warn: true });
+    check(info.info && info.info.state === "STORED", `storage state ${info.info && info.info.state}`);
+    check(!JSON.stringify(info).match(/wrapped_dek|nonce/), "storage info exposes key material");
+    const { blob } = await api.downloadEvidence(ctx.evidence.id);
+    const buf = await blob.arrayBuffer();
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", buf);
+    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+    check(hex === ctx.evidence.file_hash, "the downloaded file does not match the evidence fingerprint");
+    return `${buf.byteLength} bytes, fingerprint matches (${info.info.backend || "storage"})`;
+  });
+
+  await step("Security", "Keeping evidence for less than the legal minimum is refused", ["orgId"], async () => {
+    const e = await expectRejected(() => api.setRetention(100), [400]);
+    return `HTTP ${e.status}: ${e.message}`;
+  });
+
+  await step("Security", "Disposing of evidence before its retention date is refused", ["evidence"], async () => {
+    const e = await expectRejected(() => api.disposeEvidence(ctx.evidence.id, "SelfTest early disposal"), [409]);
+    return `HTTP ${e.status}`;
+  });
+
+  await step("Security", "A legal hold can be placed and released", ["evidence"], async () => {
+    const hold = await api.placeHold(`SelfTest ${tag}`, ctx.evidence.id);
+    check(hold.id && !hold.released_at, "hold was not placed");
+    const r = await api.getRetention();
+    check(r.holds.some((x) => x.id === hold.id && !x.released_at), "the hold is not listed");
+    const rel = await api.releaseHold(hold.id);
+    check(rel.released_at, "the hold was not released");
+    return "placed, listed, released (a 'hold released' alert may now appear — that is expected)";
+  });
+
+  await step("Security", "Unknown data-location codes are refused", ["orgId"], async () => {
+    const e = await expectRejected(() => api.updateSecuritySettings({ allowed_regions: ["ATLANTIS"] }), [400]);
+    return `HTTP ${e.status}`;
+  });
+
+  await step("Security", "Vendor risk is worked out from facts, not typed in", ["orgId"], async () => {
+    const v = await api.addVendor({ name: `SelfTest vendor ${tag}`, purpose: "self-test", data_categories: ["FINANCIAL"] });
+    check(v.risk_tier && v.risk_tier !== "LOW", `a vendor with financial data, no agreement and no exit plan was rated ${v.risk_tier}`);
+    check(Array.isArray(v.risk_reasons) && v.risk_reasons.length > 0, "no reasons given for the rating");
+    return `${v.risk_tier} (${v.risk_reasons.length} reasons)`;
+  });
+
+  await step("Security", "Your data export contains no secrets", ["orgId"], async () => {
+    const d = await api.exportMyData();
+    const text = JSON.stringify(d);
+    check(!/password_hash|token_hash|pbkdf2|wrapped_dek/i.test(text), "the export contains secret material");
+    check(d.account && d.account.email, "the export has no account section");
+    return `${(d.audit_events_about_you || []).length} audit events listed`;
+  });
+
+  await step("Security", "Detailed system health reports OK or says what is degraded", ["orgId"], async () => {
+    const h = await api.securityHealth();
+    check(["OK", "DEGRADED"].includes(h.status), `status ${h.status}`);
+    if (h.status === "DEGRADED") throw Object.assign(new Error(`degraded: ${h.checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`).join("; ")}`), { warn: true });
+    return h.checks.map((c) => c.name).join(", ");
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;

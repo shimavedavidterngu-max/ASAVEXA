@@ -232,6 +232,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "shared_passport.router": "/shared-passport",
         "ai.router": "/ai",
     "ingestion.router": "/ingestion",
+        "security.router": "/security",
     }
 
     def test_every_expected_router_registered_exactly_once(self):

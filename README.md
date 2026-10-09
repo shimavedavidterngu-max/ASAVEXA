@@ -553,3 +553,7 @@ Should be buildable without touching `accounting/`, `identity/`,
 `evidence/`, `reconciliation/`, `reporting/`, `period_close/`, or
 `compliance/` — that separation is the entire point of building it
 this way.
+
+
+## Advanced security & infrastructure
+MFA, single sign-on, session controls, encrypted evidence, key management, tamper-evident audit chain, retention and legal holds, privacy export/erasure, residency and vendor-risk registers, security alerts, monitoring and encrypted backups. Start with `docs/security-hardening.md` (setup and runbooks) and `docs/threat-model.md` (what is and is not covered).

@@ -97,6 +97,7 @@ class SqlAlchemyUserRepository:
 
     def update(self, user: User) -> User:
         row = self.session.get(UserORM, user.id)
+        row.email = user.email
         row.password_hash = user.password_hash
         row.is_active = user.is_active
         row.mfa_enabled = user.mfa_enabled

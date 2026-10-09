@@ -15,6 +15,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from ..accounting.domain.enums import AccountType
 from ..accounting.services.engine import LineInput
+from ..audit.entity_ids import db_entity_id
 from ..audit.models import AuditEvent
 from ..evidence.domain.enums import EvidenceType
 from ..evidence.domain.errors import DuplicateEvidenceError
@@ -44,9 +45,9 @@ def guard(batch: dict, expected_fingerprint: Optional[str], acknowledge: bool) -
 
 
 def audit_event(org_id: str, actor: str, purpose: str, batch: dict, result: dict, now: datetime) -> AuditEvent:
-    return AuditEvent(id=str(uuid.uuid4()), org_id=org_id, entity_type="IngestionBatch", entity_id=batch["fingerprint"][:36], action=f"INGEST_{purpose}",
+    return AuditEvent(id=str(uuid.uuid4()), org_id=org_id, entity_type="IngestionBatch", entity_id=db_entity_id(batch["fingerprint"]), action=f"INGEST_{purpose}",
                       actor=actor, timestamp=now, reason=f"Imported {batch['source'].get('filename', 'file')}",
-                      new_value={"source_sha256": batch["source"].get("sha256"), "format": batch["source"].get("format"), "summary": batch.get("summary"),
+                      new_value={"fingerprint": batch["fingerprint"], "source_sha256": batch["source"].get("sha256"), "format": batch["source"].get("format"), "summary": batch.get("summary"),
                                  "warnings_acknowledged": batch["status"]["needs_acknowledgement"], "result": result})
 
 

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { runSelfTest, summarise } from "../src/lib/selftest.js";
 import { ApiError, NetworkError } from "../src/api/client.js";
 
@@ -7,7 +8,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -38,7 +39,7 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       if (linkedJournalId) uuid(linkedJournalId);
       const text = await file.text();
       if (db.evidence.some((e) => e.text === text)) bad(409, "duplicate");
-      const e = { id: id(), org: db.org, text, file_hash: "a".repeat(64), original_filename: file.name, size_bytes: text.length, content_type: "text/plain", linked_journal_id: linkedJournalId || null, status: "UPLOADED", uploaded_by: "u", uploaded_at: "t" };
+      const e = { id: id(), org: db.org, text, file_hash: createHash("sha256").update(text).digest("hex"), original_filename: file.name, size_bytes: text.length, content_type: "text/plain", linked_journal_id: linkedJournalId || null, status: "UPLOADED", uploaded_by: "u", uploaded_at: "t" };
       db.evidence.push(e); log("EvidenceRecord", e.id, "EVIDENCE_UPLOADED"); return e;
     },
     async getEvidence(i) { const e = db.evidence.find((x) => x.id === i && x.org === db.org); if (!e) bad(404, "evidence not found"); return e; },
@@ -198,6 +199,26 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       }
       return { purpose: a.purpose, result: { imported: n, evidence_id: ev.id } };
     },
+    // ---- Security stand-in
+    async securityOverview() { return { encryption: { configured: !noKeys, current_key: "k1", keys: noKeys ? [] : ["k1"], keys_in_use: {} }, storage: { enabled: !noKeys, backend: "database", region: "unspecified" },
+      audit_chain: { enabled: !noKeys, head: 3 }, mfa: { members: 1, with_mfa: 0, required: false, available: !noKeys }, sso: { configured: false }, residency: { allowed_regions: [] },
+      retention: { days: { EVIDENCE: 2555 } }, holds: 0, alerts_open: 0, vendors_overdue: 0, backups: { known: false }, session_policy: { idle_minutes: 30, max_sessions: 5 } }; },
+    async mySecurity() { return { mfa: { enabled: false }, mfa_available: !noKeys, sessions: [{ session_id: "s1", current: true, ...(leakSessions ? { token_hash: "abc" } : {}) }], idle_minutes: 30, privacy_requests: [] }; },
+    async mfaBegin() { return { secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", otpauth_uri: "otpauth://totp/ASAVEXA:x?secret=JBSWY3DP" }; },
+    async mfaConfirm() { bad(400, "That code is not right."); },
+    async mfaDisable() { bad(400, "not enrolled"); },
+    async verifyAuditChain() { return noKeys ? { enabled: false, ok: null, note: "off" } : breakChain ? { enabled: true, ok: false, links: 3, problem_count: 1, problems: [{ kind: "EVENT_CHANGED" }] } : { enabled: true, ok: true, links: 3, unchained_events: 0, problems: [], problem_count: 0 }; },
+    async evidenceStorage(i) { return noKeys ? { stored: false, info: null } : { stored: true, info: { state: "STORED", backend: "database" } }; },
+    async downloadEvidence(i) { const e = db.evidence.find((x) => x.id === i); return { blob: new Blob([e.text]), filename: "x.txt" }; },
+    async setRetention(d) { if (d < 2190) bad(400, "Evidence must be kept for at least 2190 days"); return {}; },
+    async disposeEvidence() { bad(409, "This evidence must be kept until 2033-01-01."); },
+    async placeHold(reason) { db.hold = { id: "h1", reason, released_at: null }; return db.hold; },
+    async getRetention() { return { holds: [db.hold], policy: {}, due_for_disposal: [] }; },
+    async releaseHold() { db.hold.released_at = "now"; return db.hold; },
+    async updateSecuritySettings(b) { if ((b.allowed_regions || []).some((r) => !["NG", "EU"].includes(r))) bad(400, "Unknown region code(s)"); return b; },
+    async addVendor(v) { return { ...v, risk_tier: "HIGH", risk_reasons: ["No signed agreement.", "No plan for leaving."] }; },
+    async exportMyData() { return { account: { email: "a@b.c" }, audit_events_about_you: [] }; },
+    async securityHealth() { return { status: "OK", checks: [{ name: "database", ok: true }] }; },
     async createOrganisation() { db.orgs.push({ id: "org2" }); return { id: "org2" }; },
     async selectOrganisation(o) { db.org = o; return {}; },
   };
@@ -274,4 +295,32 @@ test("self-test: a dead API is reported as a connectivity failure and dependent 
   const results = await runSelfTest(fakeApi({ down: true }), { orgId: "org1" });
   assert.equal(results[0].status, "fail");
   assert.match(results[0].detail, /NETWORK/);
+});
+
+
+test("self-test: the Security steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const sec = results.filter((r) => r.group === "Security");
+  assert.equal(sec.length, 12);
+  assert.deepEqual(sec.filter((r) => r.status !== "pass"), [], JSON.stringify(sec, null, 1));
+});
+
+test("self-test: without encryption keys the Security steps warn instead of passing", async () => {
+  const results = await runSelfTest(fakeApi({ noKeys: true }), { orgId: "org1" });
+  const sec = results.filter((r) => r.group === "Security");
+  assert.equal(sec.filter((r) => r.status === "fail").length, 0, JSON.stringify(sec.filter((r) => r.status === "fail")));
+  for (const name of [/overview/, /two-step code/, /tamper-evident/, /stored encrypted/]) {
+    const r = sec.find((x) => name.test(x.name));
+    assert.equal(r.status, "warn", `${r.name} should warn when keys are missing`);
+  }
+});
+
+test("self-test: a broken audit chain is caught", async () => {
+  const results = await runSelfTest(fakeApi({ breakChain: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Security" && /tamper-evident/.test(r.name)));
+});
+
+test("self-test: a device list that leaks a token fingerprint is caught", async () => {
+  const results = await runSelfTest(fakeApi({ leakSessions: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Security" && /device list/.test(r.name)));
 });
