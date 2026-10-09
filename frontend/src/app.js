@@ -34,6 +34,8 @@ import { Compliance } from "./pages/Compliance.js";
 import { Administration } from "./pages/Administration.js";
 import { Standards } from "./pages/Standards.js";
 import { Passport } from "./pages/Passport.js";
+import { PassportSharing, newWizard, presetRange, validateStep, buildSharePayload, RECIPIENT_DEFAULTS, STEPS } from "./pages/PassportSharing.js";
+import { SharedPassport } from "./pages/SharedPassport.js";
 import { Diagnostics, formatReport } from "./pages/Diagnostics.js";
 import { runSelfTest } from "./lib/selftest.js";
 
@@ -61,6 +63,7 @@ const NAV_ITEMS = [
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
+  { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
   { path: "/diagnostics", label: "Connection & Self-Test", permission: null },
 ];
@@ -85,7 +88,9 @@ const routes = [
   { path: "/compliance/findings", name: "compliance-findings" },
   { path: "/compliance", name: "compliance" },
   { path: "/admin", name: "admin" },
+  { path: "/passport/sharing", name: "passport-sharing" },
   { path: "/passport", name: "passport" },
+  { path: "/shared/:token", name: "shared" },
   { path: "/standards", name: "standards" },
   { path: "/diagnostics", name: "diagnostics" },
 ];
@@ -141,6 +146,15 @@ let uiState = {
   passportStructure: { owners: [], subsidiaries: [] }, passportStructureSaving: false,
   passportStructureError: null, passportStructureSaved: false,
 
+  // Permissioned sharing (organisation side)
+  shares: null, sharesError: null, shareWizard: null, shareWizardError: null, shareCreating: false,
+  shareResult: null, shareLink: "", shareCopied: null, shareRevokeTarget: null, shareRevokeReason: "",
+  shareRevoking: false, shareRevokeError: null, shareLogTarget: null, shareLog: null, shareLogLoading: false, shareLogError: null,
+
+  // Shared passport (recipient side). The session token lives only here, in memory.
+  shared: { token: null, code: "", email: "", phase: "verify", pending: false, error: null, expired: false,
+    data: null, sessionToken: null, downloading: false, downloadError: null },
+
   // Standards & Policies
   standardsCatalog: null, standardsForm: {}, standardsPreview: null, standardsError: null,
   standardsPreviewError: null, standardsPreviewing: false, standardsSaving: false, standardsSaveError: null, standardsSaved: false,
@@ -166,12 +180,21 @@ const router = new Router(routes, {
     uiState.journalRequestedId = null;
     uiState.evidenceDetailRequestedId = null;
     uiState.reconciliationDetailRequestedId = null;
+    uiState.shareWizard = null; uiState.shareResult = null; uiState.shareLink = "";
+    uiState.shareRevokeTarget = null; uiState.shareLogTarget = null;
     render();
   },
 });
 
 function render() {
   const authState = authStore.getState();
+
+  // A recipient's link is public: it never needs (or touches) an organisation login.
+  const publicMatch = matchRoute(routes, router.currentPath());
+  if (publicMatch && publicMatch.route.name === "shared") {
+    renderSharedPassport(publicMatch.params.token);
+    return;
+  }
 
   if (!authState.token) {
     mount(
@@ -226,11 +249,11 @@ function renderShell(authState) {
         "nav",
         { className: "app-sidebar" },
         h("div", { className: "brand" }, "ASAVEXA", h("small", {}, "Don't just report it. Prove it.")),
-        NAV_ITEMS.filter((item) => !item.permission || allowed(authState.role, item.permission)).map((item) =>
+        visibleNav(authState, path).map(({ item, active }) =>
           h(
             "a",
             {
-              className: `nav-link${path === item.path || (item.path !== "/" && path.startsWith(item.path)) ? " active" : ""}`,
+              className: `nav-link${active ? " active" : ""}`,
               href: `#${item.path}`,
             },
             item.label
@@ -259,6 +282,15 @@ function renderShell(authState) {
     ),
     root
   );
+}
+
+/** The sidebar entries this role may see, with only the most specific match marked active
+ * (so "/passport/sharing" lights up Passport Sharing, not Financial Passport as well). */
+function visibleNav(authState, path) {
+  const items = NAV_ITEMS.filter((item) => !item.permission || allowed(authState.role, item.permission));
+  const matches = items.filter((i) => path === i.path || (i.path !== "/" && path.startsWith(i.path + "/")));
+  const best = matches.reduce((a, b) => (!a || b.path.length > a.path.length ? b : a), null);
+  return items.map((item) => ({ item, active: item === best }));
 }
 
 function renderPage(matched, authState) {
@@ -301,7 +333,8 @@ function renderPage(matched, authState) {
   if (name === "period-close") return renderPeriodClose(authState, nav);
   if (name.startsWith("compliance")) return renderCompliance(name, params, authState, nav);
   if (name === "admin") return renderAdmin(authState, nav);
-  if (name === "passport") return renderPassport(authState);
+  if (name === "passport-sharing") return renderPassportSharing(authState, nav);
+  if (name === "passport") return renderPassport(authState, nav);
   if (name === "standards") return renderStandards(authState);
   if (name === "diagnostics") return renderDiagnostics(authState);
 
@@ -1648,13 +1681,14 @@ function structureFromPassport(passport) {
   };
 }
 
-function renderPassport(authState) {
+function renderPassport(authState, nav) {
   once("passportLoading", loadPassport);
   return Passport({
     role: authState.role,
     loading: uiState.passportLoading, error: uiState.passportError, onRetry: () => reload("passportLoading"),
     passport: uiState.passport, refreshing: uiState.passportRefreshing,
     onRefresh: handleRefreshPassport, onDownload: handleDownloadPassport, onPrint: () => window.print(),
+    onOpenSharing: allowed(authState.role, PERMISSIONS.ORG_MANAGE_SETTINGS) ? () => nav("/passport/sharing") : null,
     structureForm: uiState.passportStructure, structureSaving: uiState.passportStructureSaving,
     structureError: uiState.passportStructureError, structureSaved: uiState.passportStructureSaved,
     onStructureChange: (kind, i, field, value) => {
@@ -1763,6 +1797,225 @@ async function handleSavePassportStructure() {
     uiState.passportStructureError = err.message;
   } finally {
     uiState.passportStructureSaving = false;
+    render();
+  }
+}
+
+
+// ------------------------------------------------------------------
+// Permissioned sharing: organisation side
+// ------------------------------------------------------------------
+function renderPassportSharing(authState, nav) {
+  once("sharesLoading", loadShares);
+  const w = uiState.shareWizard;
+  return PassportSharing({
+    role: authState.role, loading: uiState.sharesLoading, error: uiState.sharesError, onRetry: () => reload("sharesLoading"),
+    shares: uiState.shares, wizard: w, wizardError: uiState.shareWizardError, creating: uiState.shareCreating,
+    result: uiState.shareResult, link: uiState.shareLink, copied: uiState.shareCopied,
+    onStart: () => { uiState.shareWizard = newWizard(); uiState.shareWizardError = null; render(); },
+    onBackToPassport: () => nav("/passport"),
+    onWizardChange: handleWizardChange,
+    onNext: () => {
+      const problem = validateStep(w.step, w);
+      uiState.shareWizardError = problem;
+      if (!problem) w.step = Math.min(w.step + 1, STEPS.length - 1);
+      render();
+    },
+    onBack: () => { w.step = Math.max(0, w.step - 1); uiState.shareWizardError = null; render(); },
+    onCancel: () => { uiState.shareWizard = null; uiState.shareWizardError = null; render(); },
+    onCreate: handleCreateShare,
+    onCopy: handleCopyShare,
+    onDone: () => { uiState.shareResult = null; uiState.shareLink = ""; uiState.shareCopied = null; uiState.shareWizard = null; reload("sharesLoading"); },
+    revokeTarget: uiState.shareRevokeTarget, revokeReason: uiState.shareRevokeReason,
+    revoking: uiState.shareRevoking, revokeError: uiState.shareRevokeError,
+    onRevokeStart: (id) => { uiState.shareRevokeTarget = id; uiState.shareRevokeReason = ""; uiState.shareRevokeError = null; render(); },
+    onRevokeReasonChange: (v) => { uiState.shareRevokeReason = v; },
+    onRevokeCancel: () => { uiState.shareRevokeTarget = null; render(); },
+    onRevokeConfirm: handleRevokeShare,
+    logTarget: uiState.shareLogTarget, log: uiState.shareLog, logLoading: uiState.shareLogLoading, logError: uiState.shareLogError,
+    onShowLog: handleShowShareLog,
+    onCloseLog: () => { uiState.shareLogTarget = null; render(); },
+  });
+}
+
+async function loadShares() {
+  uiState.sharesError = null;
+  try {
+    uiState.shares = await api.listPassportShares();
+  } catch (err) {
+    uiState.sharesError = err.message || "Could not load the shares.";
+  }
+}
+
+function handleWizardChange(key, value) {
+  const w = uiState.shareWizard;
+  if (!w) return;
+  if (key.startsWith("scope:")) {
+    const scope = key.slice(6);
+    w.scopes = value ? [...new Set([...w.scopes, scope])] : w.scopes.filter((x) => x !== scope);
+  } else if (key === "recipient_type") {
+    w.recipient_type = value;
+    const d = RECIPIENT_DEFAULTS[value];
+    if (d) {
+      w.scopes = [...d.scopes]; w.closed_periods_only = d.closed_periods_only; w.preset = d.preset;
+      Object.assign(w, presetRange(d.preset, new Date()));
+    }
+  } else if (key === "preset") {
+    w.preset = value;
+    const r = presetRange(value, new Date());
+    if (r) Object.assign(w, r);
+  } else {
+    w[key] = value;
+  }
+  uiState.shareWizardError = null;
+  // typing in a text box must not re-render the whole page under the cursor
+  if (["recipient_name", "recipient_email", "purpose", "expires_in_days", "date_from", "date_to"].includes(key)) {
+    if (key === "date_from" || key === "date_to") render();
+    return;
+  }
+  render();
+}
+
+async function handleCreateShare() {
+  const w = uiState.shareWizard;
+  for (let i = 0; i < STEPS.length - 1; i++) {
+    const problem = validateStep(i, w);
+    if (problem) { w.step = i; uiState.shareWizardError = problem; render(); return; }
+  }
+  uiState.shareCreating = true;
+  uiState.shareWizardError = null;
+  render();
+  try {
+    const res = await api.createPassportShare(buildSharePayload(w));
+    uiState.shareResult = res;
+    uiState.shareLink = `${window.location.origin}${window.location.pathname}#/shared/${encodeURIComponent(res.access_token)}`;
+    uiState.shareCopied = null;
+  } catch (err) {
+    uiState.shareWizardError = err.message || "Could not create the share.";
+  } finally {
+    uiState.shareCreating = false;
+    render();
+  }
+}
+
+async function handleCopyShare(which, text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    uiState.shareCopied = which;
+  } catch (_) {
+    const el = document.getElementById(which === "link" ? "share-link" : "share-code");
+    if (el) { el.focus(); el.select(); }
+    uiState.shareCopied = null;
+  }
+  render();
+}
+
+async function handleRevokeShare() {
+  const id = uiState.shareRevokeTarget;
+  uiState.shareRevoking = true;
+  uiState.shareRevokeError = null;
+  render();
+  try {
+    await api.revokePassportShare(id, uiState.shareRevokeReason);
+    uiState.shareRevokeTarget = null;
+    uiState.shares = await api.listPassportShares();
+  } catch (err) {
+    uiState.shareRevokeError = err.message || "Could not revoke the share.";
+  } finally {
+    uiState.shareRevoking = false;
+    render();
+  }
+}
+
+async function handleShowShareLog(id) {
+  uiState.shareLogTarget = id;
+  uiState.shareLog = null;
+  uiState.shareLogError = null;
+  uiState.shareLogLoading = true;
+  render();
+  try {
+    const log = await api.passportShareAccessLog(id);
+    if (uiState.shareLogTarget === id) uiState.shareLog = log;
+  } catch (err) {
+    uiState.shareLogError = err.message || "Could not load the activity.";
+  } finally {
+    uiState.shareLogLoading = false;
+    render();
+  }
+}
+
+// ------------------------------------------------------------------
+// Permissioned sharing: recipient side (public; no organisation login)
+// ------------------------------------------------------------------
+function renderSharedPassport(token) {
+  const sh = uiState.shared;
+  if (sh.token !== token) {
+    uiState.shared = { token, code: "", email: "", phase: "verify", pending: false, error: null, expired: false,
+      data: null, sessionToken: null, downloading: false, downloadError: null };
+  }
+  const s = uiState.shared;
+  mount(
+    SharedPassport({
+      phase: token && token.includes(".") ? s.phase : "bad-link",
+      pending: s.pending, error: s.error, expired: s.expired, code: s.code, email: s.email, data: s.data,
+      downloading: s.downloading, downloadError: s.downloadError,
+      onCodeChange: (v) => { s.code = v; },
+      onEmailChange: (v) => { s.email = v; },
+      onVerify: handleSharedVerify,
+      onPrint: () => window.print(),
+      onDownload: handleSharedDownload,
+      onClose: () => { s.sessionToken = null; s.data = null; s.phase = "verify"; s.code = ""; s.error = null; render(); },
+    }),
+    root
+  );
+}
+
+const SESSION_ENDED = "Your verified session has ended";
+
+function sharedSessionEnded(s) {
+  s.sessionToken = null; s.data = null; s.phase = "verify"; s.code = ""; s.expired = true; s.error = null;
+}
+
+async function handleSharedVerify() {
+  const s = uiState.shared;
+  if (!s.code.trim()) { s.error = "Enter the access code you were sent."; render(); return; }
+  s.pending = true; s.error = null; s.expired = false;
+  render();
+  try {
+    const v = await api.verifyShare({ accessToken: s.token, accessCode: s.code, email: s.email || null });
+    s.sessionToken = v.session_token;
+    s.data = await api.viewSharedPassport(s.sessionToken);
+    s.phase = "view";
+    s.code = "";
+  } catch (err) {
+    s.sessionToken = null; s.data = null; s.phase = "verify";
+    s.error = err.message || "Could not open this passport.";
+  } finally {
+    s.pending = false;
+    render();
+  }
+}
+
+async function handleSharedDownload() {
+  const s = uiState.shared;
+  s.downloading = true; s.downloadError = null;
+  render();
+  try {
+    const doc = await api.downloadSharedPassport(s.sessionToken);
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `financial-passport-${String((doc.fingerprint || "")).slice(0, 8)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    if ((err.message || "").startsWith(SESSION_ENDED)) sharedSessionEnded(s);
+    else s.downloadError = err.message || "Could not download.";
+  } finally {
+    s.downloading = false;
     render();
   }
 }

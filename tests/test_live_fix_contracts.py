@@ -165,3 +165,50 @@ class PassportContractTestCase(unittest.TestCase):
         app = _read(os.path.join(ROOT, "frontend", "src", "app.js"))
         self.assertIn('{ path: "/passport", name: "passport" }', app)
         self.assertIn('permission: PERMISSIONS.PASSPORT_MANAGE', app)
+
+
+class PassportSharingContractTestCase(unittest.TestCase):
+    def _fn(self, path, name):
+        tree = ast.parse(_read(os.path.join(ROUTERS, path)))
+        return next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
+
+    def test_creating_and_revoking_need_manage_settings_listing_needs_passport_manage(self):
+        for name, perm in (("create_share", "ORG_MANAGE_SETTINGS"), ("revoke_share", "ORG_MANAGE_SETTINGS"),
+                           ("list_shares", "PASSPORT_MANAGE")):
+            fn = self._fn("passport.py", name)
+            self.assertIn(perm, ast.unparse(fn) + " ".join(ast.unparse(d) for d in fn.decorator_list), name)
+
+    def test_public_router_has_no_organisation_auth_and_never_returns_401(self):
+        src = _read(os.path.join(ROUTERS, "shared_passport.py"))
+        for forbidden in ("get_current_org", "get_current_actor", "require_permission", "HTTP_401", "status_code=401"):
+            self.assertNotIn(forbidden, src, forbidden)
+        self.assertIn('prefix="/shared-passport"', src)
+
+    def test_a_failed_verification_is_committed_before_the_error_is_raised(self):
+        verify = self._fn("shared_passport.py", "verify")
+        text = ast.unparse(verify)
+        self.assertLess(text.index("session.commit()"), text.index("raise"))
+        self.assertIn("ShareAccessDeniedError", text)
+
+    def test_share_tables_are_created_at_startup(self):
+        main = _read(MAIN)
+        self.assertIn("ensure_share_tables", main)
+        self.assertIn("shared_passport.router", main)
+
+    def test_frontend_paths_match_backend_routes(self):
+        client = _read(os.path.join(ROOT, "frontend", "src", "api", "client.js"))
+        for p in ('"/passport/shares"', "/shared-passport/verify", "/shared-passport/view", "/shared-passport/download", "/access-log", "/revoke"):
+            self.assertIn(p, client, p)
+        pr = _read(os.path.join(ROUTERS, "passport.py"))
+        sp = _read(os.path.join(ROUTERS, "shared_passport.py"))
+        for p in ('"/shares"', "/access-log", "/revoke"):
+            self.assertIn(p, pr, p)
+        for p in ('"/verify"', '"/view"', '"/download"'):
+            self.assertIn(p, sp, p)
+
+    def test_recipient_route_is_handled_before_the_login_gate(self):
+        app = _read(os.path.join(ROOT, "frontend", "src", "app.js"))
+        self.assertIn('{ path: "/shared/:token", name: "shared" }', app)
+        self.assertLess(app.index('"shared"', app.index("function render()")), app.index("if (!authState.token)"))
+        self.assertIn('{ path: "/passport/sharing", name: "passport-sharing" }', app)
+        self.assertLess(app.index('"/passport/sharing", name'), app.index('{ path: "/passport", name'))

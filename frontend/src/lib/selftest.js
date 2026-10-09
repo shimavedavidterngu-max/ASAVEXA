@@ -507,6 +507,78 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     return `${after.identity.ownership.owners.length} owner(s), ${after.identity.subsidiaries.count} subsidiary(ies)`;
   });
 
+  // ---------------- 10c. Permissioned sharing ----------------
+  const shareEmail = `selftest-${tag}@example.com`;
+  await step("Sharing", "Creating a share returns a one-time link and access code", ["period", "posted"], async () => {
+    ctx.shareRes = await api.createPassportShare({
+      recipient_name: `SelfTest Bank ${tag}`, recipient_type: "BANK", recipient_email: shareEmail,
+      purpose: "SelfTest", scopes: ["IDENTITY", "FINANCIAL_HISTORY"], date_from: `${year}-01-01`, date_to: `${year}-01-31`,
+      include_detail: false, allow_download: false, closed_periods_only: false, expires_in_days: 1,
+    });
+    const r = ctx.shareRes;
+    check(r.access_token && r.access_token.includes("."), "no secure link token returned");
+    check(r.access_code && r.access_code.length >= 10, "no access code returned");
+    check(r.share && r.share.status === "ACTIVE", "share is not ACTIVE");
+    check(!JSON.stringify(r.share).includes(r.access_code), "the access code leaked into the share record");
+    ctx.shareCreated = true;
+    return `share ${r.share.id.slice(0, 8)}… ACTIVE`;
+  });
+  await step("Sharing", "The organisation's share list never reveals the code or link", ["shareCreated"], async () => {
+    const list = await api.listPassportShares();
+    const mine = list.find((x) => x.id === ctx.shareRes.share.id);
+    check(mine, "the new share is not in the list");
+    const text = JSON.stringify(list);
+    check(!text.includes(ctx.shareRes.access_code) && !text.includes(ctx.shareRes.access_token.split(".")[1]), "a secret appears in the list");
+    return `${list.length} share(s) listed`;
+  });
+  await step("Sharing", "A wrong access code is refused", ["shareCreated"], async () => {
+    const e = await expectRejected(() => api.verifyShare({ accessToken: ctx.shareRes.access_token, accessCode: "WRONG-CODE0", email: shareEmail }), [403]);
+    return `HTTP ${e.status}: ${e.message}`;
+  });
+  await step("Sharing", "The wrong email is refused even with the right code", ["shareCreated"], async () => {
+    const e = await expectRejected(() => api.verifyShare({ accessToken: ctx.shareRes.access_token, accessCode: ctx.shareRes.access_code, email: "someone.else@example.com" }), [403]);
+    return `HTTP ${e.status}`;
+  });
+  await step("Sharing", "A made-up link is refused without revealing anything", ["shareCreated"], async () => {
+    const id = ctx.shareRes.share.id;
+    const e = await expectRejected(() => api.verifyShare({ accessToken: `${id}.not-the-secret`, accessCode: ctx.shareRes.access_code, email: shareEmail }), [403]);
+    return `HTTP ${e.status}`;
+  });
+  await step("Sharing", "The right code and email open exactly the chosen sections", ["shareCreated"], async () => {
+    const v = await api.verifyShare({ accessToken: ctx.shareRes.access_token, accessCode: ctx.shareRes.access_code, email: shareEmail });
+    check(v.session_token, "no session returned");
+    ctx.shareSession = v.session_token;
+    const view = await api.viewSharedPassport(v.session_token);
+    const keys = Object.keys(view.sections).sort();
+    check(keys.join(",") === "financial_history,identity", `recipient received ${keys.join(", ")} instead of only identity and financial_history`);
+    check(view.integrity && view.integrity.verified === true, "integrity check did not pass");
+    check(view.share.periods_included.some((pp) => pp.name === ctx.period.name), "the self-test period is missing from the shared periods");
+    check(!JSON.stringify(view).includes(ctx.journal.id), "summary-level share exposes an individual journal id");
+    ctx.shareView = view;
+    return `sections: ${keys.join(", ")}; integrity verified`;
+  });
+  await step("Sharing", "Download is refused when the organisation did not allow it", ["shareSession"], async () => {
+    const e = await expectRejected(() => api.downloadSharedPassport(ctx.shareSession), [403]);
+    return `HTTP ${e.status}: ${e.message}`;
+  });
+  await step("Sharing", "Revoking stops access at once, even for an open session", ["shareSession"], async () => {
+    await api.revokePassportShare(ctx.shareRes.share.id, "SelfTest finished");
+    const a = await expectRejected(() => api.viewSharedPassport(ctx.shareSession), [403]);
+    const b = await expectRejected(() => api.verifyShare({ accessToken: ctx.shareRes.access_token, accessCode: ctx.shareRes.access_code, email: shareEmail }), [403]);
+    const after = (await api.listPassportShares()).find((x) => x.id === ctx.shareRes.share.id);
+    check(after && after.status === "REVOKED", "share does not show as REVOKED");
+    ctx.shareRevoked = true;
+    return `open session → HTTP ${a.status}, new verification → HTTP ${b.status}`;
+  });
+  await step("Sharing", "The access log records every event", ["shareRevoked"], async () => {
+    const log = await api.passportShareAccessLog(ctx.shareRes.share.id);
+    const actions = new Set(log.map((e) => e.action));
+    for (const need of ["PASSPORT_SHARE_CREATED", "PASSPORT_SHARE_DENIED", "PASSPORT_SHARE_VERIFIED", "PASSPORT_SHARE_VIEWED", "PASSPORT_SHARE_REVOKED"]) {
+      check(actions.has(need), `the log has no ${need} entry`);
+    }
+    return `${log.length} entries`;
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;

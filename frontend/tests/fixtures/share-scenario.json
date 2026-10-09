@@ -1,0 +1,1224 @@
+{
+ "summary": {
+  "share": {
+   "organisation": "Meridian Textiles Limited",
+   "recipient_name": "First Bank Plc",
+   "recipient_type": "BANK",
+   "purpose": "Loan application",
+   "scopes": [
+    "IDENTITY",
+    "FINANCIAL_HISTORY",
+    "EVIDENCE_QUALITY",
+    "GOVERNANCE",
+    "AUDIT_TRAIL"
+   ],
+   "include_detail": false,
+   "allow_download": false,
+   "closed_periods_only": false,
+   "date_from": "2020-01-01",
+   "date_to": "2039-12-31",
+   "expires_at": "2026-11-08T12:17:03.438128+00:00",
+   "snapshot_taken_at": "2026-10-09T12:17:03.438128+00:00",
+   "periods_included": [
+    {
+     "name": "FY2026-M01",
+     "start_date": "2026-01-01",
+     "end_date": "2026-01-31",
+     "status": "OPEN"
+    },
+    {
+     "name": "FY2026-M02",
+     "start_date": "2026-02-01",
+     "end_date": "2026-02-28",
+     "status": "OPEN"
+    }
+   ],
+   "periods_excluded": 0
+  },
+  "sections": {
+   "identity": {
+    "status": "attention",
+    "attention": [
+     "Organisation profile is missing: registration number, tax ID, country.",
+     "Ownership and subsidiaries have not been recorded yet."
+    ],
+    "legal_entity": {
+     "legal_name": "Meridian Textiles Limited",
+     "trading_name": null,
+     "registration_number": null,
+     "tax_id": null,
+     "organisation_type": null,
+     "industry": null,
+     "country": null,
+     "address": null,
+     "base_currency": "NGN",
+     "fiscal_year_start_month": null,
+     "website": null
+    },
+    "ownership": {
+     "recorded": false,
+     "owners": [],
+     "total_percent": null,
+     "updated_at": null,
+     "updated_by": null
+    },
+    "subsidiaries": {
+     "recorded": false,
+     "items": [],
+     "count": 0
+    },
+    "reporting_periods": [
+     {
+      "id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+      "name": "FY2026-M01",
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-31",
+      "status": "OPEN"
+     },
+     {
+      "id": "803f1a0e-d48b-4142-a5d1-63cc8b4a1444",
+      "name": "FY2026-M02",
+      "start_date": "2026-02-01",
+      "end_date": "2026-02-28",
+      "status": "OPEN"
+     }
+    ]
+   },
+   "financial_history": {
+    "status": "ok",
+    "attention": [],
+    "currency": "NGN",
+    "currencies_seen": [
+     "NGN"
+    ],
+    "periods": [
+     {
+      "period_id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+      "period_name": "FY2026-M01",
+      "status": "OPEN",
+      "has_activity": true,
+      "journal_count": 2,
+      "revenue": "1000000.00",
+      "expenses": "200000.00",
+      "net_income": "800000.00",
+      "profit_margin_percent": 80.0,
+      "assets": "875000.00",
+      "liabilities": "75000.00",
+      "equity": "0.00",
+      "is_balanced": true
+     },
+     {
+      "period_id": "803f1a0e-d48b-4142-a5d1-63cc8b4a1444",
+      "period_name": "FY2026-M02",
+      "status": "OPEN",
+      "journal_count": 0,
+      "has_activity": false
+     }
+    ],
+    "totals": {
+     "revenue": "1000000.00",
+     "expenses": "200000.00",
+     "net_income": "800000.00",
+     "profit_margin_percent": 80.0,
+     "assets": "875000.00",
+     "liabilities": "75000.00",
+     "equity": "0.00",
+     "profitability": "profit"
+    },
+    "totals_note": "Totals add every posted period. Assets, liabilities and equity are the sum of period movements, which equals the closing position when the ledger starts empty.",
+    "cash_flows": {
+     "statement_available": false,
+     "note": "ASAVEXA does not yet produce a classified cash-flow statement (operating, investing, financing). Below is the movement on bank accounts that have been reconciled.",
+     "available": true,
+     "accounts": [
+      {
+       "id": "d4066de0-56d7-4ee8-aa29-1a9cab9dc5a8",
+       "code": "1000",
+       "name": "Cash at bank"
+      }
+     ],
+     "periods": [
+      {
+       "period_id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+       "period_name": "FY2026-M01",
+       "inflow": "1075000.00",
+       "outflow": "200000.00",
+       "net": "875000.00"
+      }
+     ],
+     "totals": {
+      "inflow": "1075000.00",
+      "outflow": "200000.00",
+      "net": "875000.00"
+     }
+    }
+   },
+   "evidence_quality": {
+    "status": "attention",
+    "attention": [
+     "1 posted journal(s) have no evidence attached.",
+     "2 bank transaction(s) are not reconciled.",
+     "1 exception(s) need attention."
+    ],
+    "transactions": {
+     "total_posted": 2,
+     "supported_verified": 1,
+     "evidence_unverified": 0,
+     "evidence_defective": 0,
+     "missing_evidence": 1,
+     "supported_percent": 50.0,
+     "with_any_evidence_percent": 50.0
+    },
+    "missing_evidence": {
+     "count": 1,
+     "items": [],
+     "truncated": false
+    },
+    "bank_reconciliation": {
+     "bank_transactions": 2,
+     "reconciled": 0,
+     "unreconciled": 2,
+     "by_status": {
+      "MATCHED": 1,
+      "UNMATCHED": 1
+     },
+     "reconciliations_by_status": {
+      "DRAFT": 1
+     },
+     "unreconciled_items": [],
+     "truncated": false
+    },
+    "exceptions": {
+     "count": 1,
+     "items": [],
+     "truncated": false
+    },
+    "evidence_records": 1,
+    "detail_withheld": true,
+    "detail_note": "Line-level detail was not included in this share."
+   },
+   "governance": {
+    "status": "attention",
+    "attention": [
+     "Segregation of duties: Journals: creator is not the poster \u2014 1 case(s) where one person did both.",
+     "1 active member(s) hold a role that can both create and post journals.",
+     "7 active control(s) have never been executed.",
+     "2 control exception(s): failing controls or unresolved findings."
+    ],
+    "approvals": {
+     "count": 3,
+     "by_action": {
+      "JOURNAL_POSTED": 2,
+      "EVIDENCE_VERIFIED": 1
+     },
+     "recent": []
+    },
+    "controls": {
+     "defined": 9,
+     "active": 9,
+     "executions": 2,
+     "latest_result_by_control": {
+      "PASS": 1,
+      "FAIL": 1
+     },
+     "never_executed": 7,
+     "last_executed_at": "2026-10-09T12:17:03.436663+00:00"
+    },
+    "segregation_of_duties": {
+     "status": "fail",
+     "checks": [
+      {
+       "key": "journal_post",
+       "label": "Journals: creator is not the poster",
+       "rule": "The person who drafted a journal must not be the person who posted it.",
+       "tested": 2,
+       "violations": 1,
+       "status": "fail",
+       "examples": []
+      },
+      {
+       "key": "evidence_verify",
+       "label": "Evidence: uploader is not the verifier",
+       "rule": "The person who uploaded evidence must not be the person who verified it.",
+       "tested": 1,
+       "violations": 0,
+       "status": "pass",
+       "examples": []
+      },
+      {
+       "key": "reconciliation_approve",
+       "label": "Reconciliations: preparer is not the approver",
+       "rule": "The person who prepared a reconciliation must not approve it.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      },
+      {
+       "key": "reconciliation_submit",
+       "label": "Reconciliations: submitter is not the approver",
+       "rule": "The person who submitted a reconciliation must not approve it.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      },
+      {
+       "key": "period_close",
+       "label": "Period close: requester is not the approver",
+       "rule": "The person who requested a period close must not approve it.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      },
+      {
+       "key": "control_review",
+       "label": "Controls: executor is not the reviewer",
+       "rule": "The person who ran a control must not be the one who reviews the result.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      }
+     ],
+     "role_conflicts": [],
+     "note": "A violation is a recorded fact: the same person appears as both maker and checker. In a one-person organisation this is expected, and it is still reported.",
+     "role_conflict_count": 1
+    },
+    "control_exceptions": {
+     "count": 2,
+     "items": [],
+     "truncated": false,
+     "findings_total": 1,
+     "findings_open": 1
+    },
+    "detail_withheld": true,
+    "detail_note": "Line-level detail was not included in this share."
+   },
+   "audit_trail": {
+    "status": "ok",
+    "attention": [],
+    "total_events": 38,
+    "events_analysed": 38,
+    "truncated": false,
+    "first_event_at": "2026-10-09T12:17:02.893823+00:00",
+    "last_event_at": "2026-10-09T12:17:03.436780+00:00",
+    "by_category": {
+     "created": 30,
+     "changed": 1,
+     "approved": 3,
+     "other": 4
+    },
+    "by_person": [],
+    "recent_events": [],
+    "journal_provenance": [],
+    "period_locks": [],
+    "people_count": 3,
+    "detail_withheld": true,
+    "detail_note": "Line-level detail was not included in this share."
+   }
+  },
+  "integrity": {
+   "verified": true,
+   "fingerprint": "906e5d731edf803b57e7ee215b2f39ed4d4960c62091641f3f193592266210b5",
+   "recomputed": "906e5d731edf803b57e7ee215b2f39ed4d4960c62091641f3f193592266210b5"
+  }
+ },
+ "summary_create": {
+  "share": {
+   "id": "2ec4f276-3ec2-4c2c-a4d9-6c4bbacd1613",
+   "recipient_name": "First Bank Plc",
+   "recipient_type": "BANK",
+   "recipient_email": "loans@firstbank.test",
+   "purpose": "Loan application",
+   "scopes": [
+    "IDENTITY",
+    "FINANCIAL_HISTORY",
+    "EVIDENCE_QUALITY",
+    "GOVERNANCE",
+    "AUDIT_TRAIL"
+   ],
+   "include_detail": false,
+   "allow_download": false,
+   "closed_periods_only": false,
+   "date_from": "2020-01-01",
+   "date_to": "2039-12-31",
+   "status": "ACTIVE",
+   "created_at": "2026-10-09T12:17:03.438128+00:00",
+   "created_by": "228b1d57-a0cf-47ba-866c-2f6efa79745a",
+   "expires_at": "2026-11-08T12:17:03.438128+00:00",
+   "fingerprint": "906e5d731edf803b57e7ee215b2f39ed4d4960c62091641f3f193592266210b5",
+   "failed_attempts": 0,
+   "access_count": 0,
+   "last_accessed_at": null,
+   "revoked_at": null,
+   "revoked_by": null,
+   "revoke_reason": null,
+   "periods_included": [
+    {
+     "name": "FY2026-M01",
+     "start_date": "2026-01-01",
+     "end_date": "2026-01-31",
+     "status": "OPEN"
+    },
+    {
+     "name": "FY2026-M02",
+     "start_date": "2026-02-01",
+     "end_date": "2026-02-28",
+     "status": "OPEN"
+    }
+   ],
+   "periods_excluded": 0
+  },
+  "warnings": [],
+  "note": "The link and the access code are shown once and cannot be recovered. Send them by different routes."
+ },
+ "detail": {
+  "share": {
+   "organisation": "Meridian Textiles Limited",
+   "recipient_name": "First Bank Plc",
+   "recipient_type": "BANK",
+   "purpose": "Loan application",
+   "scopes": [
+    "IDENTITY",
+    "FINANCIAL_HISTORY",
+    "EVIDENCE_QUALITY",
+    "GOVERNANCE",
+    "AUDIT_TRAIL"
+   ],
+   "include_detail": true,
+   "allow_download": true,
+   "closed_periods_only": false,
+   "date_from": "2020-01-01",
+   "date_to": "2039-12-31",
+   "expires_at": "2026-11-08T12:17:03.438128+00:00",
+   "snapshot_taken_at": "2026-10-09T12:17:03.438128+00:00",
+   "periods_included": [
+    {
+     "name": "FY2026-M01",
+     "start_date": "2026-01-01",
+     "end_date": "2026-01-31",
+     "status": "OPEN"
+    },
+    {
+     "name": "FY2026-M02",
+     "start_date": "2026-02-01",
+     "end_date": "2026-02-28",
+     "status": "OPEN"
+    }
+   ],
+   "periods_excluded": 0
+  },
+  "sections": {
+   "identity": {
+    "status": "attention",
+    "attention": [
+     "Organisation profile is missing: registration number, tax ID, country.",
+     "Ownership and subsidiaries have not been recorded yet."
+    ],
+    "legal_entity": {
+     "legal_name": "Meridian Textiles Limited",
+     "trading_name": null,
+     "registration_number": null,
+     "tax_id": null,
+     "organisation_type": null,
+     "industry": null,
+     "country": null,
+     "address": null,
+     "base_currency": "NGN",
+     "fiscal_year_start_month": null,
+     "website": null
+    },
+    "ownership": {
+     "recorded": false,
+     "owners": [],
+     "total_percent": null,
+     "updated_at": null,
+     "updated_by": null
+    },
+    "subsidiaries": {
+     "recorded": false,
+     "items": [],
+     "count": 0
+    },
+    "reporting_periods": [
+     {
+      "id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+      "name": "FY2026-M01",
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-31",
+      "status": "OPEN"
+     },
+     {
+      "id": "803f1a0e-d48b-4142-a5d1-63cc8b4a1444",
+      "name": "FY2026-M02",
+      "start_date": "2026-02-01",
+      "end_date": "2026-02-28",
+      "status": "OPEN"
+     }
+    ]
+   },
+   "financial_history": {
+    "status": "ok",
+    "attention": [],
+    "currency": "NGN",
+    "currencies_seen": [
+     "NGN"
+    ],
+    "periods": [
+     {
+      "period_id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+      "period_name": "FY2026-M01",
+      "status": "OPEN",
+      "has_activity": true,
+      "journal_count": 2,
+      "revenue": "1000000.00",
+      "expenses": "200000.00",
+      "net_income": "800000.00",
+      "profit_margin_percent": 80.0,
+      "assets": "875000.00",
+      "liabilities": "75000.00",
+      "equity": "0.00",
+      "is_balanced": true
+     },
+     {
+      "period_id": "803f1a0e-d48b-4142-a5d1-63cc8b4a1444",
+      "period_name": "FY2026-M02",
+      "status": "OPEN",
+      "journal_count": 0,
+      "has_activity": false
+     }
+    ],
+    "totals": {
+     "revenue": "1000000.00",
+     "expenses": "200000.00",
+     "net_income": "800000.00",
+     "profit_margin_percent": 80.0,
+     "assets": "875000.00",
+     "liabilities": "75000.00",
+     "equity": "0.00",
+     "profitability": "profit"
+    },
+    "totals_note": "Totals add every posted period. Assets, liabilities and equity are the sum of period movements, which equals the closing position when the ledger starts empty.",
+    "cash_flows": {
+     "statement_available": false,
+     "note": "ASAVEXA does not yet produce a classified cash-flow statement (operating, investing, financing). Below is the movement on bank accounts that have been reconciled.",
+     "available": true,
+     "accounts": [
+      {
+       "id": "d4066de0-56d7-4ee8-aa29-1a9cab9dc5a8",
+       "code": "1000",
+       "name": "Cash at bank"
+      }
+     ],
+     "periods": [
+      {
+       "period_id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+       "period_name": "FY2026-M01",
+       "inflow": "1075000.00",
+       "outflow": "200000.00",
+       "net": "875000.00"
+      }
+     ],
+     "totals": {
+      "inflow": "1075000.00",
+      "outflow": "200000.00",
+      "net": "875000.00"
+     }
+    }
+   },
+   "evidence_quality": {
+    "status": "attention",
+    "attention": [
+     "1 posted journal(s) have no evidence attached.",
+     "2 bank transaction(s) are not reconciled.",
+     "1 exception(s) need attention."
+    ],
+    "transactions": {
+     "total_posted": 2,
+     "supported_verified": 1,
+     "evidence_unverified": 0,
+     "evidence_defective": 0,
+     "missing_evidence": 1,
+     "supported_percent": 50.0,
+     "with_any_evidence_percent": 50.0
+    },
+    "missing_evidence": {
+     "count": 1,
+     "items": [
+      {
+       "journal_id": "f5757a7b-3860-438b-b2c1-a8d660e3f846",
+       "journal_number": "JRN-000002",
+       "date": "2026-01-20",
+       "description": "January rent",
+       "amount": "200000.00",
+       "currency": "NGN"
+      }
+     ],
+     "truncated": false
+    },
+    "bank_reconciliation": {
+     "bank_transactions": 2,
+     "reconciled": 0,
+     "unreconciled": 2,
+     "by_status": {
+      "MATCHED": 1,
+      "UNMATCHED": 1
+     },
+     "reconciliations_by_status": {
+      "DRAFT": 1
+     },
+     "unreconciled_items": [
+      {
+       "id": "25f1c2dc-744b-4748-a2a5-3da28c1659b7",
+       "date": "2026-01-05",
+       "description": "Deposit Kadena",
+       "amount": "1075000.00",
+       "direction": "debit",
+       "status": "MATCHED",
+       "currency": "NGN"
+      },
+      {
+       "id": "39d08897-2437-47be-8697-f9f075bc47dd",
+       "date": "2026-01-28",
+       "description": "Unknown debit",
+       "amount": "5000.00",
+       "direction": "credit",
+       "status": "UNMATCHED",
+       "currency": "NGN"
+      }
+     ],
+     "truncated": false
+    },
+    "exceptions": {
+     "count": 1,
+     "items": [
+      {
+       "kind": "BANK_TRANSACTION_UNMATCHED",
+       "reference": "39d08897-2437-47be-8697-f9f075bc47dd",
+       "detail": "Unknown debit (unmatched)",
+       "date": "2026-01-28"
+      }
+     ],
+     "truncated": false
+    },
+    "evidence_records": 1
+   },
+   "governance": {
+    "status": "attention",
+    "attention": [
+     "Segregation of duties: Journals: creator is not the poster \u2014 1 case(s) where one person did both.",
+     "1 active member(s) hold a role that can both create and post journals.",
+     "7 active control(s) have never been executed.",
+     "2 control exception(s): failing controls or unresolved findings."
+    ],
+    "approvals": {
+     "count": 3,
+     "by_action": {
+      "JOURNAL_POSTED": 2,
+      "EVIDENCE_VERIFIED": 1
+     },
+     "recent": [
+      {
+       "when": "2026-10-09T12:17:03.434281+00:00",
+       "who": "dara@meridian.test",
+       "action": "JOURNAL_POSTED",
+       "entity_type": "Journal",
+       "entity_id": "f5757a7b-3860-438b-b2c1-a8d660e3f846"
+      },
+      {
+       "when": "2026-10-09T12:17:03.434003+00:00",
+       "who": "kwame@meridian.test",
+       "action": "EVIDENCE_VERIFIED",
+       "entity_type": "EvidenceRecord",
+       "entity_id": "d5526c9b-87f6-4d06-8c7e-ccd296ed0005"
+      },
+      {
+       "when": "2026-10-09T12:17:03.433702+00:00",
+       "who": "kwame@meridian.test",
+       "action": "JOURNAL_POSTED",
+       "entity_type": "Journal",
+       "entity_id": "d4f9449f-e756-46f8-8770-6d767178a631"
+      }
+     ]
+    },
+    "controls": {
+     "defined": 9,
+     "active": 9,
+     "executions": 2,
+     "latest_result_by_control": {
+      "PASS": 1,
+      "FAIL": 1
+     },
+     "never_executed": 7,
+     "last_executed_at": "2026-10-09T12:17:03.436663+00:00"
+    },
+    "segregation_of_duties": {
+     "status": "fail",
+     "checks": [
+      {
+       "key": "journal_post",
+       "label": "Journals: creator is not the poster",
+       "rule": "The person who drafted a journal must not be the person who posted it.",
+       "tested": 2,
+       "violations": 1,
+       "status": "fail",
+       "examples": [
+        {
+         "reference": "JRN-000002",
+         "person": "dara@meridian.test"
+        }
+       ]
+      },
+      {
+       "key": "evidence_verify",
+       "label": "Evidence: uploader is not the verifier",
+       "rule": "The person who uploaded evidence must not be the person who verified it.",
+       "tested": 1,
+       "violations": 0,
+       "status": "pass",
+       "examples": []
+      },
+      {
+       "key": "reconciliation_approve",
+       "label": "Reconciliations: preparer is not the approver",
+       "rule": "The person who prepared a reconciliation must not approve it.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      },
+      {
+       "key": "reconciliation_submit",
+       "label": "Reconciliations: submitter is not the approver",
+       "rule": "The person who submitted a reconciliation must not approve it.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      },
+      {
+       "key": "period_close",
+       "label": "Period close: requester is not the approver",
+       "rule": "The person who requested a period close must not approve it.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      },
+      {
+       "key": "control_review",
+       "label": "Controls: executor is not the reviewer",
+       "rule": "The person who ran a control must not be the one who reviews the result.",
+       "tested": 0,
+       "violations": 0,
+       "status": "not_tested",
+       "examples": []
+      }
+     ],
+     "role_conflicts": [
+      {
+       "person": "dara@meridian.test",
+       "role": "OWNER",
+       "conflict": "Can both create and post journals"
+      }
+     ],
+     "note": "A violation is a recorded fact: the same person appears as both maker and checker. In a one-person organisation this is expected, and it is still reported."
+    },
+    "control_exceptions": {
+     "count": 2,
+     "items": [
+      {
+       "kind": "CONTROL_FAIL",
+       "control": "ACC-002",
+       "name": "No unposted journals in period",
+       "severity": "HIGH",
+       "detail": "1 draft journal(s) remain unposted in this period.",
+       "when": "2026-10-09T12:17:03.436663+00:00"
+      },
+      {
+       "kind": "FINDING_OPEN",
+       "control": "ACC-002",
+       "name": "No unposted journals in period",
+       "severity": "HIGH",
+       "detail": "1 draft journal(s) remain unposted in this period.",
+       "when": "2026-10-09T12:17:03.436726+00:00"
+      }
+     ],
+     "truncated": false,
+     "findings_total": 1,
+     "findings_open": 1
+    }
+   },
+   "audit_trail": {
+    "status": "ok",
+    "attention": [],
+    "total_events": 38,
+    "events_analysed": 38,
+    "truncated": false,
+    "first_event_at": "2026-10-09T12:17:02.893823+00:00",
+    "last_event_at": "2026-10-09T12:17:03.436780+00:00",
+    "by_category": {
+     "created": 30,
+     "changed": 1,
+     "approved": 3,
+     "other": 4
+    },
+    "by_person": [
+     {
+      "who": "dara@meridian.test",
+      "created": 21,
+      "changed": 0,
+      "approved": 1,
+      "other": 0,
+      "total": 22,
+      "first_at": "2026-10-09T12:17:02.893823+00:00",
+      "last_at": "2026-10-09T12:17:03.436153+00:00"
+     },
+     {
+      "who": "aisha@meridian.test",
+      "created": 9,
+      "changed": 0,
+      "approved": 0,
+      "other": 4,
+      "total": 13,
+      "first_at": "2026-10-09T12:17:03.433504+00:00",
+      "last_at": "2026-10-09T12:17:03.436780+00:00"
+     },
+     {
+      "who": "kwame@meridian.test",
+      "created": 0,
+      "changed": 1,
+      "approved": 2,
+      "other": 0,
+      "total": 3,
+      "first_at": "2026-10-09T12:17:03.433702+00:00",
+      "last_at": "2026-10-09T12:17:03.434003+00:00"
+     }
+    ],
+    "recent_events": [
+     {
+      "when": "2026-10-09T12:17:03.436780+00:00",
+      "who": "aisha@meridian.test",
+      "action": "FINDING_CREATED",
+      "category": "created",
+      "entity_type": "Finding",
+      "entity_id": "b7895b3a-f937-40f1-8b13-5872f82ee996",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.436701+00:00",
+      "who": "aisha@meridian.test",
+      "action": "CONTROL_EXECUTED",
+      "category": "created",
+      "entity_type": "ControlExecution",
+      "entity_id": "74f52905-f008-4abc-a54d-770b53db0bc8",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.436557+00:00",
+      "who": "aisha@meridian.test",
+      "action": "CONTROL_EXECUTED",
+      "category": "created",
+      "entity_type": "ControlExecution",
+      "entity_id": "fd88a901-6784-44da-b0f7-44816f811bac",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.436466+00:00",
+      "who": "aisha@meridian.test",
+      "action": "REPORT_GENERATED",
+      "category": "other",
+      "entity_type": "Report",
+      "entity_id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.436153+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "b8f045af-d81b-488e-9861-e7b80829891a",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.436111+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "f86250d2-67e4-4d69-9983-567c175050f5",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.436062+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "912a6090-6e7e-4b08-8c67-cfe231552550",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.436024+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "d10e6b90-b58b-43b7-b998-ef5036f0f487",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.435984+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "0c5175f5-8218-4fde-8155-c490695d9ff5",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.435941+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "1196ef34-4dba-4caf-826e-2400f7b2114f",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.435898+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "14f004ae-c426-46f3-b11e-a6d11e406939",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.435856+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "22eae8ec-98b0-4334-a832-5de34bc47677",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.435806+00:00",
+      "who": "dara@meridian.test",
+      "action": "CONTROL_DEFINED",
+      "category": "created",
+      "entity_type": "ControlDefinition",
+      "entity_id": "b1a9b909-3bfa-4923-909c-4f99fa40fa09",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.435690+00:00",
+      "who": "aisha@meridian.test",
+      "action": "EXCEPTION_CREATED",
+      "category": "created",
+      "entity_type": "BankTransaction",
+      "entity_id": "39d08897-2437-47be-8697-f9f075bc47dd",
+      "reason": "No posted ledger entry on this account matches debit=0.00 credit=5000.00 within the configured date tolerance of 2026-01-28."
+     },
+     {
+      "when": "2026-10-09T12:17:03.435653+00:00",
+      "who": "aisha@meridian.test",
+      "action": "CANDIDATE_MATCH_GENERATED",
+      "category": "other",
+      "entity_type": "BankTransaction",
+      "entity_id": "39d08897-2437-47be-8697-f9f075bc47dd",
+      "reason": "No posted ledger entry on this account matches debit=0.00 credit=5000.00 within the configured date tolerance of 2026-01-28."
+     },
+     {
+      "when": "2026-10-09T12:17:03.435418+00:00",
+      "who": "aisha@meridian.test",
+      "action": "TRANSACTION_IMPORTED",
+      "category": "created",
+      "entity_type": "BankTransaction",
+      "entity_id": "39d08897-2437-47be-8697-f9f075bc47dd",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.435359+00:00",
+      "who": "aisha@meridian.test",
+      "action": "MATCH_ACCEPTED",
+      "category": "other",
+      "entity_type": "BankTransaction",
+      "entity_id": "25f1c2dc-744b-4748-a2a5-3da28c1659b7",
+      "reason": "Unique candidate: journal JRN-000001 dated 2026-01-05 (debit=1075000.00, credit=0.00), 0 day(s) from the statement date \u2014 exact amount match, no other candidate in range."
+     },
+     {
+      "when": "2026-10-09T12:17:03.435318+00:00",
+      "who": "aisha@meridian.test",
+      "action": "CANDIDATE_MATCH_GENERATED",
+      "category": "other",
+      "entity_type": "BankTransaction",
+      "entity_id": "25f1c2dc-744b-4748-a2a5-3da28c1659b7",
+      "reason": "Unique candidate: journal JRN-000001 dated 2026-01-05 (debit=1075000.00, credit=0.00), 0 day(s) from the statement date \u2014 exact amount match, no other candidate in range."
+     },
+     {
+      "when": "2026-10-09T12:17:03.434821+00:00",
+      "who": "aisha@meridian.test",
+      "action": "TRANSACTION_IMPORTED",
+      "category": "created",
+      "entity_type": "BankTransaction",
+      "entity_id": "25f1c2dc-744b-4748-a2a5-3da28c1659b7",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.434560+00:00",
+      "who": "aisha@meridian.test",
+      "action": "RECONCILIATION_CREATED",
+      "category": "created",
+      "entity_type": "Reconciliation",
+      "entity_id": "8195a199-ab9c-4e02-b56c-289b29e0e75e",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.434420+00:00",
+      "who": "dara@meridian.test",
+      "action": "JOURNAL_DRAFTED",
+      "category": "created",
+      "entity_type": "Journal",
+      "entity_id": "1139589b-76d1-48fa-b345-ff853a9b052a",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.434281+00:00",
+      "who": "dara@meridian.test",
+      "action": "JOURNAL_POSTED",
+      "category": "approved",
+      "entity_type": "Journal",
+      "entity_id": "f5757a7b-3860-438b-b2c1-a8d660e3f846",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.434156+00:00",
+      "who": "dara@meridian.test",
+      "action": "JOURNAL_DRAFTED",
+      "category": "created",
+      "entity_type": "Journal",
+      "entity_id": "f5757a7b-3860-438b-b2c1-a8d660e3f846",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.434003+00:00",
+      "who": "kwame@meridian.test",
+      "action": "EVIDENCE_VERIFIED",
+      "category": "approved",
+      "entity_type": "EvidenceRecord",
+      "entity_id": "d5526c9b-87f6-4d06-8c7e-ccd296ed0005",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.433978+00:00",
+      "who": "kwame@meridian.test",
+      "action": "EVIDENCE_STATUS_CHANGED",
+      "category": "changed",
+      "entity_type": "EvidenceRecord",
+      "entity_id": "d5526c9b-87f6-4d06-8c7e-ccd296ed0005",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.433852+00:00",
+      "who": "aisha@meridian.test",
+      "action": "EVIDENCE_UPLOADED",
+      "category": "created",
+      "entity_type": "EvidenceRecord",
+      "entity_id": "d5526c9b-87f6-4d06-8c7e-ccd296ed0005",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.433702+00:00",
+      "who": "kwame@meridian.test",
+      "action": "JOURNAL_POSTED",
+      "category": "approved",
+      "entity_type": "Journal",
+      "entity_id": "d4f9449f-e756-46f8-8770-6d767178a631",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.433504+00:00",
+      "who": "aisha@meridian.test",
+      "action": "JOURNAL_DRAFTED",
+      "category": "created",
+      "entity_type": "Journal",
+      "entity_id": "d4f9449f-e756-46f8-8770-6d767178a631",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.432995+00:00",
+      "who": "dara@meridian.test",
+      "action": "PERIOD_OPENED",
+      "category": "created",
+      "entity_type": "AccountingPeriod",
+      "entity_id": "803f1a0e-d48b-4142-a5d1-63cc8b4a1444",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.432954+00:00",
+      "who": "dara@meridian.test",
+      "action": "PERIOD_OPENED",
+      "category": "created",
+      "entity_type": "AccountingPeriod",
+      "entity_id": "ef1ae258-b911-4657-9ce6-b9dcbf14f685",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.432888+00:00",
+      "who": "dara@meridian.test",
+      "action": "ACCOUNT_CREATED",
+      "category": "created",
+      "entity_type": "Account",
+      "entity_id": "e8ed1a99-45a1-40d3-8174-281760841cfe",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.432851+00:00",
+      "who": "dara@meridian.test",
+      "action": "ACCOUNT_CREATED",
+      "category": "created",
+      "entity_type": "Account",
+      "entity_id": "baa45452-f291-4921-bc65-26a2121270dd",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.432815+00:00",
+      "who": "dara@meridian.test",
+      "action": "ACCOUNT_CREATED",
+      "category": "created",
+      "entity_type": "Account",
+      "entity_id": "10fe1a44-f43b-4ced-92a8-ed783be94ccc",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.432757+00:00",
+      "who": "dara@meridian.test",
+      "action": "ACCOUNT_CREATED",
+      "category": "created",
+      "entity_type": "Account",
+      "entity_id": "d4066de0-56d7-4ee8-aa29-1a9cab9dc5a8",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.254566+00:00",
+      "who": "dara@meridian.test",
+      "action": "MEMBERSHIP_CREATED",
+      "category": "created",
+      "entity_type": "Membership",
+      "entity_id": "182599c2-2aec-4428-9fdc-96b588d60d03",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:03.076144+00:00",
+      "who": "dara@meridian.test",
+      "action": "MEMBERSHIP_CREATED",
+      "category": "created",
+      "entity_type": "Membership",
+      "entity_id": "498ef38d-c318-4092-a79b-0214cb9c1720",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:02.894032+00:00",
+      "who": "dara@meridian.test",
+      "action": "MEMBERSHIP_CREATED",
+      "category": "created",
+      "entity_type": "Membership",
+      "entity_id": "9e7dca4c-260d-48b9-8938-a915c0a3a197",
+      "reason": null
+     },
+     {
+      "when": "2026-10-09T12:17:02.893823+00:00",
+      "who": "dara@meridian.test",
+      "action": "ORGANISATION_CREATED",
+      "category": "created",
+      "entity_type": "Organisation",
+      "entity_id": "8b5a75cf-f05f-4983-b25c-a9c23cf304af",
+      "reason": null
+     }
+    ],
+    "journal_provenance": [
+     {
+      "journal_id": "f5757a7b-3860-438b-b2c1-a8d660e3f846",
+      "journal_number": "JRN-000002",
+      "status": "POSTED",
+      "created_by": "dara@meridian.test",
+      "created_at": "2026-10-09T12:17:03.434121+00:00",
+      "posted_by": "dara@meridian.test",
+      "posted_at": "2026-10-09T12:17:03.434260+00:00"
+     },
+     {
+      "journal_id": "d4f9449f-e756-46f8-8770-6d767178a631",
+      "journal_number": "JRN-000001",
+      "status": "POSTED",
+      "created_by": "aisha@meridian.test",
+      "created_at": "2026-10-09T12:17:03.433359+00:00",
+      "posted_by": "kwame@meridian.test",
+      "posted_at": "2026-10-09T12:17:03.433655+00:00"
+     }
+    ],
+    "period_locks": []
+   }
+  },
+  "integrity": {
+   "verified": true,
+   "fingerprint": "03336ac76d65c30de6f1cf92fdeae14d55cd5ae20e103ed725d17edce77147bc",
+   "recomputed": "03336ac76d65c30de6f1cf92fdeae14d55cd5ae20e103ed725d17edce77147bc"
+  }
+ },
+ "detail_create": {
+  "share": {
+   "id": "4b65e32b-6259-4dfc-99f3-7f86ac8d0467",
+   "recipient_name": "First Bank Plc",
+   "recipient_type": "BANK",
+   "recipient_email": "loans@firstbank.test",
+   "purpose": "Loan application",
+   "scopes": [
+    "IDENTITY",
+    "FINANCIAL_HISTORY",
+    "EVIDENCE_QUALITY",
+    "GOVERNANCE",
+    "AUDIT_TRAIL"
+   ],
+   "include_detail": true,
+   "allow_download": true,
+   "closed_periods_only": false,
+   "date_from": "2020-01-01",
+   "date_to": "2039-12-31",
+   "status": "ACTIVE",
+   "created_at": "2026-10-09T12:17:03.438128+00:00",
+   "created_by": "228b1d57-a0cf-47ba-866c-2f6efa79745a",
+   "expires_at": "2026-11-08T12:17:03.438128+00:00",
+   "fingerprint": "03336ac76d65c30de6f1cf92fdeae14d55cd5ae20e103ed725d17edce77147bc",
+   "failed_attempts": 0,
+   "access_count": 0,
+   "last_accessed_at": null,
+   "revoked_at": null,
+   "revoked_by": null,
+   "revoke_reason": null,
+   "periods_included": [
+    {
+     "name": "FY2026-M01",
+     "start_date": "2026-01-01",
+     "end_date": "2026-01-31",
+     "status": "OPEN"
+    },
+    {
+     "name": "FY2026-M02",
+     "start_date": "2026-02-01",
+     "end_date": "2026-02-28",
+     "status": "OPEN"
+    }
+   ],
+   "periods_excluded": 0
+  },
+  "warnings": [
+   "Line-level detail is included: the recipient will see individual transactions and the email addresses of your team."
+  ],
+  "note": "The link and the access code are shown once and cannot be recovered. Send them by different routes."
+ }
+}

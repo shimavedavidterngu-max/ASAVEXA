@@ -23,7 +23,7 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
     async entityAuditTrail(t, i) { return db.audit[`${t}:${i}`] || []; },
     async createAccount(b) { if (db.accounts.some((a) => a.code === b.code && a.org === db.org)) bad(409, "dup"); const a = { id: id(), org: db.org, ...b }; db.accounts.push(a); return a; },
     async listAccounts() { return db.accounts.filter((a) => a.org === db.org); },
-    async openPeriod(b) { const p = { id: id(), status: "OPEN", ...b }; db.periodId = p.id; return p; },
+    async openPeriod(b) { const p = { id: id(), status: "OPEN", ...b }; db.periodId = p.id; (db.periods = db.periods || []).push({ name: b.name, start_date: b.start_date, end_date: b.end_date }); return p; },
     async createDraftJournal(b) {
       const d = b.lines.reduce((s, l) => s + Number(l.debit_amount), 0), c = b.lines.reduce((s, l) => s + Number(l.credit_amount), 0);
       if (d !== c) bad(409, "unbalanced");
@@ -102,6 +102,33 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       if (total > 100) bad(422, "Owners' percentages add up to more than 100%.");
       db.structure = b; return b;
     },
+    async createPassportShare(b) {
+      const n1 = id();
+      const share = { id: n1, org: db.org, status: "ACTIVE", recipient_email: b.recipient_email, scopes: b.scopes, periods_included: db.periods || [] };
+      const rec = { share, secret: `sec${n1.slice(-4)}`, code: "ABCDE-FGHJK", email: (b.recipient_email || "").toLowerCase(), failed: 0, log: [{ action: "PASSPORT_SHARE_CREATED" }], sessions: new Set() };
+      (db.shares = db.shares || {})[n1] = rec;
+      return { share, access_token: `${n1}.${rec.secret}`, access_code: rec.code, warnings: [], note: "once" };
+    },
+    async listPassportShares() { return Object.values(db.shares || {}).filter((r) => r.org !== "x").map((r) => r.share); },
+    async verifyShare({ accessToken, accessCode, email }) {
+      const [sid, secret] = accessToken.split(".");
+      const r = (db.shares || {})[sid];
+      if (!r || r.secret !== secret || r.share.status !== "ACTIVE") bad(403, "This access link is not valid.");
+      if (accessCode !== r.code || (r.email && (email || "").toLowerCase() !== r.email)) { r.failed++; r.log.push({ action: "PASSPORT_SHARE_DENIED" }); bad(403, "The access code or email is not correct."); }
+      const tok = `sess${id()}`; r.sessions.add(tok); r.log.push({ action: "PASSPORT_SHARE_VERIFIED" });
+      return { session_token: tok };
+    },
+    async viewSharedPassport(tok) {
+      const r = Object.values(db.shares || {}).find((x) => x.sessions.has(tok));
+      if (!r || r.share.status !== "ACTIVE") bad(403, "Your verified session has ended.");
+      r.log.push({ action: "PASSPORT_SHARE_VIEWED" });
+      const sections = {};
+      for (const sc of r.share.scopes) sections[sc.toLowerCase()] = { status: "ok" };
+      return { share: { periods_included: db.periods || [] }, sections, integrity: { verified: true } };
+    },
+    async downloadSharedPassport() { bad(403, "The organisation did not allow this share to be downloaded."); },
+    async revokePassportShare(sid) { const r = db.shares[sid]; r.share.status = "REVOKED"; r.log.push({ action: "PASSPORT_SHARE_REVOKED" }); return r.share; },
+    async passportShareAccessLog(sid) { return db.shares[sid].log; },
     async createOrganisation() { db.orgs.push({ id: "org2" }); return { id: "org2" }; },
     async selectOrganisation(o) { db.org = o; return {}; },
   };
@@ -128,6 +155,21 @@ test("self-test: the Passport steps run and pass", async () => {
   const passport = results.filter((r) => r.group === "Passport");
   assert.equal(passport.length, 8);
   assert.deepEqual(passport.filter((r) => r.status !== "pass"), []);
+});
+
+test("self-test: the Sharing steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const sharing = results.filter((r) => r.group === "Sharing");
+  assert.equal(sharing.length, 9);
+  assert.deepEqual(sharing.filter((r) => r.status !== "pass"), [], JSON.stringify(sharing, null, 1));
+});
+
+test("self-test: a share that leaks the wrong sections is caught", async () => {
+  const api = fakeApi();
+  const orig = api.viewSharedPassport;
+  api.viewSharedPassport = async (t) => { const v = await orig(t); v.sections.audit_trail = { status: "ok" }; return v; };
+  const results = await runSelfTest(api, { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && /exactly the chosen sections/.test(r.name)));
 });
 
 test("self-test: a backend that omits evidence_id (the bug fixed in this release) is caught", async () => {

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from ...audit.models import AuditEvent
 from ...identity.domain.permissions import ORG_MANAGE_SETTINGS, PASSPORT_MANAGE
 from ...passport.builder import PassportInputs, build_passport
+from ...passport.sharing import ShareService
 from ...standards import engine as standards_engine
 from ...standards.errors import AsavexaStandardsError
 from ..db.audit_sqlalchemy_repository import SqlAlchemyAuditRepository
@@ -23,6 +24,7 @@ from ..db.identity_sqlalchemy_repository import (
 )
 from ..db.identity_models import UserORM
 from ..db.passport_models import OrganisationStructureORM
+from ..db.passport_share_store import SqlAlchemyShareStore
 from ..db.period_close_sqlalchemy_repository import SqlAlchemyPeriodCloseRepository
 from ..db.profile_models import OrganisationProfileORM
 from ..db.reconciliation_sqlalchemy_repository import (
@@ -36,7 +38,7 @@ from ..db.sqlalchemy_repository import (
 )
 from ..db.standards_models import OrganisationStandardsORM
 from ..deps import get_current_actor, get_current_org, require_permission
-from ..schemas.passport import StructureIn, structure_to_data
+from ..schemas.passport import ShareCreateIn, ShareRevokeIn, StructureIn, structure_to_data
 
 router = APIRouter(prefix="/passport", tags=["VERA Financial Passport"])
 
@@ -59,6 +61,23 @@ def _resolved_standards(session, org_id: str) -> dict:
             return {"configured": False}
     resolved["configured"] = True
     return resolved
+
+
+def user_labels(session, ids) -> dict:
+    """{user id: email} for the ids that are real users. Only well-formed UUIDs go
+    to the database: a stray non-UUID actor string would otherwise raise a
+    DataError and poison the whole request."""
+    valid = []
+    for x in sorted(i for i in ids if i):
+        try:
+            valid.append(str(uuid.UUID(str(x))))
+        except ValueError:
+            continue
+    out = {}
+    if valid:
+        for uid, email in session.execute(select(UserORM.id, UserORM.email).where(UserORM.id.in_(valid[:300]))):
+            out[str(uid)] = email
+    return out
 
 
 def gather_inputs(session, org_id: str) -> PassportInputs:
@@ -126,17 +145,7 @@ def gather_inputs(session, org_id: str) -> PassportInputs:
         ids.update(y for y in (x.executed_by, x.reviewed_by) if y)
     if structure and structure.get("updated_by"):
         ids.add(structure["updated_by"])
-    # Only well-formed UUIDs go to the database: a stray non-UUID actor string
-    # would otherwise raise a DataError and poison the whole request.
-    valid = []
-    for x in sorted(i for i in ids if i):
-        try:
-            valid.append(str(uuid.UUID(str(x))))
-        except ValueError:
-            continue
-    if valid:
-        for uid, email in session.execute(select(UserORM.id, UserORM.email).where(UserORM.id.in_(valid[:300]))):
-            inp.user_labels[str(uid)] = email
+    inp.user_labels.update(user_labels(session, ids))
     return inp
 
 
@@ -184,3 +193,80 @@ def save_structure(
         previous_value=previous, new_value=data,
     ))
     return {**data, "updated_at": now, "updated_by": actor}
+
+
+# ----------------------------------------------------------------------
+# Permissioned sharing (organisation side). Recipients use the separate,
+# unauthenticated /shared-passport router.
+# ----------------------------------------------------------------------
+def _share_service(session) -> ShareService:
+    return ShareService(SqlAlchemyShareStore(session), SqlAlchemyAuditRepository(session))
+
+
+def _share_labels(session, shares) -> dict:
+    ids = set()
+    for s in shares:
+        ids.update(x for x in (s.get("created_by"), s.get("revoked_by")) if x)
+    return user_labels(session, ids)
+
+
+@router.post("/shares", status_code=201, dependencies=[Depends(require_permission(ORG_MANAGE_SETTINGS))])
+def create_share(
+    body: ShareCreateIn,
+    org_id: str = Depends(get_current_org),
+    actor: str = Depends(get_current_actor),
+    session=Depends(get_session),
+):
+    """Freezes a snapshot of the chosen Passport sections for the chosen dates and
+    returns the link and access code ONCE. Disclosing financial data outside the
+    organisation needs org:manage_settings (owner or administrator)."""
+    inp = gather_inputs(session, org_id)
+    result = _share_service(session).create_share(inp, body.model_dump(), actor, datetime.now(timezone.utc))
+    result["share"]["created_by"] = inp.user_labels.get(actor, actor)
+    return result
+
+
+@router.get("/shares", dependencies=[Depends(require_permission(PASSPORT_MANAGE))])
+def list_shares(org_id: str = Depends(get_current_org), session=Depends(get_session)):
+    svc = _share_service(session)
+    shares = svc.list_shares(org_id, datetime.now(timezone.utc))
+    labels = _share_labels(session, shares)
+    for s in shares:
+        s["created_by"] = labels.get(s["created_by"], s["created_by"])
+        if s["revoked_by"]:
+            s["revoked_by"] = labels.get(s["revoked_by"], s["revoked_by"])
+    return shares
+
+
+@router.get("/shares/{share_id}", dependencies=[Depends(require_permission(PASSPORT_MANAGE))])
+def get_share(share_id: str, org_id: str = Depends(get_current_org), session=Depends(get_session)):
+    s = _share_service(session).get_share(org_id, share_id, datetime.now(timezone.utc))
+    labels = _share_labels(session, [s])
+    s["created_by"] = labels.get(s["created_by"], s["created_by"])
+    if s["revoked_by"]:
+        s["revoked_by"] = labels.get(s["revoked_by"], s["revoked_by"])
+    return s
+
+
+@router.get("/shares/{share_id}/access-log", dependencies=[Depends(require_permission(PASSPORT_MANAGE))])
+def share_access_log(share_id: str, org_id: str = Depends(get_current_org), session=Depends(get_session)):
+    """Everything that happened to this share: created, every verification
+    attempt, views, downloads, lock and revocation."""
+    svc = _share_service(session)
+    raw = svc.access_log(org_id, share_id)
+    labels = user_labels(session, {e["who"] for e in raw})
+    return [{**e, "who": labels.get(e["who"], e["who"])} for e in raw]
+
+
+@router.post("/shares/{share_id}/revoke", dependencies=[Depends(require_permission(ORG_MANAGE_SETTINGS))])
+def revoke_share(
+    share_id: str, body: ShareRevokeIn,
+    org_id: str = Depends(get_current_org),
+    actor: str = Depends(get_current_actor),
+    session=Depends(get_session),
+):
+    """Ends the share at once, including for a recipient who is already signed in."""
+    s = _share_service(session).revoke_share(org_id, share_id, actor, body.reason, datetime.now(timezone.utc))
+    labels = user_labels(session, [actor])
+    s["revoked_by"] = labels.get(actor, actor)
+    return s

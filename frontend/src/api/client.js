@@ -54,6 +54,9 @@ export class ApiError extends Error {
     const isAuthCall = typeof path === "string" && path.startsWith("/auth/") && !path.startsWith("/auth/select");
     const join = (friendly) => (server && !friendly.includes(server) ? `${friendly} ${server}` : friendly);
     if (status === 401) return isAuthCall && server ? server : "Your session has expired. Please sign in again.";
+    // A shared-passport recipient is not an ASAVEXA user, so "you do not have permission" is the
+    // wrong thing to tell them: the server's own wording (wrong code, link locked...) is the message.
+    if (status === 403 && server && typeof path === "string" && path.startsWith("/shared-passport")) return server;
     if (status === 403) return join("You do not have permission to perform this action.");
     if (status === 404) return server ? server : "The requested ASAVEXA resource was not found.";
     if (status === 422) return join("The submitted data is invalid.");
@@ -108,7 +111,7 @@ export class ApiClient {
     }
   }
 
-  async _request(method, path, { body, query } = {}) {
+  async _request(method, path, { body, query, token: tokenOverride } = {}) {
     let url = this.baseUrl + path;
     if (query) {
       const qs = new URLSearchParams(
@@ -118,7 +121,11 @@ export class ApiClient {
     }
 
     const headers = { Accept: "application/json" };
-    const token = this.getToken();
+    // `token: null` = send no credentials at all; a string = use that bearer instead of the
+    // organisation login. Shared-passport recipients are not ASAVEXA users: they must never
+    // present, or be able to clear, an organisation session.
+    const overridden = tokenOverride !== undefined;
+    const token = overridden ? tokenOverride : this.getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers["Content-Type"] = "application/json";
 
@@ -145,7 +152,7 @@ export class ApiClient {
 
     if (!response.ok) {
       const error = new ApiError(response.status, parsed, path);
-      if (response.status === 401) this.onUnauthenticated();
+      if (response.status === 401 && !overridden) this.onUnauthenticated();
       throw error;
     }
     return parsed;
@@ -294,6 +301,34 @@ export class ApiClient {
   }
   savePassportStructure(structure) {
     return this.put("/passport/structure", structure);
+  }
+  // ---- Permissioned sharing: organisation side
+  createPassportShare(body) {
+    return this.post("/passport/shares", body);
+  }
+  listPassportShares() {
+    return this.get("/passport/shares");
+  }
+  getPassportShare(id) {
+    return this.get(`/passport/shares/${encodeURIComponent(id)}`);
+  }
+  passportShareAccessLog(id) {
+    return this.get(`/passport/shares/${encodeURIComponent(id)}/access-log`);
+  }
+  revokePassportShare(id, reason) {
+    return this.post(`/passport/shares/${encodeURIComponent(id)}/revoke`, { reason: reason || null });
+  }
+  // ---- Permissioned sharing: recipient side (no organisation login involved)
+  verifyShare({ accessToken, accessCode, email }) {
+    return this._request("POST", "/shared-passport/verify", {
+      body: { access_token: accessToken, access_code: accessCode, email: email || null }, token: null,
+    });
+  }
+  viewSharedPassport(sessionToken) {
+    return this._request("GET", "/shared-passport/view", { token: sessionToken });
+  }
+  downloadSharedPassport(sessionToken) {
+    return this._request("GET", "/shared-passport/download", { token: sessionToken });
   }
   myOrganisations() {
     return this.get("/organisations/mine");

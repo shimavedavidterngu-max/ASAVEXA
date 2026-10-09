@@ -66,6 +66,12 @@ from ..identity.domain.errors import (
     UserNotFoundError,
     WeakPasswordError,
 )
+from ..passport.errors import (
+    AsavexaPassportError,
+    ShareAccessDeniedError,
+    ShareNotFoundError,
+    ShareStateError,
+)
 from ..standards.errors import AsavexaStandardsError
 from ..reconciliation.domain.errors import (
     AsavexaReconciliationError,
@@ -110,7 +116,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, audit, auth, compliance, evidence, journals, organisation_profile, passport, period_close, periods, reconciliation, reporting, standards
+from .routers import accounts, audit, auth, compliance, evidence, journals, organisation_profile, passport, period_close, periods, reconciliation, reporting, shared_passport, standards
 
 app = FastAPI(
     title="Asavexa",
@@ -213,6 +219,7 @@ app.include_router(audit.router)
 app.include_router(organisation_profile.router)
 app.include_router(standards.router)
 app.include_router(passport.router)
+app.include_router(shared_passport.router)
 
 
 @app.on_event("startup")
@@ -220,7 +227,7 @@ def _ensure_optional_tables() -> None:
     """Creates tables added after the initial migration (idempotent).
     A failure here is logged, never fatal: the rest of the API must
     still start even if this one table cannot be created."""
-    from .db.passport_models import ensure_structure_table
+    from .db.passport_models import ensure_share_tables, ensure_structure_table
     from .db.profile_models import ensure_profile_table
     from .db.standards_models import ensure_standards_table
 
@@ -228,6 +235,7 @@ def _ensure_optional_tables() -> None:
         ("organisation_profiles", ensure_profile_table),
         ("organisation_standards", ensure_standards_table),
         ("organisation_structures", ensure_structure_table),
+        ("passport_shares", ensure_share_tables),
     ):
         try:
             ensure()
@@ -298,6 +306,17 @@ def _error_response(
 
 @app.exception_handler(AsavexaStandardsError)
 async def handle_standards_error(request: Request, exc: AsavexaStandardsError):
+    return _error_response(request, exc, 400)
+
+
+@app.exception_handler(AsavexaPassportError)
+async def handle_passport_error(request: Request, exc: AsavexaPassportError):
+    if isinstance(exc, ShareAccessDeniedError):
+        return _error_response(request, exc, 403)
+    if isinstance(exc, ShareNotFoundError):
+        return _error_response(request, exc, 404)
+    if isinstance(exc, ShareStateError):
+        return _error_response(request, exc, 409)
     return _error_response(request, exc, 400)
 
 

@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from typing import List, Optional
 
@@ -88,3 +89,29 @@ def structure_to_data(body: StructureIn) -> dict:
             d["ownership_percent"] = format(d["ownership_percent"].normalize(), "f")
         return {k: v for k, v in d.items() if v is not None}
     return {"owners": [conv(o) for o in body.owners], "subsidiaries": [conv(s) for s in body.subsidiaries]}
+
+
+class ShareCreateIn(BaseModel):
+    """Field rules beyond types live in passport.sharing.validate_request, so the
+    same plain-English messages apply however the service is reached."""
+    recipient_name: str = Field(..., max_length=200)
+    recipient_type: str = Field("OTHER", max_length=30)
+    recipient_email: Optional[str] = Field(None, max_length=200)
+    purpose: Optional[str] = Field(None, max_length=500)
+    scopes: List[str] = Field(default_factory=list, max_length=20)
+    date_from: date
+    date_to: date
+    include_detail: bool = False
+    allow_download: bool = False
+    closed_periods_only: bool = False
+    expires_in_days: int = Field(30, ge=1, le=365)
+
+
+class ShareRevokeIn(BaseModel):
+    reason: Optional[str] = Field(None, max_length=500)
+
+
+class ShareVerifyIn(BaseModel):
+    access_token: str = Field(..., min_length=1, max_length=200)
+    access_code: str = Field(..., min_length=1, max_length=50)
+    email: Optional[str] = Field(None, max_length=200)
