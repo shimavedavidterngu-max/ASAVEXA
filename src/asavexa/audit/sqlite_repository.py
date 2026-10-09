@@ -97,9 +97,10 @@ class SqliteAuditRepository:
     def list_recent_for_org(self, org_id: str, limit: int, exclude_action_prefix: Optional[str] = None):
         """The most recent `limit` events (oldest first) and the matching total."""
         where, params = "org_id=?", [org_id]
-        if exclude_action_prefix:
+        prefixes = [exclude_action_prefix] if isinstance(exclude_action_prefix, str) else list(exclude_action_prefix or [])
+        for prefix in prefixes:   # a string, or several prefixes
             where += " AND action NOT LIKE ? ESCAPE '\\'"
-            params.append(exclude_action_prefix.replace("_", "\\_").replace("%", "\\%") + "%")
+            params.append(prefix.replace("_", "\\_").replace("%", "\\%") + "%")
         total = self.conn.execute(f"SELECT COUNT(*) FROM audit_events WHERE {where}", params).fetchone()[0]
         rows = self.conn.execute(
             f"SELECT * FROM audit_events WHERE {where} ORDER BY timestamp DESC LIMIT ?", params + [limit]

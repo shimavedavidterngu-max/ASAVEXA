@@ -57,8 +57,9 @@ class SqlAlchemyAuditRepository:
         and the total number of matching events. Optionally leaves out
         actions starting with a prefix."""
         cond = [AuditEventORM.org_id == org_id]
-        if exclude_action_prefix:
-            cond.append(~AuditEventORM.action.startswith(exclude_action_prefix, autoescape=True))
+        prefixes = [exclude_action_prefix] if isinstance(exclude_action_prefix, str) else list(exclude_action_prefix or [])
+        for prefix in prefixes:   # a string, or several prefixes
+            cond.append(~AuditEventORM.action.startswith(prefix, autoescape=True))
         total = self.session.scalar(select(func.count()).select_from(AuditEventORM).where(*cond)) or 0
         rows = self.session.scalars(
             select(AuditEventORM).where(*cond).order_by(AuditEventORM.timestamp.desc()).limit(limit)

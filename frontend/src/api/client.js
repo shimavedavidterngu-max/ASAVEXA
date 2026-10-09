@@ -302,6 +302,22 @@ export class ApiClient {
   savePassportStructure(structure) {
     return this.put("/passport/structure", structure);
   }
+  // ---- ASAVEXA AI (read-only: Explain, Detect, Recommend, Prove, and free-text Ask)
+  aiExplain({ subjectType, subjectId }) {
+    return this.post("/ai/explain", { subject_type: subjectType, subject_id: subjectId });
+  }
+  aiDetect({ periodId, limit } = {}) {
+    return this.post("/ai/detect", { period_id: periodId || null, limit: limit || 20 });
+  }
+  aiRecommend({ scope, periodId, limit } = {}) {
+    return this.post("/ai/recommend", { scope: scope || "all", period_id: periodId || null, limit: limit || 15 });
+  }
+  aiProve({ subjectType, subjectId, metric, periodId }) {
+    return this.post("/ai/prove", { subject_type: subjectType, subject_id: subjectId || null, metric: metric || null, period_id: periodId || null });
+  }
+  aiAsk(question) {
+    return this.post("/ai/ask", { question });
+  }
   // ---- Permissioned sharing: organisation side
   createPassportShare(body) {
     return this.post("/passport/shares", body);

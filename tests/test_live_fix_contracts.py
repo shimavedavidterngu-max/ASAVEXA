@@ -212,3 +212,39 @@ class PassportSharingContractTestCase(unittest.TestCase):
         self.assertLess(app.index('"shared"', app.index("function render()")), app.index("if (!authState.token)"))
         self.assertIn('{ path: "/passport/sharing", name: "passport-sharing" }', app)
         self.assertLess(app.index('"/passport/sharing", name'), app.index('{ path: "/passport", name'))
+
+
+class AiContractTestCase(unittest.TestCase):
+    def _router(self):
+        return _read(os.path.join(ROUTERS, "ai.py"))
+
+    def test_router_is_read_only_and_needs_ledger_read(self):
+        src = self._router()
+        self.assertIn("dependencies=[Depends(require_permission(LEDGER_READ))]", src)
+        tree = ast.parse(src)
+        called = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+        for forbidden in ("post_journal", "create_draft_journal", "approve", "reject", "verify", "upload", "delete", "add", "update", "reverse_journal"):
+            self.assertNotIn(forbidden, called, f"the AI router must not call {forbidden}")
+
+    def test_every_query_is_audited_and_kept_out_of_the_passport_trail(self):
+        self.assertIn("AI_", self._router())
+        self.assertIn('("PASSPORT_", "AI_")', _read(os.path.join(ROUTERS, "passport.py")))
+
+    def test_main_includes_router_and_domain_error_handler(self):
+        main = _read(MAIN)
+        self.assertIn("ai.router", main)
+        self.assertIn("AiSubjectNotFoundError", main)
+        self.assertIn("AsavexaAiError", main)
+
+    def test_frontend_paths_match_backend_routes(self):
+        client = _read(os.path.join(ROOT, "frontend", "src", "api", "client.js"))
+        src = self._router()
+        for p in ("/ai/explain", "/ai/detect", "/ai/recommend", "/ai/prove", "/ai/ask"):
+            self.assertIn(p, client, p)
+            self.assertIn('"' + p[len("/ai"):] + '"', src, p)
+
+    def test_app_has_route_and_nav_for_ai(self):
+        app = _read(os.path.join(ROOT, "frontend", "src", "app.js"))
+        self.assertIn('{ path: "/ai", name: "ai" }', app)
+        self.assertIn('label: "ASAVEXA AI", permission: PERMISSIONS.LEDGER_READ', app)
+        self.assertIn('renderAi(authState)', app)

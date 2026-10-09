@@ -34,6 +34,7 @@ import { Compliance } from "./pages/Compliance.js";
 import { Administration } from "./pages/Administration.js";
 import { Standards } from "./pages/Standards.js";
 import { Passport } from "./pages/Passport.js";
+import { AiAssistant, newAiForm, validateAiForm, buildAiRequest } from "./pages/AiAssistant.js";
 import { PassportSharing, newWizard, presetRange, validateStep, buildSharePayload, RECIPIENT_DEFAULTS, STEPS } from "./pages/PassportSharing.js";
 import { SharedPassport } from "./pages/SharedPassport.js";
 import { Diagnostics, formatReport } from "./pages/Diagnostics.js";
@@ -62,6 +63,7 @@ const NAV_ITEMS = [
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
+  { path: "/ai", label: "ASAVEXA AI", permission: PERMISSIONS.LEDGER_READ },
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
@@ -88,6 +90,7 @@ const routes = [
   { path: "/compliance/findings", name: "compliance-findings" },
   { path: "/compliance", name: "compliance" },
   { path: "/admin", name: "admin" },
+  { path: "/ai", name: "ai" },
   { path: "/passport/sharing", name: "passport-sharing" },
   { path: "/passport", name: "passport" },
   { path: "/shared/:token", name: "shared" },
@@ -141,6 +144,10 @@ let uiState = {
   findings: null, findingFilter: "", finding: null, findingError: null, remediation: null,
   reasonInputs: {}, remediationForm: {},
 
+  // ASAVEXA AI
+  aiMode: "EXPLAIN", aiForm: newAiForm(), aiRunning: false, aiFormError: null, aiQuestion: "",
+  aiResult: null, aiResultError: null, aiExpanded: null, aiJournals: null, aiPeriods: null, aiLoadError: null,
+
   // Financial Passport
   passport: null, passportError: null, passportRefreshing: false,
   passportStructure: { owners: [], subsidiaries: [] }, passportStructureSaving: false,
@@ -180,6 +187,8 @@ const router = new Router(routes, {
     uiState.journalRequestedId = null;
     uiState.evidenceDetailRequestedId = null;
     uiState.reconciliationDetailRequestedId = null;
+    uiState.aiResult = null; uiState.aiResultError = null; uiState.aiFormError = null; uiState.aiExpanded = null;
+    uiState.aiRunning = false; uiState.aiQuestion = ""; uiState.aiJournals = null; uiState.aiPeriods = null; uiState.aiLoadError = null;
     uiState.shareWizard = null; uiState.shareResult = null; uiState.shareLink = "";
     uiState.shareRevokeTarget = null; uiState.shareLogTarget = null;
     render();
@@ -333,6 +342,7 @@ function renderPage(matched, authState) {
   if (name === "period-close") return renderPeriodClose(authState, nav);
   if (name.startsWith("compliance")) return renderCompliance(name, params, authState, nav);
   if (name === "admin") return renderAdmin(authState, nav);
+  if (name === "ai") return renderAi(authState);
   if (name === "passport-sharing") return renderPassportSharing(authState, nav);
   if (name === "passport") return renderPassport(authState, nav);
   if (name === "standards") return renderStandards(authState);
@@ -1666,6 +1676,72 @@ async function handleSaveStandards() {
 }
 
 // ==================================================================
+// ASAVEXA AI (read-only; every answer is grounded server-side)
+function renderAi(authState) {
+  once("aiLoading", loadAiContext);
+  return AiAssistant({
+    role: authState.role, loading: uiState.aiLoading, error: uiState.aiLoadError, onRetry: () => reload("aiLoading"),
+    journals: uiState.aiJournals, periods: uiState.aiPeriods,
+    mode: uiState.aiMode, form: uiState.aiForm, running: uiState.aiRunning, formError: uiState.aiFormError,
+    question: uiState.aiQuestion, result: uiState.aiResult, resultError: uiState.aiResultError, expanded: uiState.aiExpanded,
+    onModeChange: (m) => { uiState.aiMode = m; uiState.aiFormError = null; uiState.aiResult = null; uiState.aiResultError = null; uiState.aiExpanded = null; render(); },
+    onFormChange: (k, v) => { uiState.aiForm = { ...uiState.aiForm, [k]: v }; uiState.aiFormError = null; render(); },
+    onQuestionChange: (v) => { uiState.aiQuestion = v; },
+    onRun: handleAiRun, onAsk: () => handleAiAsk(uiState.aiQuestion),
+    onSample: (q) => { uiState.aiQuestion = q; handleAiAsk(q); },
+    onToggle: (i) => {
+      const cur = uiState.aiExpanded || { 0: true };
+      uiState.aiExpanded = { ...cur, [i]: !cur[i] }; render();
+    },
+    onDrill: (mode, subj) => handleAiDrill(mode, subj),
+  });
+}
+
+async function loadAiContext() {
+  uiState.aiLoadError = null;
+  try {
+    const [journals, periods] = await Promise.all([api.listJournals(), api.listPeriods().catch(() => [])]);
+    uiState.aiJournals = journals || [];
+    uiState.aiPeriods = periods || [];
+  } catch (err) {
+    uiState.aiLoadError = err.message || "Could not load your journals.";
+  }
+}
+
+async function runAi(fn) {
+  uiState.aiRunning = true; uiState.aiResultError = null; uiState.aiResult = null; uiState.aiExpanded = null;
+  render();
+  try {
+    uiState.aiResult = await fn();
+  } catch (err) {
+    uiState.aiResultError = err.message || "ASAVEXA AI could not answer.";
+  } finally {
+    uiState.aiRunning = false;
+    render();
+  }
+}
+
+function handleAiRun() {
+  const problem = validateAiForm(uiState.aiMode, uiState.aiForm);
+  if (problem) { uiState.aiFormError = problem; render(); return; }
+  const { call, args } = buildAiRequest(uiState.aiMode, uiState.aiForm);
+  return runAi(() => api[call](args));
+}
+
+function handleAiAsk(question) {
+  const q = String(question || "").trim();
+  if (!q) { uiState.aiFormError = "Type a question first."; render(); return; }
+  uiState.aiFormError = null;
+  return runAi(() => api.aiAsk(q));
+}
+
+function handleAiDrill(mode, subj) {
+  uiState.aiMode = mode;
+  if (mode === "EXPLAIN") return runAi(() => api.aiExplain(subj));
+  return runAi(() => api.aiProve(subj));
+}
+
+// ------------------------------------------------------------------
 // VERA Financial Passport
 // ==================================================================
 function structureFromPassport(passport) {

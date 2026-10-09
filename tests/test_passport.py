@@ -130,7 +130,7 @@ class World:
         closes = []
         for p in periods:
             closes.extend(self.close_repo.list_for_period(o, p.id))
-        events, total = self.audit.list_recent_for_org(o, 5000, exclude_action_prefix="PASSPORT_")
+        events, total = self.audit.list_recent_for_org(o, 5000, exclude_action_prefix=("PASSPORT_", "AI_"))
         labels = {u.id: u.email for u in (self.owner, self.accountant, self.approver, self.other_owner)}
         org = SqliteOrganisationRepository(c).get(o)
         return PassportInputs(
@@ -344,7 +344,7 @@ class PassportEdgeCasesTestCase(unittest.TestCase):
         from asavexa.audit.models import AuditEvent
         w.audit.record(AuditEvent(id="p1", org_id=w.org.id, entity_type="Passport", entity_id=w.org.id,
                                   action="PASSPORT_GENERATED", actor=w.owner.id, timestamp=NOW))
-        events, _ = w.audit.list_recent_for_org(w.org.id, 5000, exclude_action_prefix="PASSPORT_")
+        events, _ = w.audit.list_recent_for_org(w.org.id, 5000, exclude_action_prefix=("PASSPORT_", "AI_"))
         self.assertFalse(any(e.action.startswith("PASSPORT_") for e in events))
         events_all, _ = w.audit.list_recent_for_org(w.org.id, 5000)
         self.assertTrue(any(e.action == "PASSPORT_GENERATED" for e in events_all))

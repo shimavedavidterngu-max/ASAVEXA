@@ -579,6 +579,71 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     return `${log.length} entries`;
   });
 
+  // ---------------- 10d. ASAVEXA AI ----------------
+  const CHAIN = ["conclusion", "source_records", "evidence", "journal", "accounting_treatment", "reporting_framework", "confidence", "human_review"];
+  const chainOk = (it) => CHAIN.every((k) => it && it[k] !== undefined && it[k] !== null);
+
+  await step("AI", "Explain answers about the posted journal with the full grounded chain", ["posted"], async () => {
+    ctx.aiExplain = await api.aiExplain({ subjectType: "journal", subjectId: ctx.journal.id });
+    check(ctx.aiExplain.grounded === true && ctx.aiExplain.items.length >= 1, "the answer was not grounded");
+    const it = ctx.aiExplain.items[0];
+    check(chainOk(it), `the answer is missing a link of the chain (${CHAIN.filter((k) => !it || it[k] == null).join(", ")})`);
+    check(["HIGH", "MEDIUM", "LOW"].includes(it.confidence.level), "confidence has no level");
+    check(it.confidence.level === "HIGH" || it.human_review.required === true, "a less-than-high confidence answer did not ask for human review");
+    return `confidence ${it.confidence.level}, human review ${it.human_review.required ? "required" : "not required"}`;
+  });
+
+  await step("AI", "Detect returns a grounded answer (an empty result is fine)", ["orgId"], async () => {
+    const r = await api.aiDetect({ limit: 20 });
+    check(r.grounded === true && Array.isArray(r.items), "Detect did not return a grounded list");
+    for (const it of r.items) check(chainOk(it), "a flagged item has a broken chain");
+    return `${r.items.length} item(s)`;
+  });
+
+  await step("AI", "Recommend only proposes: nothing is applied", ["orgId"], async () => {
+    const r = await api.aiRecommend({ scope: "all", limit: 15 });
+    check(r.grounded === true && Array.isArray(r.items), "Recommend did not return a grounded list");
+    for (const it of r.items) {
+      check(chainOk(it), "a recommendation has a broken chain");
+      check(it.human_review.required === true, "a recommendation did not require a person");
+      check(!it.proposal || it.proposal.applied === false, "a proposal claims to have been applied");
+    }
+    return `${r.items.length} proposal(s), none applied`;
+  });
+
+  await step("AI", "Prove gives a verdict backed by named checks", ["posted"], async () => {
+    const r = await api.aiProve({ subjectType: "journal", subjectId: ctx.journal.id });
+    check(r.grounded === true && r.verdict, "no verdict");
+    check(["PROVEN", "PARTIALLY_PROVEN", "NOT_PROVEN"].includes(r.verdict), `unknown verdict ${r.verdict}`);
+    check(chainOk(r.items[0]), "the proof has a broken chain");
+    return r.verdict;
+  });
+
+  await step("AI", "Ask understands a plain question and refuses what it cannot ground", ["posted"], async () => {
+    const good = await api.aiAsk("Find unusual transactions.");
+    check(good.mode === "DETECT" && good.grounded === true, `routed to ${good.mode}`);
+    const bad = await api.aiAsk("hello");
+    check(bad.grounded === false && bad.refusal && bad.refusal.reason, "it answered something it could not ground");
+    return "answered one, refused one";
+  });
+
+  await step("AI", "An unknown journal gives a clean 404, not a crash", ["orgId"], async () => {
+    const e = await expectRejected(() => api.aiExplain({ subjectType: "journal", subjectId: "JRN-999999" }), [404]);
+    return `HTTP ${e.status}`;
+  });
+
+  await step("AI", "Asking questions changes nothing in the books", ["posted"], async () => {
+    const before = (await api.listJournals()).length;
+    const fpBefore = (await api.getPassport()).fingerprint;
+    await api.aiExplain({ subjectType: "journal", subjectId: ctx.journal.id });
+    await api.aiRecommend({ scope: "all" });
+    const after = (await api.listJournals()).length;
+    const fpAfter = (await api.getPassport()).fingerprint;
+    check(before === after, `journal count changed from ${before} to ${after}`);
+    check(fpBefore === fpAfter, "the Financial Passport changed after asking AI questions");
+    return "journal count and passport fingerprint unchanged";
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;

@@ -7,7 +7,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -129,6 +129,23 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
     async downloadSharedPassport() { bad(403, "The organisation did not allow this share to be downloaded."); },
     async revokePassportShare(sid) { const r = db.shares[sid]; r.share.status = "REVOKED"; r.log.push({ action: "PASSPORT_SHARE_REVOKED" }); return r.share; },
     async passportShareAccessLog(sid) { return db.shares[sid].log; },
+    // ---- ASAVEXA AI stand-in: enforces the grounded chain and the 404 / refusal rules
+    _aiItem(extra = {}) {
+      const it = { conclusion: "c", source_records: [{ kind: "JOURNAL" }], evidence: { available: true }, journal: { available: true },
+        accounting_treatment: { available: true }, reporting_framework: { available: true },
+        confidence: { level: "HIGH", score: 100 }, human_review: { required: false }, ...extra };
+      if (breakAiChain) delete it.reporting_framework;
+      return it;
+    },
+    _aiJournal(ref) { if (!db.journals.some((j) => j.id === ref && j.org === db.org)) bad(404, `There is no journal '${ref}'`); },
+    async aiExplain({ subjectId }) { this._aiJournal(subjectId); return { grounded: true, mode: "EXPLAIN", items: [this._aiItem()] }; },
+    async aiDetect() { return { grounded: true, mode: "DETECT", items: [] }; },
+    async aiRecommend() { return { grounded: true, mode: "RECOMMEND", items: [this._aiItem({ human_review: { required: true }, proposal: { applied: false } })] }; },
+    async aiProve({ subjectId }) { this._aiJournal(subjectId); return { grounded: true, mode: "PROVE", verdict: "PROVEN", items: [this._aiItem()] }; },
+    async aiAsk(q) {
+      if (/unusual/i.test(q)) return { grounded: true, mode: "DETECT", items: [] };
+      return { grounded: false, mode: "ASK", items: [], refusal: { reason: "I cannot ground that." } };
+    },
     async createOrganisation() { db.orgs.push({ id: "org2" }); return { id: "org2" }; },
     async selectOrganisation(o) { db.org = o; return {}; },
   };
@@ -155,6 +172,18 @@ test("self-test: the Passport steps run and pass", async () => {
   const passport = results.filter((r) => r.group === "Passport");
   assert.equal(passport.length, 8);
   assert.deepEqual(passport.filter((r) => r.status !== "pass"), []);
+});
+
+test("self-test: the AI steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const ai = results.filter((r) => r.group === "AI");
+  assert.equal(ai.length, 7);
+  assert.deepEqual(ai.filter((r) => r.status !== "pass"), [], JSON.stringify(ai, null, 1));
+});
+
+test("self-test: an AI answer with a broken chain is caught", async () => {
+  const results = await runSelfTest(fakeApi({ breakAiChain: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "AI" && /grounded chain/.test(r.name)));
 });
 
 test("self-test: the Sharing steps run and pass", async () => {

@@ -104,7 +104,7 @@ def gather_inputs(session, org_id: str) -> PassportInputs:
         close_processes.extend(close_repo.list_for_period(org_id, p.id))
 
     audit_events, audit_total = SqlAlchemyAuditRepository(session).list_recent_for_org(
-        org_id, AUDIT_WINDOW, exclude_action_prefix="PASSPORT_"
+        org_id, AUDIT_WINDOW, exclude_action_prefix=("PASSPORT_", "AI_")
     )
     memberships = SqlAlchemyMembershipRepository(session).list_for_org(org_id)
 
