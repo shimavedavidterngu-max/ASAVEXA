@@ -7,7 +7,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -46,8 +46,8 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
     async evidenceStatus(j) { const e = db.evidence.find((x) => x.linked_journal_id === j); return breakEvidenceStatus ? { status: e.status } : { status: e ? e.status : "MISSING", evidence_id: e && e.id }; },
     async verifyEvidence() { bad(403, "maker-checker: cannot verify own upload"); },
     async createReconciliation(b) { uuid(b.bank_account_id); if (!db.accounts.some((a) => a.id === b.bank_account_id)) bad(404, "bank account not found"); const r = { id: id(), status: "DRAFT", ...b }; db.recon.push(r); log("Reconciliation", r.id, "RECONCILIATION_CREATED"); return r; },
-    async importTransactions(r) { db.txn = [{ id: id(), status: "IMPORTED" }]; return {}; },
-    async listReconciliationTransactions() { return db.txn; },
+    async importTransactions(rid) { (db.txns = db.txns || {})[rid] = [{ id: id(), status: "IMPORTED" }]; return {}; },
+    async listReconciliationTransactions(rid) { return (db.txns || {})[rid] || []; },
     async listReconciliations() { return db.recon; },
     async getReconciliation(i) { return db.recon.find((r) => r.id === i); },
     async trialBalance() { return { is_balanced: true, total_debits: "1075000.00", total_credits: "1075000.00" }; },
@@ -146,6 +146,58 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       if (/unusual/i.test(q)) return { grounded: true, mode: "DETECT", items: [] };
       return { grounded: false, mode: "ASK", items: [], refusal: { reason: "I cannot ground that." } };
     },
+    // ---- External data ingestion stand-in: preview writes nothing, commit re-stages and checks the fingerprint
+    async ingestionLevels() {
+      return { levels: [[1, "WORKING"], [2, "WORKING"], [3, "WORKING"], [4, "PARTIAL"], [5, "PARTIAL"], [6, "FILES_ONLY"], [7, "PAYLOAD_ONLY"], [8, "PAYLOAD_ONLY"]].map(([level, status]) => ({ level, status, name: `L${level}` })) };
+    },
+    async ingestionPreview({ file, purpose, reconciliationId, options, currency }) {
+      if (!["BANK_STATEMENT", "DOCUMENT", "PAYROLL", "CHART_OF_ACCOUNTS", "JOURNALS"].includes(purpose)) bad(400, "purpose must be one of: BANK_STATEMENT, ...");
+      const text = await file.text();
+      const hash = (str) => { let h = 7; for (const c of str) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h.toString(16).padStart(8, "0").repeat(8); };
+      if (purpose === "DOCUMENT") {
+        const m = (re) => { const x = text.match(re); return x ? { value: x[1], confidence: "HIGH" } : undefined; };
+        return { kind: "DOCUMENT", document: { type: /invoice/i.test(text) ? "INVOICE" : "UNKNOWN", fields: { document_number: m(/Invoice No:\s*(\S+)/), total: m(/^Total NGN ([\d.]+)/m) } },
+          proposal: { applied: false }, status: { errors: 0, importable: true, needs_acknowledgement: false }, fingerprint: hash(text + purpose), source: { sha256: hash(text) }, summary: {} };
+      }
+      if (purpose !== "BANK_STATEMENT") { if (!currency) bad(400, "Choose the currency for the accounts/journals."); return { kind: purpose, status: { errors: 0, importable: true }, fingerprint: hash(text), summary: {} }; }
+      if (!reconciliationId) bad(400, "Choose the reconciliation the statement belongs to.");
+      const rec = db.recon.find((r) => r.id === reconciliationId); if (!rec) bad(404, "Reconciliation not found.");
+      const [head, ...lines] = text.trim().split("\n").map((l) => l.split(","));
+      const col = (n) => head.indexOf(n);
+      let inT = 0, outT = 0, errors = 0, prev = null, brokenBalance = false, already = 0; const rows = [];
+      for (const l of lines) {
+        const date = l[col("Date")], desc = l[col("Description")];
+        const amt = col("Amount") >= 0 ? Number(l[col("Amount")]) : Number(l[col("Credit")] || 0) - Number(l[col("Debit")] || 0);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { errors++; continue; }
+        const mi = amt > 0 ? amt : 0, mo = amt < 0 ? -amt : 0; inT += mi; outT += mo;
+        if (col("Balance") >= 0) { const bal = Number(l[col("Balance")]); if (prev !== null && Math.abs(prev + amt - bal) > 0.001) brokenBalance = true; prev = bal; }
+        const key = `${date}|${desc}|${mi}|${mo}`; if (((db.imported || {})[rec.id] || new Set()).has(key)) already++;
+        rows.push(key);
+      }
+      return { kind: "BANK_TRANSACTIONS", status: { errors, importable: errors === 0 && rows.length > 0, needs_acknowledgement: brokenBalance }, rows: rows.map((k) => ({ key: k })),
+        summary: { lines: rows.length, money_in_total: inT.toFixed(2), money_out_total: outT.toFixed(2), already_imported: already, to_import: rows.length - already },
+        checks: [{ key: "BALANCE_CONTINUITY", result: col("Balance") < 0 ? "NOT_APPLICABLE" : brokenBalance ? "FAIL" : "PASS" }], fingerprint: hash(text + JSON.stringify(options || {})), source: { sha256: hash(text) } };
+    },
+    async ingestionCommit(a) {
+      const p = await this.ingestionPreview(a);
+      if (p.fingerprint !== a.fingerprint) bad(400, "The file or the settings changed since the preview.");
+      if (p.status.errors) bad(400, "The file still has errors.");
+      if (p.status.needs_acknowledgement && !a.acknowledge) bad(400, "Confirm the warnings first.");
+      const text = await a.file.text();
+      let ev = db.evidence.find((e) => e.file_hash === p.source.sha256 && e.org === db.org);
+      if (!ev) { ev = { id: id(), org: db.org, type: a.purpose === "DOCUMENT" ? p.document.type : "BANK_STATEMENT", status: "UPLOADED", file_hash: p.source.sha256 }; db.evidence.push(ev); }
+      if (a.purpose === "DOCUMENT") return { purpose: a.purpose, result: { evidence_id: ev.id, status: "UPLOADED", type: ev.type } };
+      const store = ((db.imported = db.imported || {})[a.reconciliationId] = db.imported[a.reconciliationId] || new Set());
+      let n = 0; (db.txns = db.txns || {})[a.reconciliationId] = db.txns[a.reconciliationId] || [];
+      const [head, ...lines] = text.trim().split("\n").map((l) => l.split(","));
+      for (const k of p.rows.map((r) => r.key)) {
+        if (store.has(k) && !breakImportDedupe) continue;
+        store.add(k); n++;
+        const [date, desc, mi, mo] = k.split("|");
+        db.txns[a.reconciliationId].push({ id: id(), description: desc, debit_amount: mi, credit_amount: mo, status: "UNMATCHED" });
+      }
+      return { purpose: a.purpose, result: { imported: n, evidence_id: ev.id } };
+    },
     async createOrganisation() { db.orgs.push({ id: "org2" }); return { id: "org2" }; },
     async selectOrganisation(o) { db.org = o; return {}; },
   };
@@ -184,6 +236,18 @@ test("self-test: the AI steps run and pass", async () => {
 test("self-test: an AI answer with a broken chain is caught", async () => {
   const results = await runSelfTest(fakeApi({ breakAiChain: true }), { orgId: "org1" });
   assert.ok(results.some((r) => r.status === "fail" && r.group === "AI" && /grounded chain/.test(r.name)));
+});
+
+test("self-test: the Import steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const imp = results.filter((r) => r.group === "Import");
+  assert.equal(imp.length, 9);
+  assert.deepEqual(imp.filter((r) => r.status !== "pass"), [], JSON.stringify(imp, null, 1));
+});
+
+test("self-test: an import that creates duplicates on re-import is caught", async () => {
+  const results = await runSelfTest(fakeApi({ breakImportDedupe: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Import" && /same file again/.test(r.name)));
 });
 
 test("self-test: the Sharing steps run and pass", async () => {

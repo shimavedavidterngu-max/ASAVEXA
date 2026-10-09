@@ -67,6 +67,7 @@ from ..identity.domain.errors import (
     WeakPasswordError,
 )
 from ..ai.errors import AiSubjectNotFoundError, AiValidationError, AsavexaAiError
+from ..ingestion.errors import IngestionError
 from ..passport.errors import (
     AsavexaPassportError,
     ShareAccessDeniedError,
@@ -117,7 +118,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, ai, audit, auth, compliance, evidence, journals, organisation_profile, passport, period_close, periods, reconciliation, reporting, shared_passport, standards
+from .routers import accounts, ai, audit, auth, compliance, evidence, ingestion, journals, organisation_profile, passport, period_close, periods, reconciliation, reporting, shared_passport, standards
 
 app = FastAPI(
     title="Asavexa",
@@ -221,6 +222,7 @@ app.include_router(organisation_profile.router)
 app.include_router(standards.router)
 app.include_router(passport.router)
 app.include_router(ai.router)
+app.include_router(ingestion.router)
 app.include_router(shared_passport.router)
 
 
@@ -319,6 +321,11 @@ async def handle_passport_error(request: Request, exc: AsavexaPassportError):
         return _error_response(request, exc, 404)
     if isinstance(exc, ShareStateError):
         return _error_response(request, exc, 409)
+    return _error_response(request, exc, 400)
+
+
+@app.exception_handler(IngestionError)
+async def handle_ingestion_error(request: Request, exc: IngestionError):
     return _error_response(request, exc, 400)
 
 

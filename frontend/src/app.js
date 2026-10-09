@@ -34,6 +34,7 @@ import { Compliance } from "./pages/Compliance.js";
 import { Administration } from "./pages/Administration.js";
 import { Standards } from "./pages/Standards.js";
 import { Passport } from "./pages/Passport.js";
+import { DataImport, newImportForm, validateImportForm, buildImportArgs, allowedPurposes } from "./pages/DataImport.js";
 import { AiAssistant, newAiForm, validateAiForm, buildAiRequest } from "./pages/AiAssistant.js";
 import { PassportSharing, newWizard, presetRange, validateStep, buildSharePayload, RECIPIENT_DEFAULTS, STEPS } from "./pages/PassportSharing.js";
 import { SharedPassport } from "./pages/SharedPassport.js";
@@ -63,6 +64,7 @@ const NAV_ITEMS = [
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
+  { path: "/import", label: "Data Import", permission: null, anyOf: [PERMISSIONS.RECONCILIATION_IMPORT, PERMISSIONS.EVIDENCE_UPLOAD, PERMISSIONS.ACCOUNT_MANAGE, PERMISSIONS.JOURNAL_CREATE] },
   { path: "/ai", label: "ASAVEXA AI", permission: PERMISSIONS.LEDGER_READ },
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
@@ -90,6 +92,7 @@ const routes = [
   { path: "/compliance/findings", name: "compliance-findings" },
   { path: "/compliance", name: "compliance" },
   { path: "/admin", name: "admin" },
+  { path: "/import", name: "import" },
   { path: "/ai", name: "ai" },
   { path: "/passport/sharing", name: "passport-sharing" },
   { path: "/passport", name: "passport" },
@@ -144,6 +147,11 @@ let uiState = {
   findings: null, findingFilter: "", finding: null, findingError: null, remediation: null,
   reasonInputs: {}, remediationForm: {},
 
+  // Data Import
+  impForm: newImportForm(), impFile: null, impFormError: null, impPreviewing: false, impPreviewError: null, impBatch: null,
+  impOnlyProblems: false, impAck: false, impCommitting: false, impCommitError: null, impResult: null,
+  impReconciliations: null, impLevels: null, impLoadError: null,
+
   // ASAVEXA AI
   aiMode: "EXPLAIN", aiForm: newAiForm(), aiRunning: false, aiFormError: null, aiQuestion: "",
   aiResult: null, aiResultError: null, aiExpanded: null, aiJournals: null, aiPeriods: null, aiLoadError: null,
@@ -187,6 +195,9 @@ const router = new Router(routes, {
     uiState.journalRequestedId = null;
     uiState.evidenceDetailRequestedId = null;
     uiState.reconciliationDetailRequestedId = null;
+    uiState.impFile = null; uiState.impFormError = null; uiState.impPreviewing = false; uiState.impPreviewError = null; uiState.impBatch = null;
+    uiState.impOnlyProblems = false; uiState.impAck = false; uiState.impCommitting = false; uiState.impCommitError = null; uiState.impResult = null;
+    uiState.impReconciliations = null; uiState.impLoadError = null; uiState.impForm = newImportForm();
     uiState.aiResult = null; uiState.aiResultError = null; uiState.aiFormError = null; uiState.aiExpanded = null;
     uiState.aiRunning = false; uiState.aiQuestion = ""; uiState.aiJournals = null; uiState.aiPeriods = null; uiState.aiLoadError = null;
     uiState.shareWizard = null; uiState.shareResult = null; uiState.shareLink = "";
@@ -296,7 +307,7 @@ function renderShell(authState) {
 /** The sidebar entries this role may see, with only the most specific match marked active
  * (so "/passport/sharing" lights up Passport Sharing, not Financial Passport as well). */
 function visibleNav(authState, path) {
-  const items = NAV_ITEMS.filter((item) => !item.permission || allowed(authState.role, item.permission));
+  const items = NAV_ITEMS.filter((item) => (item.anyOf ? item.anyOf.some((p) => allowed(authState.role, p)) : !item.permission || allowed(authState.role, item.permission)));
   const matches = items.filter((i) => path === i.path || (i.path !== "/" && path.startsWith(i.path + "/")));
   const best = matches.reduce((a, b) => (!a || b.path.length > a.path.length ? b : a), null);
   return items.map((item) => ({ item, active: item === best }));
@@ -342,6 +353,7 @@ function renderPage(matched, authState) {
   if (name === "period-close") return renderPeriodClose(authState, nav);
   if (name.startsWith("compliance")) return renderCompliance(name, params, authState, nav);
   if (name === "admin") return renderAdmin(authState, nav);
+  if (name === "import") return renderImport(authState, nav);
   if (name === "ai") return renderAi(authState);
   if (name === "passport-sharing") return renderPassportSharing(authState, nav);
   if (name === "passport") return renderPassport(authState, nav);
@@ -1676,6 +1688,95 @@ async function handleSaveStandards() {
 }
 
 // ==================================================================
+// Data Import: preview (writes nothing), then confirm
+function renderImport(authState, nav) {
+  once("impLoading", loadImportContext);
+  const offered = allowedPurposes(authState.role);
+  if (offered.length && !offered.some((p) => p.value === uiState.impForm.purpose)) uiState.impForm = newImportForm(offered[0].value);
+  return DataImport({
+    role: authState.role, loading: uiState.impLoading, error: uiState.impLoadError, onRetry: () => reload("impLoading"),
+    reconciliations: uiState.impReconciliations, levels: uiState.impLevels,
+    form: uiState.impForm, file: uiState.impFile, formError: uiState.impFormError,
+    previewing: uiState.impPreviewing, previewError: uiState.impPreviewError, batch: uiState.impBatch,
+    onlyProblems: uiState.impOnlyProblems, ack: uiState.impAck, committing: uiState.impCommitting, commitError: uiState.impCommitError, result: uiState.impResult,
+    onPurpose: (v) => { uiState.impForm = newImportForm(v); clearImportPreview(); render(); },
+    onFormChange: (k, v) => { uiState.impForm = { ...uiState.impForm, [k]: v }; uiState.impFormError = null; if (["flip", "dateFormat", "headerRow", "sheet", "docType", "reconciliationId"].includes(k)) clearImportPreview(true); render(); },
+    onFile: (file) => { holdImportFile(file); },
+    onPreview: () => handleImportPreview(),
+    onMappingChange: (role, col) => { uiState.impForm = { ...uiState.impForm, mapping: { ...uiState.impForm.mapping, [role]: col } }; handleImportPreview(); },
+    onToggleProblems: (e) => { uiState.impOnlyProblems = !!e.target.checked; render(); },
+    onAck: (v) => { uiState.impAck = v; render(); },
+    onCommit: () => handleImportCommit(),
+    onReset: () => { uiState.impFile = null; uiState.impForm = newImportForm(uiState.impForm.purpose); clearImportPreview(); uiState.impResult = null; render(); },
+    onNavigate: nav,
+  });
+}
+
+// Reads the chosen file into memory once. The preview and the import then send exactly the same bytes, even if the file on disk
+// is changed or the page redraws its file box in between (the server also refuses an import whose file differs from the preview).
+async function holdImportFile(file) {
+  uiState.impForm = { ...uiState.impForm, mapping: {} }; clearImportPreview(); uiState.impFormError = null;
+  if (!file) { uiState.impFile = null; render(); return; }
+  try {
+    const bytes = await file.arrayBuffer();
+    uiState.impFile = new File([bytes], file.name, { type: file.type || "application/octet-stream" });
+  } catch (err) {
+    uiState.impFile = null;
+    uiState.impFormError = "That file could not be read. Please choose it again.";
+  }
+  render();
+}
+
+function clearImportPreview(keepError) {
+  uiState.impBatch = null; uiState.impAck = false; uiState.impCommitError = null; uiState.impOnlyProblems = false;
+  if (!keepError) uiState.impPreviewError = null;
+}
+
+async function loadImportContext() {
+  uiState.impLoadError = null;
+  try {
+    const [levels, recs] = await Promise.all([
+      api.ingestionLevels().catch(() => null),
+      allowed(authStore.getState().role, PERMISSIONS.RECONCILIATION_READ) ? api.listReconciliations() : Promise.resolve([]),
+    ]);
+    uiState.impLevels = levels && levels.levels;
+    uiState.impReconciliations = recs || [];
+  } catch (err) {
+    uiState.impLoadError = err.message || "Could not load reconciliations.";
+  }
+}
+
+async function handleImportPreview() {
+  const problem = validateImportForm(uiState.impForm, uiState.impFile);
+  if (problem) { uiState.impFormError = problem; render(); return; }
+  uiState.impFormError = null; uiState.impPreviewError = null; uiState.impPreviewing = true; uiState.impBatch = null; uiState.impAck = false;
+  render();
+  try {
+    uiState.impBatch = await api.ingestionPreview(buildImportArgs(uiState.impForm, uiState.impFile));
+  } catch (err) {
+    uiState.impPreviewError = err.message || "The file could not be read.";
+  } finally {
+    uiState.impPreviewing = false;
+    render();
+  }
+}
+
+async function handleImportCommit() {
+  const b = uiState.impBatch;
+  if (!b || uiState.impCommitting) return;
+  uiState.impCommitting = true; uiState.impCommitError = null; render();
+  try {
+    uiState.impResult = await api.ingestionCommit({ ...buildImportArgs(uiState.impForm, uiState.impFile), fingerprint: b.fingerprint, acknowledge: uiState.impAck,
+      evidenceType: uiState.impForm.evidenceType || undefined });
+  } catch (err) {
+    uiState.impCommitError = err.message || "The import failed. Nothing was imported.";
+  } finally {
+    uiState.impCommitting = false;
+    render();
+  }
+}
+
+// ------------------------------------------------------------------
 // ASAVEXA AI (read-only; every answer is grounded server-side)
 function renderAi(authState) {
   once("aiLoading", loadAiContext);

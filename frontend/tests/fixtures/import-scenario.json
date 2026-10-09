@@ -1,0 +1,1254 @@
+{
+ "good": {
+  "schema": "asavexa-ingest/1",
+  "kind": "BANK_TRANSACTIONS",
+  "source": {
+   "filename": "jan.csv",
+   "size": 165,
+   "sha256": "61f6d23fc4be15b05b6da93752075f68bae8f1fd7531cc2023f5b7094ec910dd",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ","
+  },
+  "options": {},
+  "mapping": {
+   "date": "Date",
+   "description": "Description",
+   "debit": "Debit",
+   "credit": "Credit",
+   "balance": "Balance"
+  },
+  "rows": [
+   {
+    "row": 2,
+    "status": "OK",
+    "date": "2026-01-15",
+    "value_date": null,
+    "description": "Cash sale",
+    "reference": null,
+    "money_in": "7500.00",
+    "money_out": "0.00",
+    "balance": "7500.00",
+    "currency": null,
+    "issues": [],
+    "already_imported": false
+   },
+   {
+    "row": 3,
+    "status": "OK",
+    "date": "2026-01-20",
+    "value_date": null,
+    "description": "January rent",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "200000.00",
+    "balance": "-192500.00",
+    "currency": null,
+    "issues": [],
+    "already_imported": false
+   },
+   {
+    "row": 4,
+    "status": "OK",
+    "date": "2026-01-28",
+    "value_date": null,
+    "description": "Bank charges",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "500.00",
+    "balance": "-193000.00",
+    "currency": null,
+    "issues": [],
+    "already_imported": false
+   }
+  ],
+  "issues": [],
+  "checks": [
+   {
+    "key": "BALANCE_CONTINUITY",
+    "label": "Running balance adds up line by line",
+    "result": "PASS",
+    "detail": "All 2 steps agree (oldest first)."
+   },
+   {
+    "key": "OPENING_CLOSING",
+    "label": "Opening balance + movement = closing balance",
+    "result": "NOT_APPLICABLE",
+    "detail": "The file does not state both an opening and a closing balance."
+   }
+  ],
+  "summary": {
+   "skipped_lines": 0,
+   "lines": 3,
+   "valid_lines": 3,
+   "money_in_total": "7500.00",
+   "money_out_total": "200500.00",
+   "net": "-193000.00",
+   "first_date": "2026-01-15",
+   "last_date": "2026-01-28",
+   "opening_balance": null,
+   "closing_balance": null,
+   "already_imported": 0,
+   "to_import": 3
+  },
+  "limits": [
+   "This is a reading of the file, not proof the bank issued it. Attach the original statement as evidence.",
+   "Money in/out is decided from the column names or signs. Check the totals against the statement."
+  ],
+  "header_row": 0,
+  "columns": [
+   "Date",
+   "Description",
+   "Debit",
+   "Credit",
+   "Balance"
+  ],
+  "detected": {
+   "date_format": {
+    "detected": "YYYY-MM-DD",
+    "also_fits": [
+     "YYYY-MM-DD"
+    ],
+    "ambiguous": false
+   },
+   "header_row": 1
+  },
+  "problem_rows": [],
+  "status": {
+   "errors": 0,
+   "warnings": 0,
+   "failed_checks": 0,
+   "importable": true,
+   "needs_acknowledgement": false
+  },
+  "fingerprint": "91e073f5990821a53675a43a6e9b3148da0992598d627da4d423419a434e4b09",
+  "reconciliation": {
+   "id": "9f3304a7-af38-4816-b193-3ebe62943c75",
+   "name": "January statement",
+   "currency": "NGN",
+   "status": "DRAFT",
+   "period_start": "2026-01-01",
+   "period_end": "2026-01-31"
+  }
+ },
+ "overlap": {
+  "schema": "asavexa-ingest/1",
+  "kind": "BANK_TRANSACTIONS",
+  "source": {
+   "filename": "jan2.csv",
+   "size": 207,
+   "sha256": "2eaf191036cb29d65cc834c14a09d835dd0081b7abc03c3e8fc4e2694ae02a08",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ","
+  },
+  "options": {},
+  "mapping": {
+   "date": "Date",
+   "description": "Description",
+   "debit": "Debit",
+   "credit": "Credit",
+   "balance": "Balance"
+  },
+  "rows": [
+   {
+    "row": 2,
+    "status": "OK",
+    "date": "2026-01-15",
+    "value_date": null,
+    "description": "Cash sale",
+    "reference": null,
+    "money_in": "7500.00",
+    "money_out": "0.00",
+    "balance": "7500.00",
+    "currency": null,
+    "issues": [],
+    "already_imported": true
+   },
+   {
+    "row": 3,
+    "status": "OK",
+    "date": "2026-01-20",
+    "value_date": null,
+    "description": "January rent",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "200000.00",
+    "balance": "-192500.00",
+    "currency": null,
+    "issues": [],
+    "already_imported": true
+   },
+   {
+    "row": 4,
+    "status": "OK",
+    "date": "2026-01-28",
+    "value_date": null,
+    "description": "Bank charges",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "500.00",
+    "balance": "-193000.00",
+    "currency": null,
+    "issues": [],
+    "already_imported": true
+   },
+   {
+    "row": 5,
+    "status": "OK",
+    "date": "2026-01-30",
+    "value_date": null,
+    "description": "Transfer fee",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "50.00",
+    "balance": "-193050.00",
+    "currency": null,
+    "issues": [],
+    "already_imported": false
+   }
+  ],
+  "issues": [
+   {
+    "level": "INFO",
+    "message": "3 line(s) are already in this bank account's records and will be skipped (overlapping statement)."
+   }
+  ],
+  "checks": [
+   {
+    "key": "BALANCE_CONTINUITY",
+    "label": "Running balance adds up line by line",
+    "result": "PASS",
+    "detail": "All 3 steps agree (oldest first)."
+   },
+   {
+    "key": "OPENING_CLOSING",
+    "label": "Opening balance + movement = closing balance",
+    "result": "NOT_APPLICABLE",
+    "detail": "The file does not state both an opening and a closing balance."
+   }
+  ],
+  "summary": {
+   "skipped_lines": 0,
+   "lines": 4,
+   "valid_lines": 4,
+   "money_in_total": "7500.00",
+   "money_out_total": "200550.00",
+   "net": "-193050.00",
+   "first_date": "2026-01-15",
+   "last_date": "2026-01-30",
+   "opening_balance": null,
+   "closing_balance": null,
+   "already_imported": 3,
+   "to_import": 1
+  },
+  "limits": [
+   "This is a reading of the file, not proof the bank issued it. Attach the original statement as evidence.",
+   "Money in/out is decided from the column names or signs. Check the totals against the statement."
+  ],
+  "header_row": 0,
+  "columns": [
+   "Date",
+   "Description",
+   "Debit",
+   "Credit",
+   "Balance"
+  ],
+  "detected": {
+   "date_format": {
+    "detected": "YYYY-MM-DD",
+    "also_fits": [
+     "YYYY-MM-DD"
+    ],
+    "ambiguous": false
+   },
+   "header_row": 1
+  },
+  "problem_rows": [],
+  "status": {
+   "errors": 0,
+   "warnings": 0,
+   "failed_checks": 0,
+   "importable": true,
+   "needs_acknowledgement": false
+  },
+  "fingerprint": "4a812ff7391618109ad9185abff22c2a303e4899954df427d6a8ae06c6f4d21a",
+  "reconciliation": {
+   "id": "9f3304a7-af38-4816-b193-3ebe62943c75",
+   "name": "January statement",
+   "currency": "NGN",
+   "status": "DRAFT",
+   "period_start": "2026-01-01",
+   "period_end": "2026-01-31"
+  }
+ },
+ "dup": {
+  "schema": "asavexa-ingest/1",
+  "kind": "BANK_TRANSACTIONS",
+  "source": {
+   "filename": "dup.csv",
+   "size": 68,
+   "sha256": "01d887caaac33f1fb89576531895a35e108ee8f1b5836431ad37d602307342af",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ","
+  },
+  "options": {},
+  "mapping": {
+   "date": "Date",
+   "description": "Description",
+   "amount": "Amount"
+  },
+  "rows": [
+   {
+    "row": 2,
+    "status": "OK",
+    "date": "2026-01-10",
+    "value_date": null,
+    "description": "Fee",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "10.00",
+    "balance": null,
+    "currency": null,
+    "issues": [],
+    "already_imported": false
+   },
+   {
+    "row": 3,
+    "status": "WARNING",
+    "date": "2026-01-10",
+    "value_date": null,
+    "description": "Fee",
+    "reference": "#DUP2",
+    "money_in": "0.00",
+    "money_out": "10.00",
+    "balance": null,
+    "currency": null,
+    "issues": [
+     {
+      "level": "WARNING",
+      "message": "An identical line already appears earlier in this file. It was kept as a separate transaction (marked #DUP2); confirm it is real and not a repeated export.",
+      "row": 3
+     }
+    ],
+    "already_imported": false
+   }
+  ],
+  "issues": [],
+  "checks": [
+   {
+    "key": "BALANCE_CONTINUITY",
+    "label": "Running balance adds up line by line",
+    "result": "NOT_APPLICABLE",
+    "detail": "The file has no running balance column."
+   },
+   {
+    "key": "OPENING_CLOSING",
+    "label": "Opening balance + movement = closing balance",
+    "result": "NOT_APPLICABLE",
+    "detail": "The file does not state both an opening and a closing balance."
+   }
+  ],
+  "summary": {
+   "skipped_lines": 0,
+   "lines": 2,
+   "valid_lines": 2,
+   "money_in_total": "0.00",
+   "money_out_total": "20.00",
+   "net": "-20.00",
+   "first_date": "2026-01-10",
+   "last_date": "2026-01-10",
+   "opening_balance": null,
+   "closing_balance": null,
+   "already_imported": 0,
+   "to_import": 2
+  },
+  "limits": [
+   "This is a reading of the file, not proof the bank issued it. Attach the original statement as evidence.",
+   "Money in/out is decided from the column names or signs. Check the totals against the statement."
+  ],
+  "header_row": 0,
+  "columns": [
+   "Date",
+   "Description",
+   "Amount"
+  ],
+  "detected": {
+   "date_format": {
+    "detected": "YYYY-MM-DD",
+    "also_fits": [
+     "YYYY-MM-DD"
+    ],
+    "ambiguous": false
+   },
+   "header_row": 1
+  },
+  "problem_rows": [
+   {
+    "row": 3,
+    "status": "WARNING",
+    "date": "2026-01-10",
+    "value_date": null,
+    "description": "Fee",
+    "reference": "#DUP2",
+    "money_in": "0.00",
+    "money_out": "10.00",
+    "balance": null,
+    "currency": null,
+    "issues": [
+     {
+      "level": "WARNING",
+      "message": "An identical line already appears earlier in this file. It was kept as a separate transaction (marked #DUP2); confirm it is real and not a repeated export.",
+      "row": 3
+     }
+    ],
+    "already_imported": false
+   }
+  ],
+  "status": {
+   "errors": 0,
+   "warnings": 1,
+   "failed_checks": 0,
+   "importable": true,
+   "needs_acknowledgement": true
+  },
+  "fingerprint": "def3889eafb093cf8194d77c2750b3cbc097688f6b788769daa941551ce2e814",
+  "reconciliation": {
+   "id": "9f3304a7-af38-4816-b193-3ebe62943c75",
+   "name": "January statement",
+   "currency": "NGN",
+   "status": "DRAFT",
+   "period_start": "2026-01-01",
+   "period_end": "2026-01-31"
+  }
+ },
+ "bad": {
+  "schema": "asavexa-ingest/1",
+  "kind": "BANK_TRANSACTIONS",
+  "source": {
+   "filename": "bad.csv",
+   "size": 130,
+   "sha256": "79ebd04fcf04e00acac4a31ab0276d6e4d391de388dde07f5b84dda0acefca31",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ","
+  },
+  "options": {},
+  "mapping": {
+   "date": "Date",
+   "description": "Description",
+   "debit": "Debit",
+   "credit": "Credit",
+   "balance": "Balance"
+  },
+  "rows": [
+   {
+    "row": 2,
+    "status": "OK",
+    "date": "2026-01-05",
+    "value_date": null,
+    "description": "Dep",
+    "reference": null,
+    "money_in": "500.00",
+    "money_out": "0.00",
+    "balance": "1500.00",
+    "currency": null,
+    "issues": []
+   },
+   {
+    "row": 3,
+    "status": "ERROR",
+    "date": null,
+    "value_date": null,
+    "description": "Oops",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "1.00",
+    "balance": "1499.00",
+    "currency": null,
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "The date 'not-a-date' could not be read as YYYY-MM-DD.",
+      "row": 3,
+      "field": "date"
+     }
+    ]
+   },
+   {
+    "row": 4,
+    "status": "ERROR",
+    "date": "2026-01-07",
+    "value_date": null,
+    "description": "Odd",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "0.00",
+    "balance": "1400.00",
+    "currency": null,
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "12.345 has more than two decimal places; refusing to round money silently",
+      "row": 4,
+      "field": "amount"
+     }
+    ]
+   }
+  ],
+  "issues": [
+   {
+    "level": "INFO",
+    "message": "Fix the lines marked ERROR in the file (or choose the right columns / date format) and preview again. Nothing is imported while any line has an error."
+   }
+  ],
+  "checks": [
+   {
+    "key": "BALANCE_CONTINUITY",
+    "label": "Running balance adds up line by line",
+    "result": "NOT_APPLICABLE",
+    "detail": "The file has no running balance column."
+   },
+   {
+    "key": "OPENING_CLOSING",
+    "label": "Opening balance + movement = closing balance",
+    "result": "NOT_APPLICABLE",
+    "detail": "The file does not state both an opening and a closing balance."
+   }
+  ],
+  "summary": {
+   "skipped_lines": 0,
+   "lines": 3,
+   "valid_lines": 1,
+   "money_in_total": "500.00",
+   "money_out_total": "0.00",
+   "net": "500.00",
+   "first_date": "2026-01-05",
+   "last_date": "2026-01-05",
+   "opening_balance": null,
+   "closing_balance": null
+  },
+  "limits": [
+   "This is a reading of the file, not proof the bank issued it. Attach the original statement as evidence.",
+   "Money in/out is decided from the column names or signs. Check the totals against the statement."
+  ],
+  "header_row": 0,
+  "columns": [
+   "Date",
+   "Description",
+   "Debit",
+   "Credit",
+   "Balance"
+  ],
+  "detected": {
+   "date_format": {
+    "detected": "YYYY-MM-DD",
+    "also_fits": [
+     "YYYY-MM-DD"
+    ],
+    "ambiguous": false
+   },
+   "header_row": 1
+  },
+  "problem_rows": [
+   {
+    "row": 3,
+    "status": "ERROR",
+    "date": null,
+    "value_date": null,
+    "description": "Oops",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "1.00",
+    "balance": "1499.00",
+    "currency": null,
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "The date 'not-a-date' could not be read as YYYY-MM-DD.",
+      "row": 3,
+      "field": "date"
+     }
+    ]
+   },
+   {
+    "row": 4,
+    "status": "ERROR",
+    "date": "2026-01-07",
+    "value_date": null,
+    "description": "Odd",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "0.00",
+    "balance": "1400.00",
+    "currency": null,
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "12.345 has more than two decimal places; refusing to round money silently",
+      "row": 4,
+      "field": "amount"
+     }
+    ]
+   }
+  ],
+  "status": {
+   "errors": 2,
+   "warnings": 0,
+   "failed_checks": 0,
+   "importable": false,
+   "needs_acknowledgement": false
+  },
+  "fingerprint": "1be381cc575cab94733acc85960e6195705c15e95dfa8ede5203da33b383540f"
+ },
+ "brk": {
+  "schema": "asavexa-ingest/1",
+  "kind": "BANK_TRANSACTIONS",
+  "source": {
+   "filename": "brk.csv",
+   "size": 96,
+   "sha256": "180e49ee9dd6bc33ab36640af94b778d1dcd9238b1fa74beb8568a9c9df426d1",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ","
+  },
+  "options": {},
+  "mapping": {
+   "date": "Date",
+   "description": "Description",
+   "debit": "Debit",
+   "credit": "Credit",
+   "balance": "Balance"
+  },
+  "rows": [
+   {
+    "row": 2,
+    "status": "OK",
+    "date": "2026-01-05",
+    "value_date": null,
+    "description": "A",
+    "reference": null,
+    "money_in": "500.00",
+    "money_out": "0.00",
+    "balance": "1500.00",
+    "currency": null,
+    "issues": []
+   },
+   {
+    "row": 3,
+    "status": "OK",
+    "date": "2026-01-06",
+    "value_date": null,
+    "description": "B",
+    "reference": null,
+    "money_in": "0.00",
+    "money_out": "120.00",
+    "balance": "1300.00",
+    "currency": null,
+    "issues": []
+   }
+  ],
+  "issues": [],
+  "checks": [
+   {
+    "key": "BALANCE_CONTINUITY",
+    "label": "Running balance adds up line by line",
+    "result": "FAIL",
+    "detail": "1 line(s) do not follow from the one before (oldest first); first at file row 3. A line may be missing, repeated or misread."
+   },
+   {
+    "key": "OPENING_CLOSING",
+    "label": "Opening balance + movement = closing balance",
+    "result": "NOT_APPLICABLE",
+    "detail": "The file does not state both an opening and a closing balance."
+   }
+  ],
+  "summary": {
+   "skipped_lines": 0,
+   "lines": 2,
+   "valid_lines": 2,
+   "money_in_total": "500.00",
+   "money_out_total": "120.00",
+   "net": "380.00",
+   "first_date": "2026-01-05",
+   "last_date": "2026-01-06",
+   "opening_balance": null,
+   "closing_balance": null
+  },
+  "limits": [
+   "This is a reading of the file, not proof the bank issued it. Attach the original statement as evidence.",
+   "Money in/out is decided from the column names or signs. Check the totals against the statement."
+  ],
+  "header_row": 0,
+  "columns": [
+   "Date",
+   "Description",
+   "Debit",
+   "Credit",
+   "Balance"
+  ],
+  "detected": {
+   "date_format": {
+    "detected": "YYYY-MM-DD",
+    "also_fits": [
+     "YYYY-MM-DD"
+    ],
+    "ambiguous": false
+   },
+   "header_row": 1
+  },
+  "problem_rows": [],
+  "status": {
+   "errors": 0,
+   "warnings": 0,
+   "failed_checks": 1,
+   "importable": true,
+   "needs_acknowledgement": true
+  },
+  "fingerprint": "8dc6770d54548088e863bd5fec791b9ac1450638fe8cc24152fb5fad3bd32948"
+ },
+ "inv": {
+  "schema": "asavexa-ingest/1",
+  "kind": "DOCUMENT",
+  "source": {
+   "filename": "inv.pdf",
+   "size": 793,
+   "sha256": "a14d3f5ad601b707d9f7fd92742d113ffe8c193b4f838aac05d388ff70c4d14e",
+   "detected_as": "PDF",
+   "format": "PDF",
+   "pages": 1
+  },
+  "options": {},
+  "mapping": {},
+  "rows": [],
+  "issues": [
+   {
+    "level": "WARNING",
+    "message": "Low confidence in: vendor. Check these against the document."
+   }
+  ],
+  "checks": [
+   {
+    "key": "TOTALS_ADD_UP",
+    "label": "Subtotal + tax = total",
+    "result": "PASS",
+    "detail": "50000.00 + 3750.00 = 53750.00."
+   },
+   {
+    "key": "TOTAL_FOUND",
+    "label": "A total amount was found",
+    "result": "PASS",
+    "detail": "Total 53750.00"
+   },
+   {
+    "key": "DUE_AFTER_ISSUE",
+    "label": "Due date is not before the issue date",
+    "result": "PASS",
+    "detail": "2026-02-15 then 2026-03-17."
+   }
+  ],
+  "summary": {},
+  "limits": [
+   "Machine-read fields are unverified. They are saved with the evidence, flagged as machine-read, and a person must still verify the document.",
+   "Only the text of a PDF is read; line items, handwriting and images are not."
+  ],
+  "document": {
+   "type": "INVOICE",
+   "fields": {
+    "vendor": {
+     "value": "Kadena Supplies Ltd",
+     "confidence": "LOW",
+     "source_line": "Kadena Supplies Ltd",
+     "note": "Guessed from the first line of the document. Check it."
+    },
+    "document_number": {
+     "value": "INV-2026-0042",
+     "confidence": "HIGH",
+     "source_line": "Invoice No: INV-2026-0042"
+    },
+    "issue_date": {
+     "value": "2026-02-15",
+     "confidence": "HIGH",
+     "source_line": "15/02/2026"
+    },
+    "due_date": {
+     "value": "2026-03-17",
+     "confidence": "HIGH",
+     "source_line": "17/03/2026"
+    },
+    "subtotal": {
+     "value": "50000.00",
+     "confidence": "HIGH",
+     "source_line": "Subtotal NGN 50,000.00"
+    },
+    "tax": {
+     "value": "3750.00",
+     "confidence": "HIGH",
+     "source_line": "VAT (7.5%) NGN 3,750.00"
+    },
+    "total": {
+     "value": "53750.00",
+     "confidence": "HIGH",
+     "source_line": "Total NGN 53,750.00"
+    },
+    "currency": {
+     "value": "NGN",
+     "confidence": "MEDIUM"
+    }
+   }
+  },
+  "proposal": {
+   "applied": false,
+   "action": "A person may draft a journal for this document",
+   "needs_account_choice": true,
+   "lines": [
+    {
+     "side": "DEBIT",
+     "account": null,
+     "amount": "53750.00",
+     "note": "the expense or asset this purchase belongs to"
+    },
+    {
+     "side": "CREDIT",
+     "account": null,
+     "amount": "53750.00",
+     "note": "Accounts payable (invoice) or the bank/cash account (receipt)"
+    }
+   ],
+   "note": "Nothing is posted. ASAVEXA does not choose accounts."
+  },
+  "problem_rows": [],
+  "status": {
+   "errors": 0,
+   "warnings": 1,
+   "failed_checks": 0,
+   "importable": true,
+   "needs_acknowledgement": true
+  },
+  "fingerprint": "95244357cee970cd779b4f69d80f7a78913766493f068b548348db3cf7288cde"
+ },
+ "scan": {
+  "schema": "asavexa-ingest/1",
+  "kind": "DOCUMENT",
+  "source": {
+   "filename": "r.jpg",
+   "size": 9,
+   "sha256": "310f6619e6c758307a031cb8a2093b3dfc9949fe5a71aa0e2086737d2ae28b6c",
+   "detected_as": "IMAGE",
+   "format": "IMAGE"
+  },
+  "options": {},
+  "mapping": {},
+  "rows": [],
+  "issues": [
+   {
+    "level": "INFO",
+    "message": "Stored as evidence only; ASAVEXA could not read this file."
+   }
+  ],
+  "checks": [],
+  "summary": {},
+  "limits": [
+   "Nothing was extracted. A person must type in the details when attaching it."
+  ],
+  "document": {
+   "type": "UNREAD",
+   "fields": {},
+   "reason": "This file type cannot be read by ASAVEXA (no OCR). It can still be stored as evidence."
+  },
+  "problem_rows": [],
+  "status": {
+   "errors": 0,
+   "warnings": 0,
+   "failed_checks": 0,
+   "importable": true,
+   "needs_acknowledgement": false
+  },
+  "fingerprint": "58680fc8b92fca2e329d8862e3431128f4153a08a1004446e2fe7ae61f135ea4"
+ },
+ "pay": {
+  "schema": "asavexa-ingest/1",
+  "kind": "PAYROLL",
+  "source": {
+   "filename": "p.csv",
+   "size": 133,
+   "sha256": "f880f36f31a37b185aa00f0e0c2da358dc872c4e35742849a32b20e38c7c492b",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ","
+  },
+  "options": {},
+  "mapping": {
+   "employee": "Employee",
+   "gross": "Gross Pay",
+   "tax": "PAYE",
+   "pension": "Pension",
+   "net": "Net Pay",
+   "employer_cost": "Employer Pension"
+  },
+  "rows": [
+   {
+    "row": 2,
+    "status": "OK",
+    "employee": "Aisha",
+    "gross": "500000.00",
+    "tax": "50000.00",
+    "pension": "40000.00",
+    "other_deductions": "0.00",
+    "net": "410000.00",
+    "employer_cost": "50000.00",
+    "issues": []
+   },
+   {
+    "row": 3,
+    "status": "OK",
+    "employee": "Kwame",
+    "gross": "300000.00",
+    "tax": "20000.00",
+    "pension": "24000.00",
+    "other_deductions": "0.00",
+    "net": "256000.00",
+    "employer_cost": "30000.00",
+    "issues": []
+   }
+  ],
+  "issues": [],
+  "checks": [
+   {
+    "key": "NET_PAY_ADDS_UP",
+    "label": "Gross - deductions = net pay (every employee and in total)",
+    "result": "PASS",
+    "detail": "Totals agree."
+   }
+  ],
+  "summary": {
+   "employees": 2,
+   "total_gross": "800000.00",
+   "total_tax": "70000.00",
+   "total_pension": "64000.00",
+   "total_other_deductions": "0.00",
+   "total_net": "666000.00",
+   "total_employer_cost": "80000.00"
+  },
+  "limits": [
+   "This register contains personal pay data. It is stored in the Evidence Vault, visible only to roles that can read evidence.",
+   "ASAVEXA checks the arithmetic; it cannot check the PAYE rates, pension rules or that the people exist."
+  ],
+  "proposal": {
+   "applied": false,
+   "action": "A person may draft this payroll journal",
+   "needs_account_choice": true,
+   "balances": true,
+   "lines": [
+    {
+     "side": "DEBIT",
+     "account": null,
+     "amount": "880000.00",
+     "note": "Salaries and wages expense (gross pay + employer contributions)"
+    },
+    {
+     "side": "CREDIT",
+     "account": null,
+     "amount": "666000.00",
+     "note": "Net pay payable (or the bank account if paid directly)"
+    },
+    {
+     "side": "CREDIT",
+     "account": null,
+     "amount": "70000.00",
+     "note": "PAYE / income tax payable"
+    },
+    {
+     "side": "CREDIT",
+     "account": null,
+     "amount": "64000.00",
+     "note": "Pension payable (employee share)"
+    },
+    {
+     "side": "CREDIT",
+     "account": null,
+     "amount": "80000.00",
+     "note": "Employer contributions payable (pension / NSITF etc.)"
+    }
+   ],
+   "note": "Nothing is posted and ASAVEXA does not choose accounts. The register is stored as evidence when you confirm."
+  },
+  "problem_rows": [],
+  "status": {
+   "errors": 0,
+   "warnings": 0,
+   "failed_checks": 0,
+   "importable": true,
+   "needs_acknowledgement": false
+  },
+  "fingerprint": "2ce3608166b8d72fa854833b5599fcfd60e88f514e356b4099a9d742c0846ddf"
+ },
+ "coa": {
+  "schema": "asavexa-ingest/1",
+  "kind": "CHART_OF_ACCOUNTS",
+  "source": {
+   "filename": "c.csv",
+   "size": 82,
+   "sha256": "d96dd4e2f80c5016ba5c1f0b9b5c4c2073729e6f282e96dc688b035c4d445de5",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ",",
+   "looks_like": "XERO"
+  },
+  "options": {},
+  "mapping": {
+   "code": "*Code",
+   "name": "*Name",
+   "type": "*Type"
+  },
+  "rows": [
+   {
+    "row": 2,
+    "status": "OK",
+    "code": "200",
+    "name": "Sales",
+    "source_type": "Revenue",
+    "type": "REVENUE",
+    "already_exists": false,
+    "issues": []
+   },
+   {
+    "row": 3,
+    "status": "OK",
+    "code": "090",
+    "name": "Bank",
+    "source_type": "Bank",
+    "type": "ASSET",
+    "already_exists": true,
+    "issues": [
+     {
+      "level": "INFO",
+      "message": "An account with code 090 already exists; it will be left unchanged.",
+      "row": 3,
+      "field": "code"
+     }
+    ]
+   },
+   {
+    "row": 4,
+    "status": "ERROR",
+    "code": "999",
+    "name": "Weird",
+    "source_type": "Mystery",
+    "type": null,
+    "already_exists": false,
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "The account type 'Mystery' is not one I can map to Asset, Liability, Equity, Revenue or Expense. Change it in the file.",
+      "row": 4,
+      "field": "type"
+     }
+    ]
+   }
+  ],
+  "issues": [],
+  "checks": [],
+  "summary": {
+   "accounts": 3,
+   "new": 1,
+   "already_exist": 1
+  },
+  "limits": [
+   "Account types were mapped by name (e.g. 'Fixed Assets' -> Asset). Check them: ASAVEXA statements depend on the type.",
+   "Opening balances in the file are NOT imported. Bring balances in as an opening journal that a person approves."
+  ],
+  "problem_rows": [
+   {
+    "row": 4,
+    "status": "ERROR",
+    "code": "999",
+    "name": "Weird",
+    "source_type": "Mystery",
+    "type": null,
+    "already_exists": false,
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "The account type 'Mystery' is not one I can map to Asset, Liability, Equity, Revenue or Expense. Change it in the file.",
+      "row": 4,
+      "field": "type"
+     }
+    ]
+   }
+  ],
+  "status": {
+   "errors": 1,
+   "warnings": 0,
+   "failed_checks": 0,
+   "importable": false,
+   "needs_acknowledgement": false
+  },
+  "fingerprint": "34f8a9949e91ee28db01c4337c10f8163fb003a68fd6eb3edd2aa416974ae6b1"
+ },
+ "jr": {
+  "schema": "asavexa-ingest/1",
+  "kind": "JOURNALS",
+  "source": {
+   "filename": "j.csv",
+   "size": 167,
+   "sha256": "74996cbb57003bf635a9915a2d90fefa2a92f82ea37c42039453f582d5287466",
+   "detected_as": "CSV",
+   "format": "CSV",
+   "encoding": "utf-8",
+   "delimiter": ","
+  },
+  "options": {},
+  "mapping": {
+   "date": "Date",
+   "number": "Journal Number",
+   "account": "Account",
+   "description": "Description",
+   "debit": "Debit",
+   "credit": "Credit"
+  },
+  "rows": [
+   {
+    "journal": "J1",
+    "date": "2026-01-05",
+    "status": "OK",
+    "total": "500.00",
+    "currency": "NGN",
+    "issues": [],
+    "description": "Sale",
+    "lines": [
+     {
+      "row": 2,
+      "account_ref": "1000",
+      "account_id": "a1",
+      "account": "1000 Cash",
+      "debit": "500.00",
+      "credit": "0.00",
+      "description": "Sale",
+      "issues": []
+     },
+     {
+      "row": 3,
+      "account_ref": "Sales",
+      "account_id": "a2",
+      "account": "4000 Sales",
+      "debit": "0.00",
+      "credit": "500.00",
+      "description": "Sale",
+      "issues": []
+     }
+    ]
+   },
+   {
+    "journal": "J2",
+    "date": "2026-01-06",
+    "status": "ERROR",
+    "total": "10.00",
+    "currency": "NGN",
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "Journal J2 does not balance: debits 10.00, credits 9.00.",
+      "row": 4
+     }
+    ],
+    "description": "x",
+    "lines": [
+     {
+      "row": 4,
+      "account_ref": "1000",
+      "account_id": "a1",
+      "account": "1000 Cash",
+      "debit": "10.00",
+      "credit": "0.00",
+      "description": "x",
+      "issues": []
+     },
+     {
+      "row": 5,
+      "account_ref": "4000",
+      "account_id": "a2",
+      "account": "4000 Sales",
+      "debit": "0.00",
+      "credit": "9.00",
+      "description": "x",
+      "issues": []
+     }
+    ]
+   }
+  ],
+  "issues": [],
+  "checks": [
+   {
+    "key": "ALL_BALANCED",
+    "label": "Every journal balances",
+    "result": "FAIL",
+    "detail": "Debits equal credits in each journal."
+   }
+  ],
+  "summary": {
+   "journals": 2,
+   "valid": 1,
+   "lines": 4
+  },
+  "limits": [
+   "Journals are imported as DRAFTS. A different person must still post them; ASAVEXA will not post imported journals for you.",
+   "Lines are matched to ASAVEXA accounts by code or exact name; nothing is guessed."
+  ],
+  "problem_rows": [
+   {
+    "journal": "J2",
+    "date": "2026-01-06",
+    "status": "ERROR",
+    "total": "10.00",
+    "currency": "NGN",
+    "issues": [
+     {
+      "level": "ERROR",
+      "message": "Journal J2 does not balance: debits 10.00, credits 9.00.",
+      "row": 4
+     }
+    ],
+    "description": "x",
+    "lines": [
+     {
+      "row": 4,
+      "account_ref": "1000",
+      "account_id": "a1",
+      "account": "1000 Cash",
+      "debit": "10.00",
+      "credit": "0.00",
+      "description": "x",
+      "issues": []
+     },
+     {
+      "row": 5,
+      "account_ref": "4000",
+      "account_id": "a2",
+      "account": "4000 Sales",
+      "debit": "0.00",
+      "credit": "9.00",
+      "description": "x",
+      "issues": []
+     }
+    ]
+   }
+  ],
+  "status": {
+   "errors": 1,
+   "warnings": 0,
+   "failed_checks": 1,
+   "importable": false,
+   "needs_acknowledgement": false
+  },
+  "fingerprint": "eb154e858975e4f3e57e8182b027918a128435d6c2299ac1bf8cfa1f321df4e9"
+ }
+}

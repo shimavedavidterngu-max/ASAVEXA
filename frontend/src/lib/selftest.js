@@ -644,6 +644,95 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     return "journal count and passport fingerprint unchanged";
   });
 
+  // ---------------- 10e. External data ingestion ----------------
+  const mkFile = (content, name) => (typeof File !== "undefined" ? new File([content], name, { type: "text/plain" }) : new Blob([content], { type: "text/plain" }));
+  const STMT = `Date,Description,Debit,Credit,Balance\n${year}-01-12,SelfTest deposit ${tag},,5000.00,5000.00\n${year}-01-13,SelfTest fee ${tag},50.00,,4950.00\n${year}-01-14,SelfTest rent ${tag},900.00,,4050.00\n`;
+  const imp = () => ({ purpose: "BANK_STATEMENT", reconciliationId: ctx.impRecon.id });
+
+  await step("Import", "The import levels are listed honestly (no live connections claimed)", ["orgId"], async () => {
+    const r = await api.ingestionLevels();
+    check(Array.isArray(r.levels) && r.levels.length === 8, "expected the 8 import levels");
+    check(!r.levels.some((l) => String(l.status).toUpperCase() === "LIVE"), "a level claims a live connection");
+    return r.levels.map((l) => `${l.level}:${l.status}`).join(" ");
+  });
+
+  await step("Import", "Create a draft reconciliation to import into", ["bank"], async () => {
+    ctx.impRecon = await api.createReconciliation({ bank_account_id: ctx.bank.id, name: `SelfTest import ${tag}`, period_start: `${year}-01-01`, period_end: `${year}-01-31`, currency: "NGN" });
+    check(ctx.impRecon.status === "DRAFT", `status ${ctx.impRecon.status}`);
+    return ctx.impRecon.status;
+  });
+
+  await step("Import", "Preview reads a bank statement and writes nothing", ["impRecon"], async () => {
+    ctx.impJournalsBefore = (await api.listJournals()).length;
+    ctx.impPreview = await api.ingestionPreview({ file: mkFile(STMT, "selftest-statement.csv"), ...imp(), options: {} });
+    const p = ctx.impPreview;
+    check(p.kind === "BANK_TRANSACTIONS" && p.status && p.status.importable === true, `not importable: ${JSON.stringify(p.status)}`);
+    check(p.summary.lines === 3 && p.summary.money_in_total === "5000.00" && p.summary.money_out_total === "950.00", `unexpected totals ${JSON.stringify(p.summary)}`);
+    check(typeof p.fingerprint === "string" && p.fingerprint.length === 64, "no fingerprint");
+    const bc = (p.checks || []).find((c) => c.key === "BALANCE_CONTINUITY");
+    check(bc && bc.result === "PASS", "the running-balance check did not pass");
+    const txns = await api.listReconciliationTransactions(ctx.impRecon.id);
+    check(txns.length === 0, `${txns.length} transaction(s) exist after a PREVIEW (a preview must write nothing)`);
+    return `3 lines, money in 5000.00, out 950.00`;
+  });
+
+  await step("Import", "A statement with an unreadable date cannot be imported", ["impRecon"], async () => {
+    const badCsv = `Date,Description,Amount\n${year}-01-12,ok ${tag},10.00\nnot-a-date,bad ${tag},10.00\n`;
+    const p = await api.ingestionPreview({ file: mkFile(badCsv, "bad.csv"), ...imp(), options: {} });
+    check(p.status.importable === false && p.status.errors >= 1, "an unreadable date was not reported as an error");
+    const e = await expectRejected(() => api.ingestionCommit({ file: mkFile(badCsv, "bad.csv"), ...imp(), options: {}, fingerprint: p.fingerprint, acknowledge: true }), [400]);
+    return `refused: HTTP ${e.status}`;
+  });
+
+  await step("Import", "Importing is refused if the file changed since the preview", ["impPreview"], async () => {
+    const e = await expectRejected(() => api.ingestionCommit({ file: mkFile(STMT.replace("5000.00,5000.00", "9000.00,9000.00"), "selftest-statement.csv"), ...imp(), options: {},
+      fingerprint: ctx.impPreview.fingerprint, acknowledge: true }), [400]);
+    const txns = await api.listReconciliationTransactions(ctx.impRecon.id);
+    check(txns.length === 0, "a refused import still wrote transactions");
+    return `HTTP ${e.status}`;
+  });
+
+  await step("Import", "Import the statement: lines added, file kept as unverified evidence", ["impPreview"], async () => {
+    const r = await api.ingestionCommit({ file: mkFile(STMT, "selftest-statement.csv"), ...imp(), options: {}, fingerprint: ctx.impPreview.fingerprint, acknowledge: true });
+    check(r.result.imported === 3, `imported ${r.result.imported}`);
+    const txns = await api.listReconciliationTransactions(ctx.impRecon.id);
+    check(txns.length === 3, `${txns.length} transactions after import`);
+    const dep = txns.find((t) => String(t.description).includes("deposit"));
+    check(dep && Number(dep.debit_amount) === 5000 && Number(dep.credit_amount) === 0, "money in was not recorded on the debit side");
+    const ev = await api.getEvidence(r.result.evidence_id);
+    check(ev.status === "UPLOADED" && ev.type === "BANK_STATEMENT", `evidence is ${ev.type}/${ev.status} (it must be an UNVERIFIED bank statement)`);
+    ctx.impEvidence = r.result.evidence_id;
+    return `3 imported; evidence ${ev.status}`;
+  });
+
+  await step("Import", "Importing the same file again adds nothing and reuses the evidence", ["impEvidence"], async () => {
+    const p = await api.ingestionPreview({ file: mkFile(STMT, "selftest-statement.csv"), ...imp(), options: {} });
+    check(p.summary.already_imported === 3 && p.summary.to_import === 0, `preview says ${JSON.stringify(p.summary)}`);
+    const r = await api.ingestionCommit({ file: mkFile(STMT, "selftest-statement.csv"), ...imp(), options: {}, fingerprint: p.fingerprint, acknowledge: true });
+    check(r.result.imported === 0 && r.result.evidence_id === ctx.impEvidence, "the second import was not a no-op");
+    check((await api.listReconciliationTransactions(ctx.impRecon.id)).length === 3, "duplicate lines were created");
+    return "0 new lines, same evidence record";
+  });
+
+  await step("Import", "Bad requests are refused cleanly (unknown purpose, missing currency)", ["orgId"], async () => {
+    const a = await expectRejected(() => api.ingestionPreview({ file: mkFile("x", "x.csv"), purpose: "NOPE", options: {} }), [400]);
+    const b = await expectRejected(() => api.ingestionPreview({ file: mkFile("Code,Name,Type\n1,A,Bank\n", "c.csv"), purpose: "CHART_OF_ACCOUNTS", options: {} }), [400]);
+    return `HTTP ${a.status} and ${b.status}`;
+  });
+
+  await step("Import", "An invoice is read, stored as unverified evidence, and nothing is posted", ["orgId"], async () => {
+    const inv = `Kadena Supplies Ltd\nInvoice No: ST-${tag}\nInvoice Date: ${year}-01-15\nSubtotal NGN 1000.00\nVAT NGN 75.00\nTotal NGN 1075.00\n`;
+    const p = await api.ingestionPreview({ file: mkFile(inv, "selftest-invoice.txt"), purpose: "DOCUMENT", options: {} });
+    const f = p.document.fields;
+    check(p.document.type === "INVOICE" && f.total && f.total.value === "1075.00" && f.document_number && f.document_number.value === `ST-${tag}`, `fields read wrongly: ${JSON.stringify(p.document)}`);
+    check(p.proposal && p.proposal.applied === false, "the proposal claims to be applied");
+    const r = await api.ingestionCommit({ file: mkFile(inv, "selftest-invoice.txt"), purpose: "DOCUMENT", options: {}, fingerprint: p.fingerprint, acknowledge: true });
+    const ev = await api.getEvidence(r.result.evidence_id);
+    check(ev.type === "INVOICE" && ev.status === "UPLOADED", `evidence is ${ev.type}/${ev.status}`);
+    check((await api.listJournals()).length === ctx.impJournalsBefore, "importing changed the number of journals");
+    return `INVOICE evidence ${ev.status}; journals unchanged`;
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;

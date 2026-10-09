@@ -302,6 +302,31 @@ export class ApiClient {
   savePassportStructure(structure) {
     return this.put("/passport/structure", structure);
   }
+  // ---- External data ingestion (preview writes nothing; commit re-reads the same file and checks the preview's fingerprint)
+  ingestionLevels() {
+    return this.get("/ingestion/levels");
+  }
+  _ingestForm({ file, purpose, reconciliationId, options, currency }) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("purpose", purpose);
+    if (reconciliationId) form.append("reconciliation_id", reconciliationId);
+    if (options && Object.keys(options).length) form.append("options", JSON.stringify(options));
+    if (currency) form.append("currency", currency);
+    return form;
+  }
+  ingestionPreview(args) {
+    return this._postForm("/ingestion/preview", this._ingestForm(args));
+  }
+  ingestionCommit({ fingerprint, acknowledge, evidenceType, allowDuplicate, ...rest }) {
+    const form = this._ingestForm(rest);
+    form.append("fingerprint", fingerprint);
+    form.append("acknowledge", acknowledge ? "true" : "false");
+    if (evidenceType) form.append("evidence_type", evidenceType);
+    if (allowDuplicate) form.append("allow_duplicate", "true");
+    return this._postForm("/ingestion/commit", form);
+  }
+
   // ---- ASAVEXA AI (read-only: Explain, Detect, Recommend, Prove, and free-text Ask)
   aiExplain({ subjectType, subjectId }) {
     return this.post("/ai/explain", { subject_type: subjectType, subject_id: subjectId });

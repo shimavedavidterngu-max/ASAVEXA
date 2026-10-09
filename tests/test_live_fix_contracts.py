@@ -248,3 +248,53 @@ class AiContractTestCase(unittest.TestCase):
         self.assertIn('{ path: "/ai", name: "ai" }', app)
         self.assertIn('label: "ASAVEXA AI", permission: PERMISSIONS.LEDGER_READ', app)
         self.assertIn('renderAi(authState)', app)
+
+
+class IngestionContractTestCase(unittest.TestCase):
+    def _router(self):
+        return _read(os.path.join(ROOT, "src", "asavexa", "api", "routers", "ingestion.py"))
+
+    def test_every_purpose_has_its_own_permission_checked_before_reading_the_file(self):
+        src = self._router()
+        for purpose, perm in (("BANK_STATEMENT", "RECONCILIATION_IMPORT"), ("DOCUMENT", "EVIDENCE_UPLOAD"), ("PAYROLL", "EVIDENCE_UPLOAD"),
+                              ("CHART_OF_ACCOUNTS", "ACCOUNT_MANAGE"), ("JOURNALS", "JOURNAL_CREATE")):
+            self.assertRegex(src, r'"%s":\s*%s' % (purpose, perm))
+        for fn in ("preview", "commit"):
+            body = src[src.index("async def %s(" % fn):]
+            self.assertLess(body.index("_need("), body.index("_read("), fn)
+
+    def test_commit_checks_the_fingerprint_before_any_write(self):
+        body = self._router()
+        body = body[body.index("async def commit("):]
+        guard = body.index("C.guard(")
+        for w in ("C.commit_bank(", "C.commit_evidence(", "C.commit_accounts(", "C.commit_journals("):
+            self.assertLess(guard, body.index(w), w)
+
+    def test_imports_never_post_a_journal(self):
+        for rel in (("api", "routers", "ingestion.py"), ("ingestion", "commit.py")):
+            src = _read(os.path.join(ROOT, "src", "asavexa", *rel))
+            self.assertNotIn("post_journal", src, rel)
+
+    def test_router_and_error_handler_are_registered(self):
+        main = _read(os.path.join(ROOT, "src", "asavexa", "api", "main.py"))
+        self.assertIn("app.include_router(ingestion.router)", main)
+        self.assertIn("IngestionError", main)
+
+    def test_options_reject_unknown_keys(self):
+        src = _read(os.path.join(ROOT, "src", "asavexa", "api", "schemas", "ingestion.py"))
+        self.assertIn('"extra": "forbid"', src)
+
+    def test_frontend_paths_and_page_are_wired(self):
+        client = _read(os.path.join(ROOT, "frontend", "src", "api", "client.js"))
+        src = self._router()
+        for p in ("/ingestion/levels", "/ingestion/preview", "/ingestion/commit"):
+            self.assertIn(p, client, p)
+            self.assertIn('"' + p[len("/ingestion"):] + '"', src, p)
+        app = _read(os.path.join(ROOT, "frontend", "src", "app.js"))
+        self.assertIn('{ path: "/import", name: "import" }', app)
+        self.assertIn('label: "Data Import"', app)
+
+    def test_dependencies_are_declared(self):
+        req = _read(os.path.join(ROOT, "requirements.txt"))
+        self.assertIn("openpyxl", req)
+        self.assertIn("pypdf", req)

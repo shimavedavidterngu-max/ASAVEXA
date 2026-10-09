@@ -15,6 +15,8 @@ pydantic>=2.6
 email-validator>=2.1     # required for pydantic's EmailStr (auth schemas)
 python-multipart>=0.0.9  # required for FastAPI file uploads (evidence router)
 alembic>=1.13
+openpyxl>=3.1         # External Data Ingestion: reads .xlsx files
+pypdf>=3.17          # External Data Ingestion: reads text from PDF statements/invoices
 python-dotenv>=1.0
 
 # Testing the API layer once dependencies are installed (in addition to
