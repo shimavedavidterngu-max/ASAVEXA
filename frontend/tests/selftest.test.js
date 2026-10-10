@@ -8,7 +8,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -199,6 +199,39 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       }
       return { purpose: a.purpose, result: { imported: n, evidence_id: ev.id } };
     },
+    // ---- Professional validation stand-in (enforces the same rules the real service does)
+    async validationGuide() { return { stages: ["ACCOUNTING_TREATMENT", "CONTROLS", "EVIDENCE", "REPORTING", "AUDIT_WORKFLOW", "SECURITY", "PROFESSIONAL_JUDGEMENT"].map((id) => ({ id })), disclaimer: breakValidation ? "ok" : "This is not an audit opinion." }; },
+    async addReviewer(b) {
+      if (!b.credentials.length) bad(400, "Record at least one credential");
+      const r = { id: id(), ...b, active: true, credentials: b.credentials.map((c) => ({ ...c, status: breakValidation ? "VERIFIED" : "DECLARED" })), credential_state: breakValidation ? "VERIFIED" : "DECLARED_ONLY" };
+      (db.vr ||= {})[r.id] = r; return r;
+    },
+    async setReviewerActive(i, on) { db.vr[i].active = on; return db.vr[i]; },
+    async createEngagement(b) { const e = { id: id(), ...b, status: "DRAFT", snapshot: { evidence: {}, ledger: {}, security: {} }, assignments: [], declarations: {}, reviews: [] }; (db.ve ||= {})[e.id] = e; return e; },
+    async withdrawEngagement(i) { db.ve[i].status = "WITHDRAWN"; return db.ve[i]; },
+    async openEngagement(i) { db.ve[i].status = "OPEN"; return db.ve[i]; },
+    async assignReviewer(i, stage, rid) {
+      const r = db.vr[rid]; const need = { CONTROLS: ["INTERNAL_AUDIT", "AUDIT"] }[stage];
+      if (!r.specialisms.some((x) => need.includes(x))) bad(400, "not competent for this stage");
+      db.ve[i].assignments.push({ stage, reviewer_id: rid }); return db.ve[i];
+    },
+    async declareIndependence(i, b) { if (!b.source_reference) bad(400, "Recording on someone's behalf needs a reference"); db.ve[i].declarations[b.reviewer_id] = { independent: b.independent }; return db.ve[i]; },
+    async saveReview(i, b) {
+      const e = db.ve[i];
+      if (!e.declarations[b.reviewer_id]) bad(409, "declare independence first");
+      if (!b.source_reference) bad(400, "needs a source reference");
+      let d = e.reviews.find((x) => x.status === "DRAFT"); if (!d) e.reviews.push(d = { id: id(), status: "DRAFT" });
+      Object.assign(d, b); return this._val(e);
+    },
+    _val(e) { const signed = e.reviews.some((x) => x.status === "SIGNED"); return { ...e, coverage: { complete: signed, outcome: signed ? "VALIDATED" : "INCOMPLETE" } }; },
+    async signReview(i, rid) {
+      const e = db.ve[i]; const r = e.reviews.find((x) => x.id === rid);
+      if (r.status !== "DRAFT") bad(409, "Only a draft can be signed");
+      if (!r.competence_confirmed) bad(400, "must confirm competence");
+      r.status = "SIGNED"; r.hash = "a".repeat(64); return this._val(e);
+    },
+    async completeEngagement(i) { db.ve[i].status = "COMPLETED"; return this._val(db.ve[i]); },
+    async validationStatement() { return { verification: { ok: true }, credential_verification: "SOME_UNVERIFIED", disclaimer: "Not an audit opinion", statement_hash: "b".repeat(64) }; },
     // ---- Security stand-in
     async securityOverview() { return { encryption: { configured: !noKeys, current_key: "k1", keys: noKeys ? [] : ["k1"], keys_in_use: {} }, storage: { enabled: !noKeys, backend: "database", region: "unspecified" },
       audit_chain: { enabled: !noKeys, head: 3 }, mfa: { members: 1, with_mfa: 0, required: false, available: !noKeys }, sso: { configured: false }, residency: { allowed_regions: [] },
@@ -323,4 +356,17 @@ test("self-test: a broken audit chain is caught", async () => {
 test("self-test: a device list that leaks a token fingerprint is caught", async () => {
   const results = await runSelfTest(fakeApi({ leakSessions: true }), { orgId: "org1" });
   assert.ok(results.some((r) => r.status === "fail" && r.group === "Security" && /device list/.test(r.name)));
+});
+
+test("self-test: the Professional Validation steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const v = results.filter((r) => r.group === "Professional Validation");
+  assert.equal(v.length, 4);
+  assert.deepEqual(v.filter((r) => r.status !== "pass"), [], JSON.stringify(v, null, 1));
+});
+
+test("self-test: a credential that is wrongly shown as verified is caught", async () => {
+  const results = await runSelfTest(fakeApi({ breakValidation: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Professional Validation" && /declared and never verified/.test(r.name)));
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Professional Validation" && /disclaimer/.test(r.name)));
 });

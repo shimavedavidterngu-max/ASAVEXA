@@ -41,6 +41,8 @@ import { SharedPassport } from "./pages/SharedPassport.js";
 import { Diagnostics, formatReport } from "./pages/Diagnostics.js";
 import { runSelfTest } from "./lib/selftest.js";
 import { Security, visibleTabs } from "./pages/Security.js";
+import { Validation } from "./pages/Validation.js";
+import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, emptyObservation, actingMode } from "./lib/validation.js";
 import { makeBinding, parseOidcReturn, interpretLogin, parseRegions } from "./lib/signin.js";
 
 const API_BASE_URL = "https://asavexa.onrender.com";
@@ -72,6 +74,7 @@ const NAV_ITEMS = [
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
+  { path: "/validation", label: "Professional Validation", permission: PERMISSIONS.AUDIT_READ },
   { path: "/security", label: "Security", permission: null },
   { path: "/diagnostics", label: "Connection & Self-Test", permission: null },
 ];
@@ -102,6 +105,7 @@ const routes = [
   { path: "/passport", name: "passport" },
   { path: "/shared/:token", name: "shared" },
   { path: "/standards", name: "standards" },
+  { path: "/validation", name: "validation" },
   { path: "/security", name: "security" },
   { path: "/diagnostics", name: "diagnostics" },
 ];
@@ -384,6 +388,7 @@ function renderPage(matched, authState) {
   if (name === "standards") return renderStandards(authState);
   if (name === "diagnostics") return renderDiagnostics(authState);
   if (name === "security") return renderSecurityPage(authState);
+  if (name === "validation") return renderValidationPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -526,6 +531,7 @@ async function handleSsoReturn() {
 }
 
 function resetSecurityState() {
+  uiState.val = null; loadedOnce.delete("valLoading");
   uiState.sec = null; uiState.secNoOrg = false; uiState.mfaChallenge = null;
   loadedOnce.delete("secLoading");
 }
@@ -2437,5 +2443,122 @@ function securityActions(authState) {
     vendorChange: (k, v) => { sec.d.vendor = { ...(sec.d.vendor || {}), [k]: v }; },
     addVendor: () => run(async () => { await api.addVendor({ name: "", ...(sec.d.vendor || {}) }); sec.vendors = await api.listVendors(); sec.residency = await api.residencyReport(); sec.d.vendor = {}; }, "Vendor added."),
     seedVendors: () => run(async () => { await api.seedVendors(); sec.vendors = await api.listVendors(); }, "Added. Their risk shows as unconfirmed until you record the facts."),
+  };
+}
+
+
+// ----------------------------------------------------------------------
+// Professional Validation page
+// ----------------------------------------------------------------------
+function newVal() {
+  return { tab: "engagements", guide: null, me: null, list: null, panel: null, members: null, detailId: null, detail: null, statement: null,
+    form: null, busy: false, notice: null, error: null };
+}
+
+function renderValidationPage(authState) {
+  if (!uiState.val) uiState.val = newVal();
+  once("valLoading", () => loadValidation(authState));
+  return Validation({ role: authState.role, val: uiState.val, loading: uiState.valLoading, onRetry: () => { loadedOnce.delete("valLoading"); render(); }, actions: validationActions(authState) });
+}
+
+async function loadValidation() {
+  const val = uiState.val || (uiState.val = newVal());
+  val.error = null;
+  try {
+    [val.guide, val.me] = await Promise.all([api.validationGuide(), api.validationMe()]);
+    const jobs = [api.listEngagements(), api.validationPanel()];
+    if (val.me.can_manage) jobs.push(api.securityMembers());
+    const [list, panel, members] = await Promise.all(jobs);
+    val.list = list; val.panel = panel; val.members = members ? members.filter((m) => m.status === "ACTIVE") : [];
+    if (val.detailId) val.detail = await api.getEngagement(val.detailId);
+  } catch (err) {
+    val.error = err.message || "Professional validation could not be loaded.";
+  }
+}
+
+function validationActions(authState) {
+  const val = uiState.val;
+  const reload = async () => { await loadValidation(authState); };
+  /** Runs one action; a failure is shown on the page, never swallowed. */
+  const run = async (fn, okNotice) => {
+    val.error = null; val.notice = null; val.busy = true; render();
+    try { await fn(); if (okNotice) val.notice = okNotice; } catch (err) { val.error = err.message || "That did not work."; }
+    val.busy = false; render();
+  };
+  const refreshDetail = async () => { val.detail = await api.getEngagement(val.detailId); val.list = await api.listEngagements(); };
+  /** Server actions return the engagement without the live data comparison; keep the last comparison for the same snapshot so the line does not flicker. */
+  const keep = (d) => { const prev = val.detail; if (d && prev && d.snapshot_is_current == null && prev.snapshot_hash === d.snapshot_hash) d.snapshot_is_current = prev.snapshot_is_current; return d; };
+  const stageIds = () => ((val.guide && val.guide.stages) || []).map((s) => s.id);
+  return {
+    setTab: (t) => { val.tab = t; val.detailId = null; val.detail = null; val.statement = null; val.form = null; val.error = null; val.notice = null; render(); reload().then(render, render); },
+    openDetail: async (id) => {
+      val.detailId = id; val.detail = null; val.statement = null; val.form = null; val.error = null; val.notice = null; render();
+      try { val.detail = await api.getEngagement(id); if (val.detail.statement) val.statement = await api.validationStatement(id); } catch (err) { val.error = err.message; }
+      render();
+    },
+    closeDetail: () => { val.detailId = null; val.detail = null; val.statement = null; val.form = null; val.error = null; render(); reload().then(render, render); },
+    startForm: (kind, f, extra) => { val.form = { kind, f: { ...f }, ...(extra || {}) }; val.error = null; render(); },
+    cancelForm: () => { val.form = null; render(); },
+    formChange: (k, v) => { if (val.form) val.form.f[k] = v; },
+    toggleStage: (id, on) => {
+      const cur = new Set(val.form.f.stages || stageIds());
+      if (on) cur.add(id); else cur.delete(id);
+      val.form.f.stages = stageIds().filter((x) => cur.has(x));
+    },
+    toggleSpecialism: (sp, on) => {
+      const cur = new Set(val.form.f.specialisms || []); if (on) cur.add(sp); else cur.delete(sp);
+      val.form.f.specialisms = [...cur];
+    },
+    confirmChange: (k, on) => { val.form.f.confirmations = { ...(val.form.f.confirmations || {}), [k]: on }; },
+    // panel
+    addReviewer: () => run(async () => { await api.addReviewer(reviewerBody(val.form.f)); val.form = null; await reload(); }, "Reviewer added. Their credentials are recorded as declared until someone verifies them."),
+    submitVerify: (accepted) => run(async () => {
+      const { rid, idx, f } = val.form;
+      await api.verifyCredential(rid, idx, { accepted, method: (f.method || "").trim(), note: (f.note || "").trim() });
+      val.form = null; val.panel = await api.validationPanel();
+    }, accepted ? "Recorded as verified." : "Recorded as not confirmed."),
+    setActive: (id, on) => run(async () => { await api.setReviewerActive(id, on); val.panel = await api.validationPanel(); }),
+    // engagements
+    createEngagement: () => run(async () => {
+      const e = await api.createEngagement(engagementBody(val.form.f, stageIds()));
+      val.form = null; val.list = await api.listEngagements(); val.detailId = e.id; val.detail = await api.getEngagement(e.id);
+    }, "Engagement created as a draft. Assign reviewers, then open it for review."),
+    openEngagement: () => run(async () => { val.detail = keep(await api.openEngagement(val.detailId)); val.list = await api.listEngagements(); }, "Open for review."),
+    refreshSnapshot: () => run(async () => { val.detail = keep(await api.refreshEngagementSnapshot(val.detailId)); }, "Snapshot refreshed to today's data."),
+    withdraw: () => run(async () => { val.detail = keep(await api.withdrawEngagement(val.detailId, (val.form.f.reason || "").trim())); val.form = null; val.list = await api.listEngagements(); }, "Engagement withdrawn."),
+    completeEngagement: () => run(async () => {
+      val.detail = keep(await api.completeEngagement(val.detailId)); val.statement = await api.validationStatement(val.detailId); val.list = await api.listEngagements();
+    }, "Completed. The statement below has a fingerprint so any later change is detectable."),
+    checkStatement: () => run(async () => { val.statement = await api.validationStatement(val.detailId); }, "Statement checked."),
+    assign: (stage) => run(async () => { val.detail = keep(await api.assignReviewer(val.detailId, stage, val.form.f.reviewer_id)); val.form = null; }),
+    unassign: (assignmentId) => run(async () => { val.detail = keep(await api.unassignReviewer(val.detailId, assignmentId)); }),
+    // reviewer actions
+    submitDeclaration: () => run(async () => {
+      const { reviewerId, mode, f } = val.form;
+      const all = ["no_financial_interest", "not_involved_in_preparing_records", "no_close_personal_relationship", "no_other_threat_to_objectivity"].every((k) => (f.confirmations || {})[k]);
+      val.detail = keep(await api.declareIndependence(val.detailId, declarationBody(reviewerId, { ...f, independent: all }, mode))); val.form = null;
+    }, "Declaration recorded."),
+    startReview: (stage, reviewerId, mode) => {
+      const d = val.detail;
+      const draft = d.reviews.find((r) => r.stage === stage && r.reviewer_id === reviewerId && r.status === "DRAFT");
+      const signed = d.reviews.filter((r) => r.stage === stage && r.reviewer_id === reviewerId && r.status === "SIGNED").sort((a, b) => b.version - a.version)[0];
+      val.form = { kind: "review", stage, reviewerId, mode, f: reviewForm(draft || signed || null) }; val.error = null; render();
+    },
+    addObs: () => { val.form.f.observations.push(emptyObservation()); render(); },
+    removeObs: (i) => { val.form.f.observations.splice(i, 1); render(); },
+    obsChange: (i, k, v) => { val.form.f.observations[i][k] = v; },
+    saveReview: (sign) => run(async () => {
+      const { stage, reviewerId, mode, f } = val.form;
+      let d = await api.saveReview(val.detailId, reviewBody(stage, reviewerId, f, mode));
+      if (sign) {
+        const draft = d.reviews.find((r) => r.stage === stage && r.reviewer_id === reviewerId && r.status === "DRAFT");
+        d = await api.signReview(val.detailId, draft.id);
+      }
+      val.detail = keep(d); val.form = null; val.list = await api.listEngagements();
+    }, sign ? "Signed. This review can no longer be edited; a new version would replace it." : "Draft saved. It does not count until signed."),
+    submitResponse: () => run(async () => {
+      const { reviewId, obsId, f } = val.form;
+      val.detail = keep(await api.respondToObservation(val.detailId, reviewId, obsId, f.status || "ACCEPTED", (f.note || "").trim())); val.form = null;
+    }, "Response recorded."),
   };
 }

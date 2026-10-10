@@ -88,6 +88,16 @@ def get_security(session=Depends(get_session), identity: IdentityService = Depen
     return build_security(session, identity)
 
 
+def get_validation(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Professional validation service over the shared document store; every action is written to the audit trail."""
+    from ..validation.service import ValidationService
+    from ..validation.wiring import make_log
+    from .db.audit_chain_hook import platform_keys
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ValidationService(SqlAlchemyDocStore(session), log=make_log(security), keys=platform_keys())
+
+
 def get_accounting_engine(session=Depends(get_session)) -> AccountingEngine:
     return AccountingEngine(
         accounts=SqlAlchemyAccountRepository(session),

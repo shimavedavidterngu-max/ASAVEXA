@@ -316,6 +316,31 @@ export class ApiClient {
   seedVendors() { return this.post("/security/vendors/seed"); }
   evidenceStorage(id) { return this.get(`/evidence/${encodeURIComponent(id)}/storage`); }
 
+  // ---- Professional validation (src/asavexa/api/routers/validation.py) ----
+  validationGuide() { return this.get("/validation/guide"); }
+  validationMe() { return this.get("/validation/me"); }
+  validationPanel() { return this.get("/validation/panel"); }
+  addReviewer(body) { return this.post("/validation/panel", body); }
+  updateReviewer(id, body) { return this.put(`/validation/panel/${encodeURIComponent(id)}`, body); }
+  verifyCredential(id, index, body) { return this.post(`/validation/panel/${encodeURIComponent(id)}/credentials/${encodeURIComponent(index)}/verify`, body); }
+  setReviewerActive(id, active) { return this.post(`/validation/panel/${encodeURIComponent(id)}/${active ? "activate" : "deactivate"}`); }
+  listEngagements() { return this.get("/validation/engagements"); }
+  createEngagement(body) { return this.post("/validation/engagements", body); }
+  getEngagement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}`); }
+  openEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/open`); }
+  withdrawEngagement(id, reason) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/withdraw`, { reason }); }
+  refreshEngagementSnapshot(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/refresh-snapshot`); }
+  assignReviewer(id, stage, reviewerId) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/assignments`, { stage, reviewer_id: reviewerId }); }
+  unassignReviewer(id, assignmentId) { return this.delete(`/validation/engagements/${encodeURIComponent(id)}/assignments/${encodeURIComponent(assignmentId)}`); }
+  declareIndependence(id, body) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/declarations`, body); }
+  saveReview(id, body) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/reviews`, body); }
+  signReview(id, reviewId) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/reviews/${encodeURIComponent(reviewId)}/sign`); }
+  respondToObservation(id, reviewId, observationId, status, note) {
+    return this.post(`/validation/engagements/${encodeURIComponent(id)}/reviews/${encodeURIComponent(reviewId)}/observations/${encodeURIComponent(observationId)}/response`, { status, note });
+  }
+  completeEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/complete`); }
+  validationStatement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}/statement`); }
+
   /** The decrypted original of an evidence file, as a Blob (the server sends it as a forced download). */
   async downloadEvidence(id) {
     const token = this.getToken();

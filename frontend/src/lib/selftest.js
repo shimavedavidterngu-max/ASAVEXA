@@ -836,6 +836,72 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     return h.checks.map((c) => c.name).join(", ");
   });
 
+  // ---------------- 10g. Professional validation ----------------
+  // Records only. These steps prove the RULES (competence, independence, source reference, signing, immutability, statement integrity);
+  // they cannot and do not prove that any professional's conclusion is right. The reviewers they add are removed from the panel afterwards.
+  const asOf = new Date().toISOString().slice(0, 10);
+  const goodReview = (reviewerId, over = {}) => ({ stage: "CONTROLS", reviewer_id: reviewerId, conclusion: "CONCURS", scope_reviewed: "Self-test walkthrough", basis: "Self-test", competence_confirmed: true,
+    source_reference: `selftest-${tag}`, observations: [], ...over });
+  const allTrue = { no_financial_interest: true, not_involved_in_preparing_records: true, no_close_personal_relationship: true, no_other_threat_to_objectivity: true };
+
+  await step("Professional Validation", "The seven review stages are set out in the required order, with the disclaimer", ["orgId"], async () => {
+    const g = await api.validationGuide();
+    const want = ["ACCOUNTING_TREATMENT", "CONTROLS", "EVIDENCE", "REPORTING", "AUDIT_WORKFLOW", "SECURITY", "PROFESSIONAL_JUDGEMENT"];
+    check(JSON.stringify(g.stages.map((x) => x.id)) === JSON.stringify(want), `stages are ${g.stages.map((x) => x.id).join(" → ")}`);
+    check(/not an audit opinion/i.test(g.disclaimer), "the disclaimer does not say this is not an audit opinion");
+    return "Accounting treatment → Controls → Evidence → Reporting → Audit workflow → Security → Professional judgement";
+  });
+
+  await step("Professional Validation", "A credential is recorded as declared and never verified automatically", ["orgId"], async () => {
+    const r = await api.addReviewer({ name: `SelfTest Auditor ${tag}`, email: `selftest-auditor-${tag}@example.com`, specialisms: ["AUDIT"], affiliation: "SelfTest LLP",
+      credentials: [{ body: "ICAN", membership_no: `ST-${tag}`, jurisdiction: "Nigeria" }] });
+    ctx.valReviewer = r;
+    check(r.credentials[0].status === "DECLARED", `credential status is ${r.credentials[0].status}`);
+    check(r.credential_state === "DECLARED_ONLY", `credential state is ${r.credential_state}`);
+    const e = await expectRejected(() => api.addReviewer({ name: "X", email: "x@example.com", specialisms: ["AUDIT"], credentials: [] }), [400]);
+    return `declared only; a reviewer with no credentials is refused (HTTP ${e.status})`;
+  });
+
+  await step("Professional Validation", "A reviewer who is not competent for a stage cannot be assigned to it", ["valReviewer"], async () => {
+    const tax = await api.addReviewer({ name: `SelfTest Tax ${tag}`, email: `selftest-tax-${tag}@example.com`, specialisms: ["TAX"], credentials: [{ body: "ACCA", membership_no: `TX-${tag}` }] });
+    try {
+      const e = await api.createEngagement({ title: `SelfTest competence ${tag}`, as_of: asOf, stages: ["CONTROLS"] });
+      const err = await expectRejected(() => api.assignReviewer(e.id, "CONTROLS", tax.id), [400]);
+      await api.withdrawEngagement(e.id, "self-test: competence check only");
+      return `refused (HTTP ${err.status})`;
+    } finally {
+      await api.setReviewerActive(tax.id, false);
+    }
+  });
+
+  await step("Professional Validation", "A review counts only with independence, a source reference and a signature; a signed review cannot be signed again", ["valReviewer"], async () => {
+    const r = ctx.valReviewer;
+    const e = await api.createEngagement({ title: `SelfTest review ${tag}`, as_of: asOf, stages: ["CONTROLS"] });
+    check(e.snapshot && e.snapshot.evidence && e.snapshot.ledger && e.snapshot.security, "the snapshot is missing sections");
+    await api.openEngagement(e.id);
+    await api.assignReviewer(e.id, "CONTROLS", r.id);
+    const noDecl = await expectRejected(() => api.saveReview(e.id, goodReview(r.id)), [409]);
+    const noRef = await expectRejected(() => api.declareIndependence(e.id, { reviewer_id: r.id, independent: true, confirmations: allTrue }), [400]);
+    await api.declareIndependence(e.id, { reviewer_id: r.id, independent: true, confirmations: allTrue, source_reference: `selftest-decl-${tag}` });
+    const noRefReview = await expectRejected(() => api.saveReview(e.id, goodReview(r.id, { source_reference: null })), [400]);
+    let d = await api.saveReview(e.id, goodReview(r.id, { competence_confirmed: false }));
+    const draft = d.reviews.find((x) => x.status === "DRAFT");
+    const noCompetence = await expectRejected(() => api.signReview(e.id, draft.id), [400]);
+    d = await api.saveReview(e.id, goodReview(r.id));
+    d = await api.signReview(e.id, d.reviews.find((x) => x.status === "DRAFT").id);
+    const signed = d.reviews.find((x) => x.status === "SIGNED");
+    check(signed && signed.hash && signed.hash.length === 64, "the signed review has no content fingerprint");
+    const again = await expectRejected(() => api.signReview(e.id, signed.id), [409]);
+    check(d.coverage.complete && d.coverage.outcome === "VALIDATED", `outcome is ${d.coverage.outcome}`);
+    d = await api.completeEngagement(e.id);
+    const st = await api.validationStatement(e.id);
+    check(st.verification && st.verification.ok, "the statement does not verify");
+    check(st.credential_verification === "SOME_UNVERIFIED", `credential verification is ${st.credential_verification}`);
+    check(/not an audit opinion/i.test(st.disclaimer), "the statement has no disclaimer");
+    await api.setReviewerActive(r.id, false);
+    return `refused without declaration (${noDecl.status}), source reference (${noRef.status}/${noRefReview.status}), competence (${noCompetence.status}); re-sign (${again.status}); statement fingerprint ${st.statement_hash.slice(0, 12)} verified`;
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;

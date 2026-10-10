@@ -233,6 +233,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "ai.router": "/ai",
     "ingestion.router": "/ingestion",
         "security.router": "/security",
+        "validation.router": "/validation",
     }
 
     def test_every_expected_router_registered_exactly_once(self):
