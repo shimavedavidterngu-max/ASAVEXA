@@ -8,7 +8,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -199,6 +199,31 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       }
       return { purpose: a.purpose, result: { imported: n, evidence_id: ev.id } };
     },
+    // ---- Real pilot stand-in (enforces the same rules the real service does)
+    async pilotGuide() { return { default_targets: Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`t${i}`, i])), max_clients: 12, honesty: breakPilot ? "Great results." : "A pilot cannot prove it works everywhere. Measures marked Reported are what people said." }; },
+    async pilotMe() { return { can_manage: true }; },
+    async createPilot(b) { const p = { id: id(), status: "PLANNING", clients: [], ...b }; (db.pilots = db.pilots || {})[p.id] = { p, logs: [], survey: {} }; return p; },
+    async addPilotClient(pid, b) {
+      const P = db.pilots[pid].p;
+      if (!breakPilot) {
+        if (!db.orgs.some((o) => o.id === b.client_org_id)) bad(403, "not an administrator of that organisation");
+        if ((b.consent_reference || "").trim().length < 3) bad(400, "consent required");
+        if (b.client_org_id === db.org) bad(400, "own organisation");
+        if (b.kickoff && b.kickoff > new Date().toISOString().slice(0, 10)) bad(400, "future");
+        if (P.clients.some((c) => c.org_id === b.client_org_id && c.active)) bad(409, "already a client");
+      }
+      P.clients.push({ org_id: b.client_org_id, label: b.label, consent_reference: b.consent_reference, active: true }); return { ...P };
+    },
+    async takePilotSnapshot(pid) { if (db.pilots[pid].p.status === "PLANNING") bad(409, "start the pilot first"); return {}; },
+    async logPilotTime(pid, b) { if (b.performed_on > new Date().toISOString().slice(0, 10)) bad(400, "future"); if (!b.client_org_id) bad(400, "say which client"); db.pilots[pid].logs.push(b); return b; },
+    async submitPilotSurvey(pid, b) { if (b.scores.overall > 5 && !breakPilot) bad(400, "out of range"); const S = db.pilots[pid].survey; S[b.round] = (S[b.round] || 0) + 1; return { revision: S[b.round] }; },
+    async removePilotClient(pid, org) { const P = db.pilots[pid].p; P.clients.forEach((c) => { if (c.org_id === org) c.active = false; }); db.pilots[pid].gone = true; return { ...P }; },
+    async pilotResults(pid) {
+      const x = db.pilots[pid], live = x.p.clients.some((c) => c.active), n = live ? 1 : 0;
+      const keys = ["onboarding", "processing", "evidence", "reconciliation", "exceptions", "reports", "audit_prep", "errors", "satisfaction", "adoption", "passport"];
+      return { clients_total: n, clients: live ? [{}] : [], reported: { survey: { respondents: live ? 1 : 0 }, time: { report: { entries: live ? x.logs.length : 0 } } },
+        evaluation: { caution: "Treat as indicative.", measures: keys.map((k) => ({ key: k, source: k === "satisfaction" ? "REPORTED" : "MEASURED", status: k === "satisfaction" ? (breakPilot ? "MET" : "INSUFFICIENT_DATA") : "INSUFFICIENT_DATA", value: k === "satisfaction" && breakPilot ? 4.5 : null })) } };
+    },
     // ---- Professional validation stand-in (enforces the same rules the real service does)
     async validationGuide() { return { stages: ["ACCOUNTING_TREATMENT", "CONTROLS", "EVIDENCE", "REPORTING", "AUDIT_WORKFLOW", "SECURITY", "PROFESSIONAL_JUDGEMENT"].map((id) => ({ id })), disclaimer: breakValidation ? "ok" : "This is not an audit opinion." }; },
     async addReviewer(b) {
@@ -363,6 +388,19 @@ test("self-test: the Professional Validation steps run and pass", async () => {
   const v = results.filter((r) => r.group === "Professional Validation");
   assert.equal(v.length, 4);
   assert.deepEqual(v.filter((r) => r.status !== "pass"), [], JSON.stringify(v, null, 1));
+});
+
+test("self-test: the Real Pilot steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const v = results.filter((r) => r.group === "Real Pilot");
+  assert.equal(v.length, 3);
+  assert.deepEqual(v.filter((r) => r.status !== "pass"), [], JSON.stringify(v, null, 1));
+});
+
+test("self-test: a pilot that skips consent, or invents a satisfaction figure from one answer, is caught", async () => {
+  const results = await runSelfTest(fakeApi({ breakPilot: true }), { orgId: "org1" });
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Real Pilot" && /consent/.test(r.name)), "missing consent was not caught");
+  assert.ok(results.some((r) => r.status === "fail" && r.group === "Real Pilot" && /honest limits/.test(r.name)), "the empty honesty note was not caught");
 });
 
 test("self-test: a credential that is wrongly shown as verified is caught", async () => {

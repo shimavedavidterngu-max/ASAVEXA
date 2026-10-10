@@ -341,6 +341,31 @@ export class ApiClient {
   completeEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/complete`); }
   validationStatement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}/statement`); }
 
+  // ---- Real pilot (src/asavexa/api/routers/pilot.py) ----
+  pilotGuide() { return this.get("/pilot/guide"); }
+  pilotMe() { return this.get("/pilot/me"); }
+  pilotEligible() { return this.get("/pilot/eligible"); }
+  listPilots() { return this.get("/pilot/pilots"); }
+  createPilot(body) { return this.post("/pilot/pilots", body); }
+  getPilot(id) { return this.get(`/pilot/pilots/${encodeURIComponent(id)}`); }
+  updatePilotTargets(id, targets) { return this.put(`/pilot/pilots/${encodeURIComponent(id)}/targets`, { targets }); }
+  setPilotStatus(id, status) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/status`, { status }); }
+  addPilotClient(id, body) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/clients`, body); }
+  updatePilotClient(id, orgId, body) { return this.put(`/pilot/pilots/${encodeURIComponent(id)}/clients/${encodeURIComponent(orgId)}`, body); }
+  removePilotClient(id, orgId, reason) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/clients/${encodeURIComponent(orgId)}/remove`, { reason }); }
+  leavePilot(id, reason) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/leave`, { reason }); }
+  pilotResults(id) { return this.get(`/pilot/pilots/${encodeURIComponent(id)}/results`); }
+  pilotReport(id) { return this.get(`/pilot/pilots/${encodeURIComponent(id)}/report`); }
+  takePilotSnapshot(id) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/snapshots`); }
+  pilotSnapshots(id) { return this.get(`/pilot/pilots/${encodeURIComponent(id)}/snapshots`); }
+  pilotLogs(id) { return this.get(`/pilot/pilots/${encodeURIComponent(id)}/logs`); }
+  logPilotTime(id, body) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/time`, body); }
+  logPilotIssue(id, body) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/issues`, body); }
+  resolvePilotIssue(id, issueId, resolution) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/issues/${encodeURIComponent(issueId)}/resolve`, { resolution }); }
+  logPilotPassportUse(id, body) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/passport-uses`, body); }
+  myPilotSurvey(id) { return this.get(`/pilot/pilots/${encodeURIComponent(id)}/survey`); }
+  submitPilotSurvey(id, body) { return this.post(`/pilot/pilots/${encodeURIComponent(id)}/survey`, body); }
+
   /** The decrypted original of an evidence file, as a Blob (the server sends it as a forced download). */
   async downloadEvidence(id) {
     const token = this.getToken();

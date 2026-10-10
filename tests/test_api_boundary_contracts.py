@@ -234,6 +234,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
     "ingestion.router": "/ingestion",
         "security.router": "/security",
         "validation.router": "/validation",
+        "pilot.router": "/pilot",
     }
 
     def test_every_expected_router_registered_exactly_once(self):

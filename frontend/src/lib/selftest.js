@@ -902,6 +902,61 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     return `refused without declaration (${noDecl.status}), source reference (${noRef.status}/${noRefReview.status}), competence (${noCompetence.status}); re-sign (${again.status}); statement fingerprint ${st.statement_hash.slice(0, 12)} verified`;
   });
 
+  // ---------------- 10h. Real pilot ----------------
+  // Proves the RULES of the pilot (consent, who may be added, honest results, privacy). It creates one clearly-named planning pilot with a very old
+  // start date so it sorts last, and removes its throw-away client again. It does not prove the pilot's results mean anything: only real use does.
+  const pilotWarn = (m) => Object.assign(new Error(m), { warn: true });
+  await step("Real Pilot", "The eleven measures and the honest limits are set out", ["orgId"], async () => {
+    const g = await api.pilotGuide();
+    check(Object.keys(g.default_targets).length === 11, `${Object.keys(g.default_targets).length} default targets, not 11`);
+    check(g.max_clients === 12, `the client cap is ${g.max_clients}`);
+    check(/cannot prove/i.test(g.honesty) && /reported/i.test(g.honesty), "the honesty note does not say what a pilot cannot prove and what is only reported");
+    return "11 measures; a pilot is small and says what it cannot prove";
+  });
+
+  await step("Real Pilot", "A client needs your own administrator rights, written consent and a free slot", ["orgId"], async () => {
+    const me = await api.pilotMe();
+    if (!me.can_manage) throw pilotWarn("Your role cannot set up a pilot (owners and administrators can), so this was not tested.");
+    const p = await api.createPilot({ name: `SelfTest pilot ${tag} (safe to ignore)`, start_date: "2000-01-01", notes: "Created by the self-test" });
+    ctx.pilotId = p.id;
+    check(p.status === "PLANNING", `new pilot is ${p.status}`);
+    const stranger = await expectRejected(() => api.addPilotClient(p.id, { client_org_id: "00000000-0000-4000-8000-0000000000ff", label: "Not mine", consent_reference: "selftest letter" }), [403]);
+    const orgB = await api.createOrganisation(`SelfTest pilot client ${tag}`);
+    ctx.pilotClient = orgB.id;
+    const noConsent = await expectRejected(() => api.addPilotClient(p.id, { client_org_id: orgB.id, label: "Throw-away", consent_reference: " " }), [400]);
+    const future = await expectRejected(() => api.addPilotClient(p.id, { client_org_id: orgB.id, label: "Throw-away", consent_reference: "selftest letter", kickoff: "2999-01-01" }), [400]);
+    const self = await expectRejected(() => api.addPilotClient(p.id, { client_org_id: ctx.orgId, label: "Myself", consent_reference: "selftest letter" }), [400, 403]);
+    const added = await api.addPilotClient(p.id, { client_org_id: orgB.id, label: "Throw-away", consent_reference: "selftest letter" });
+    check(added.clients.length === 1 && added.clients[0].consent_reference === "selftest letter", "the consent reference was not kept");
+    const dup = await expectRejected(() => api.addPilotClient(p.id, { client_org_id: orgB.id, label: "Twice", consent_reference: "selftest letter" }), [409]);
+    const early = await expectRejected(() => api.takePilotSnapshot(p.id), [409]);
+    return `refused: an organisation you do not administer (${stranger.status}), no consent (${noConsent.status}), future start (${future.status}), the firm itself (${self.status}), adding twice (${dup.status}), a snapshot before the pilot starts (${early.status})`;
+  });
+
+  await step("Real Pilot", "Results never invent a number, and what people only reported is labelled", ["pilotId", "pilotClient"], async () => {
+    const id = ctx.pilotId, day = new Date().toISOString().slice(0, 10);
+    const badTime = await expectRejected(() => api.logPilotTime(id, { client_org_id: ctx.pilotClient, kind: "REPORT", minutes: 10, performed_on: "2999-01-01" }), [400]);
+    const noClient = await expectRejected(() => api.logPilotTime(id, { kind: "REPORT", minutes: 10, performed_on: day }), [400, 403]);
+    await api.logPilotTime(id, { client_org_id: ctx.pilotClient, kind: "REPORT", minutes: 30, performed_on: day, baseline_minutes: 60 });
+    const badSurvey = await expectRejected(() => api.submitPilotSurvey(id, { round: "SELFTEST", scores: { overall: 9, ease: 3, trust: 3, recommend: 5 } }), [400]);
+    await api.submitPilotSurvey(id, { round: "SELFTEST", scores: { overall: 4, ease: 3, trust: 4, recommend: 8 } });
+    const second = await api.submitPilotSurvey(id, { round: "SELFTEST", scores: { overall: 5, ease: 3, trust: 4, recommend: 9 } });
+    check(second.revision === 2, `a second answer to the same round is revision ${second.revision}, not 2`);
+    const r = await api.pilotResults(id);
+    check(r.evaluation.measures.length === 11, `${r.evaluation.measures.length} measures, not 11`);
+    check(r.evaluation.measures.every((m) => m.source === "MEASURED" || m.source === "REPORTED"), "a measure is not labelled measured or reported");
+    const sat = r.evaluation.measures.find((m) => m.key === "satisfaction");
+    check(sat && sat.source === "REPORTED", "satisfaction is not labelled as reported");
+    check(sat.status === "INSUFFICIENT_DATA" && sat.value == null, `one respondent produced a satisfaction figure (${sat.value}, ${sat.status})`);
+    check(/indicative/i.test(r.evaluation.caution), "the results carry no caution about the small sample");
+    const gone = await api.removePilotClient(id, ctx.pilotClient, "self-test finished");
+    check(gone.clients.every((c) => !c.active), "the throw-away client is still active");
+    const after = await api.pilotResults(id);
+    check(after.clients_total === 0 && after.clients.length === 0, "a removed client still counts in the results");
+    check(after.reported.survey.respondents === 0 && after.reported.time.report.entries === 0, "a removed client's reported data still counts");
+    return `refused: future date (${badTime.status}), no client named (${noClient.status}), a score of 9 out of 5 (${badSurvey.status}); one respondent gives no satisfaction figure; removed client leaves every result`;
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;

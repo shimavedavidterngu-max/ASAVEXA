@@ -98,6 +98,15 @@ def get_validation(security: SecurityContext = Depends(get_security), session=De
     return ValidationService(SqlAlchemyDocStore(session), log=make_log(security), keys=platform_keys())
 
 
+def get_pilot(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Pilot service over the shared document store; every action is written to the audit trail of the organisation concerned."""
+    from ..pilot.service import PilotService
+    from ..pilot.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return PilotService(SqlAlchemyDocStore(session), log=make_log(security))
+
+
 def get_accounting_engine(session=Depends(get_session)) -> AccountingEngine:
     return AccountingEngine(
         accounts=SqlAlchemyAccountRepository(session),

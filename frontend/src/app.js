@@ -42,6 +42,8 @@ import { Diagnostics, formatReport } from "./pages/Diagnostics.js";
 import { runSelfTest } from "./lib/selftest.js";
 import { Security, visibleTabs } from "./pages/Security.js";
 import { Validation } from "./pages/Validation.js";
+import { Pilot } from "./pages/Pilot.js";
+import { pilotBody, clientBody, clientFormProblem, timeBody, issueBody, passportUseBody, surveyBody, surveyProblem, emptyPilotForm, emptyClientForm, today, download } from "./lib/pilot.js";
 import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, emptyObservation, actingMode } from "./lib/validation.js";
 import { makeBinding, parseOidcReturn, interpretLogin, parseRegions } from "./lib/signin.js";
 
@@ -75,6 +77,7 @@ const NAV_ITEMS = [
   { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
   { path: "/validation", label: "Professional Validation", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/pilot", label: "Real Pilot", permission: null },
   { path: "/security", label: "Security", permission: null },
   { path: "/diagnostics", label: "Connection & Self-Test", permission: null },
 ];
@@ -106,6 +109,7 @@ const routes = [
   { path: "/shared/:token", name: "shared" },
   { path: "/standards", name: "standards" },
   { path: "/validation", name: "validation" },
+  { path: "/pilot", name: "pilot" },
   { path: "/security", name: "security" },
   { path: "/diagnostics", name: "diagnostics" },
 ];
@@ -389,6 +393,7 @@ function renderPage(matched, authState) {
   if (name === "diagnostics") return renderDiagnostics(authState);
   if (name === "security") return renderSecurityPage(authState);
   if (name === "validation") return renderValidationPage(authState);
+  if (name === "pilot") return renderPilotPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -532,6 +537,7 @@ async function handleSsoReturn() {
 
 function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
+  uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.sec = null; uiState.secNoOrg = false; uiState.mfaChallenge = null;
   loadedOnce.delete("secLoading");
 }
@@ -2560,5 +2566,108 @@ function validationActions(authState) {
       const { reviewId, obsId, f } = val.form;
       val.detail = keep(await api.respondToObservation(val.detailId, reviewId, obsId, f.status || "ACCEPTED", (f.note || "").trim())); val.form = null;
     }, "Response recorded."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Real Pilot page
+// ----------------------------------------------------------------------
+function newPilot() {
+  return { tab: null, guide: null, me: null, pilotId: null, current: null, results: null, logs: null, snapshots: null, eligible: null, mySurvey: null, report: null,
+    form: null, busy: false, notice: null, error: null };
+}
+
+function renderPilotPage(authState) {
+  if (!uiState.pilot) uiState.pilot = newPilot();
+  once("pilotLoading", () => loadPilot());
+  return Pilot({ pilot: uiState.pilot, loading: uiState.pilotLoading, onRetry: () => { loadedOnce.delete("pilotLoading"); render(); }, actions: pilotActions(authState) });
+}
+
+async function loadPilot() {
+  const pilot = uiState.pilot || (uiState.pilot = newPilot());
+  pilot.error = null;
+  try {
+    [pilot.guide, pilot.me] = await Promise.all([api.pilotGuide(), api.pilotMe()]);
+    const m = pilot.me.membership;
+    if (m && m.role === "CLIENT") { pilot.pilotId = m.pilot_id; pilot.current = m.pilot; }
+    else {
+      const list = pilot.me.can_manage ? await api.listPilots() : ((m && m.pilots) || []);
+      const pick = list.find((x) => x.id === pilot.pilotId) || list[0] || null;
+      pilot.pilotId = pick ? pick.id : null;
+      pilot.current = pick ? (pilot.me.can_manage ? await api.getPilot(pick.id) : pick) : null;
+    }
+    pilot.results = null; pilot.snapshots = null; pilot.report = null;
+    if (pilot.pilotId) {
+      const jobs = [api.pilotLogs(pilot.pilotId), api.myPilotSurvey(pilot.pilotId)];
+      if (pilot.me.can_manage && !(m && m.role === "CLIENT")) jobs.push(api.pilotSnapshots(pilot.pilotId));
+      const [logs, mine, snaps] = await Promise.all(jobs);
+      pilot.logs = logs; pilot.mySurvey = mine; pilot.snapshots = snaps || null;
+      if (pilot.me.can_manage && pilot.current.clients && pilot.current.clients.some((c) => c.active)) pilot.results = await api.pilotResults(pilot.pilotId);
+    }
+  } catch (err) {
+    pilot.error = err.message || "The pilot could not be loaded.";
+  }
+}
+
+function pilotActions(authState) {
+  const pilot = uiState.pilot;
+  const run = async (fn, okNotice) => {
+    pilot.error = null; pilot.notice = null; pilot.busy = true; render();
+    try { await fn(); if (okNotice) pilot.notice = okNotice; } catch (err) { pilot.error = err.message || "That did not work."; }
+    pilot.busy = false; render();
+  };
+  const reload = async () => { await loadPilot(); };
+  const isFirm = () => !(pilot.me && pilot.me.membership && pilot.me.membership.role === "CLIENT");
+  return {
+    setTab: (t) => { pilot.tab = t; pilot.form = null; pilot.error = null; pilot.notice = null; render(); },
+    startForm: (kind, f) => {
+      const defaults = { pilot: emptyPilotForm(), time: { performed_on: today() }, issue: { severity: "LOW" }, passport: {}, survey: { round: "GENERAL", scores: {} } };
+      pilot.form = { kind, f: { ...(defaults[kind] || {}), ...(f || {}) } }; pilot.error = null; pilot.notice = null; render();
+    },
+    cancelForm: () => { pilot.form = null; render(); },
+    formChange: (k, v) => { if (pilot.form) pilot.form.f[k] = v; },
+    createPilot: () => run(async () => {
+      const p = await api.createPilot(pilotBody(pilot.form.f)); pilot.form = null; pilot.pilotId = p.id; await reload(); pilot.tab = "clients";
+    }, "Pilot created. Add your first client organisation next."),
+    setStatus: (s) => run(async () => { pilot.current = await api.setPilotStatus(pilot.pilotId, s); await reload(); }, s === "ACTIVE" ? "The pilot is now active." : "The pilot is completed."),
+    saveTargets: () => run(async () => {
+      const t = {}; for (const [k, v] of Object.entries(pilot.form.f)) { const n = Number(String(v).trim()); if (!String(v).trim() || Number.isNaN(n)) throw new Error("Every target must be a number."); t[k] = n; }
+      pilot.current = await api.updatePilotTargets(pilot.pilotId, t); pilot.form = null; if (pilot.results) pilot.results = await api.pilotResults(pilot.pilotId);
+    }, "Targets saved."),
+    // clients
+    startClientForm: () => run(async () => { pilot.eligible = await api.pilotEligible(); pilot.form = { kind: "client", f: emptyClientForm() }; }),
+    addClient: () => run(async () => {
+      const bad = clientFormProblem(pilot.form.f); if (bad) throw new Error(bad);
+      pilot.current = await api.addPilotClient(pilot.pilotId, clientBody(pilot.form.f)); pilot.form = null; pilot.results = await api.pilotResults(pilot.pilotId);
+    }, "Client added. Its consent reference is recorded in both organisations' audit trails."),
+    removeClient: () => run(async () => {
+      const { org, reason } = pilot.form.f; pilot.current = await api.removePilotClient(pilot.pilotId, org, (reason || "").trim()); pilot.form = null;
+      pilot.results = pilot.current.clients.some((c) => c.active) ? await api.pilotResults(pilot.pilotId) : null;
+    }, "Client removed. Its data no longer counts in any result."),
+    leave: () => run(async () => { await api.leavePilot(pilot.pilotId, (pilot.form.f.reason || "").trim()); pilot.form = null; pilot.tab = null; await reload(); }, "Your organisation has left the pilot."),
+    // results
+    loadResults: () => run(async () => { pilot.results = await api.pilotResults(pilot.pilotId); }),
+    takeSnapshot: () => run(async () => { await api.takePilotSnapshot(pilot.pilotId); pilot.snapshots = await api.pilotSnapshots(pilot.pilotId); }, "Snapshot taken."),
+    buildReport: () => run(async () => { pilot.report = await api.pilotReport(pilot.pilotId); pilot.results = pilot.report.results; }),
+    downloadReport: () => { if (pilot.report) download(`${(pilot.current.name || "pilot").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-report.md`, pilot.report.markdown); },
+    // recording
+    saveLog: (which) => run(async () => {
+      const f = pilot.form.f, firm = isFirm(), id = pilot.pilotId;
+      if (firm && !f.client_org_id) throw new Error("Choose which client this is about.");
+      if (which === "time") await api.logPilotTime(id, timeBody(f, firm));
+      else if (which === "issue") await api.logPilotIssue(id, issueBody(f, firm));
+      else await api.logPilotPassportUse(id, passportUseBody(f, firm));
+      pilot.form = null; pilot.logs = await api.pilotLogs(id);
+      if (pilot.results && firm) pilot.results = await api.pilotResults(id);
+    }, "Saved."),
+    resolveIssue: () => run(async () => { const { id, resolution } = pilot.form.f; await api.resolvePilotIssue(pilot.pilotId, id, (resolution || "").trim()); pilot.form = null; pilot.logs = await api.pilotLogs(pilot.pilotId); }, "Marked resolved."),
+    // survey
+    startSurvey: () => { pilot.form = { kind: "survey", f: { round: "GENERAL", scores: {}, comment: "" } }; pilot.error = null; pilot.notice = null; render(); },
+    surveyScore: (k, v) => { if (pilot.form) pilot.form.f.scores[k] = v; },
+    submitSurvey: () => run(async () => {
+      const bad = surveyProblem(pilot.form.f); if (bad) throw new Error(bad);
+      await api.submitPilotSurvey(pilot.pilotId, surveyBody(pilot.form.f)); pilot.form = null; pilot.mySurvey = await api.myPilotSurvey(pilot.pilotId);
+      if (pilot.results && isFirm() && pilot.me.can_manage) pilot.results = await api.pilotResults(pilot.pilotId);
+    }, "Thank you. Your answers are recorded."),
   };
 }
