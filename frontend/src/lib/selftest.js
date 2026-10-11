@@ -957,6 +957,73 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     return `refused: future date (${badTime.status}), no client named (${noClient.status}), a score of 9 out of 5 (${badSurvey.status}); one respondent gives no satisfaction figure; removed client leaves every result`;
   });
 
+  // ---------------- 10i. ASAVEXA Network ----------------
+  // Uses two throw-away organisations (one business, one auditor) so your real organisation's profile and data are never touched, then returns
+  // the session to your organisation. Proves the RULES: both sides agree, the business decides, access is checked every time, ending is immediate.
+  const netOrgs = async () => {
+    if (ctx.netP) return;
+    const p = await api.createOrganisation(`SelfTest network business ${tag}`), v = await api.createOrganisation(`SelfTest network auditor ${tag}`);
+    ctx.netP = p.id; ctx.netV = v.id;
+  };
+  const as = async (orgId) => { await api.selectOrganisation(orgId); };
+
+  await step("ASAVEXA Network", "Seven kinds of organisation, and the rules of connecting, are set out", ["orgId"], async () => {
+    const g = await api.networkGuide();
+    check(Object.keys(g.types).length === 7, `${Object.keys(g.types).length} kinds, not 7`);
+    for (const t of ["BUSINESS", "ACCOUNTANT", "AUDITOR", "BANK", "INVESTOR", "DONOR", "REGULATOR"]) check(t in g.types, `${t} is missing`);
+    check(/business always decides|business decides/i.test(g.how_it_works.join(" ")), "the guide does not say the business decides");
+    return "Businesses, accountants, auditors, banks, investors, donors, regulators";
+  });
+
+  await step("ASAVEXA Network", "A connection needs both sides to agree, and only a business shares its information", ["orgId"], async () => {
+    try {
+      await netOrgs();
+      await as(ctx.netP);
+      await api.setNetworkProfile({ org_type: "BUSINESS", display_name: `SelfTest Bakery ${tag}` });
+      const two = await expectRejected(() => api.createNetworkInvite({ counterparty_type: "BUSINESS", purpose: "Peer share", grant: { scopes: ["IDENTITY"] } }), [400]);
+      const inv = await api.createNetworkInvite({ counterparty_type: "AUDITOR", purpose: "SelfTest audit", grant: { scopes: ["IDENTITY", "FINANCIAL_HISTORY", "EVIDENCE_QUALITY"] }, connection_days: 30 });
+      check(/^ASX-/.test(inv.code), "the invitation code has no recognisable form");
+      const own = await expectRejected(() => api.acceptNetworkInvite({ code: inv.code }), [400]);
+      await as(ctx.netV);
+      await api.setNetworkProfile({ org_type: "AUDITOR", display_name: `SelfTest Audit LLP ${tag}` });
+      const wrong = await expectRejected(() => api.previewNetworkInvite("ASX-ZZZZZ-ZZZZZ"), [400]);
+      const pv = await api.previewNetworkInvite(inv.code);
+      check(pv.kind === "OFFER" && pv.you_decide === false, "an offer should be accepted as offered");
+      const c = await api.acceptNetworkInvite({ code: inv.code });
+      ctx.netConn = c.id;
+      check(c.status === "ACTIVE" && c.role === "VIEWER", `connection is ${c.status}/${c.role}`);
+      const again = await expectRejected(() => api.acceptNetworkInvite({ code: inv.code }), [400]);
+      return `refused: business to business (${two.status}), accepting your own invitation (${own.status}), a wrong code (${wrong.status}), reusing a code (${again.status}); connected only after the other side agreed`;
+    } finally {
+      await as(ctx.orgId);
+    }
+  });
+
+  await step("ASAVEXA Network", "A connected organisation sees only what the business granted, and ending it cuts access at once", ["netConn"], async () => {
+    try {
+      await as(ctx.netV);
+      const v = await api.networkPassport(ctx.netConn);
+      const keys = Object.keys(v.sections).sort().join(",");
+      check(keys === "evidence_quality,financial_history,identity", `the auditor received sections: ${keys}`);
+      check(v.share.include_detail === false, "line-level detail was included without being granted");
+      check(typeof v.fingerprint === "string" && v.fingerprint.length === 64, "the view has no fingerprint");
+      const widen = await expectRejected(() => api.updateNetworkConnection(ctx.netConn, { grant: { scopes: ["IDENTITY", "AUDIT_TRAIL"] } }), [403]);
+      await as(ctx.netP);
+      await api.updateNetworkConnection(ctx.netConn, { grant: { scopes: ["IDENTITY"] } });
+      await as(ctx.netV);
+      const narrow = await api.networkPassport(ctx.netConn);
+      check(Object.keys(narrow.sections).join(",") === "identity", `after the business narrowed it, the auditor still received ${Object.keys(narrow.sections).join(",")}`);
+      await as(ctx.netP);
+      const fromProvider = await expectRejected(() => api.networkPassport(ctx.netConn), [403]);
+      await api.endNetworkConnection(ctx.netConn, "self-test finished");
+      await as(ctx.netV);
+      const closed = await expectRejected(() => api.networkPassport(ctx.netConn), [403]);
+      return `the auditor cannot widen its own access (${widen.status}); narrowing took effect at once; the business cannot use the viewer route (${fromProvider.status}); after ending, access is refused (${closed.status})`;
+    } finally {
+      await as(ctx.orgId);
+    }
+  });
+
   // ---------------- 11. Multi-tenancy ----------------
   await step("Multi-tenancy", "Another organisation cannot see this organisation's data", ["journal", "evidence", "orgId"], async () => {
     let orgB = null;

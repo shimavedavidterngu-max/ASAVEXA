@@ -8,7 +8,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false, breakNetwork = false, breakNetworkConsent = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -199,6 +199,28 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       }
       return { purpose: a.purpose, result: { imported: n, evidence_id: ev.id } };
     },
+    // ---- ASAVEXA Network stand-in (enforces the same rules the real service does)
+    async networkGuide() { return { types: Object.fromEntries(["BUSINESS", "ACCOUNTANT", "AUDITOR", "BANK", "INVESTOR", "DONOR", "REGULATOR"].map((t) => [t, t])), how_it_works: ["The business always decides what is shared."] }; },
+    async setNetworkProfile(b) { (db.net = db.net || { profiles: {}, invites: {}, conns: [] }).profiles[db.org] = b; return b; },
+    async createNetworkInvite(b) {
+      const me = db.net.profiles[db.org]; if (!me) bad(409, "profile first");
+      if ((me.org_type === "BUSINESS") === (b.counterparty_type === "BUSINESS")) bad(400, "only a business shares its information");
+      const code = `ASX-${id().slice(-5)}-AAAAA`; db.net.invites[code] = { org: db.org, kind: me.org_type === "BUSINESS" ? "OFFER" : "REQUEST", grant: b.grant }; return { code, invite: {} };
+    },
+    async previewNetworkInvite(code) { const i = db.net.invites[code]; if (!i || i.org === db.org) bad(400, "not valid"); return { kind: i.kind, you_decide: i.kind === "REQUEST", grant: i.grant }; },
+    async acceptNetworkInvite(b) {
+      const i = db.net.invites[b.code]; if (!i || (i.org === db.org && !breakNetworkConsent)) bad(400, "not valid");
+      if (!breakNetworkConsent) delete db.net.invites[b.code];
+      const c = { id: id(), provider: i.kind === "OFFER" ? i.org : db.org, viewer: i.kind === "OFFER" ? db.org : i.org, grant: i.grant, status: "ACTIVE" }; db.net.conns.push(c);
+      return { id: c.id, status: "ACTIVE", role: "VIEWER" };
+    },
+    async networkPassport(cid) {
+      const c = db.net.conns.find((x) => x.id === cid); if (!c || c.viewer !== db.org || c.status !== "ACTIVE") bad(403, "not active");
+      const scopes = breakNetwork ? ["IDENTITY", "FINANCIAL_HISTORY", "EVIDENCE_QUALITY", "GOVERNANCE", "AUDIT_TRAIL"] : c.grant.scopes;
+      return { sections: Object.fromEntries(scopes.map((s) => [s.toLowerCase(), {}])), share: { include_detail: false }, fingerprint: "c".repeat(64) };
+    },
+    async updateNetworkConnection(cid, b) { const c = db.net.conns.find((x) => x.id === cid); if (c.provider !== db.org) bad(403, "only the business"); if (b.grant) c.grant = { ...c.grant, scopes: b.grant.scopes }; return {}; },
+    async endNetworkConnection(cid) { const c = db.net.conns.find((x) => x.id === cid); if (!breakNetwork) c.status = "REVOKED"; return {}; },
     // ---- Real pilot stand-in (enforces the same rules the real service does)
     async pilotGuide() { return { default_targets: Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`t${i}`, i])), max_clients: 12, honesty: breakPilot ? "Great results." : "A pilot cannot prove it works everywhere. Measures marked Reported are what people said." }; },
     async pilotMe() { return { can_manage: true }; },
@@ -277,7 +299,7 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
     async addVendor(v) { return { ...v, risk_tier: "HIGH", risk_reasons: ["No signed agreement.", "No plan for leaving."] }; },
     async exportMyData() { return { account: { email: "a@b.c" }, audit_events_about_you: [] }; },
     async securityHealth() { return { status: "OK", checks: [{ name: "database", ok: true }] }; },
-    async createOrganisation() { db.orgs.push({ id: "org2" }); return { id: "org2" }; },
+    async createOrganisation() { const o = { id: `org${db.orgs.length + 1}` }; db.orgs.push(o); return o; },
     async selectOrganisation(o) { db.org = o; return {}; },
   };
   return api;
@@ -395,6 +417,20 @@ test("self-test: the Real Pilot steps run and pass", async () => {
   const v = results.filter((r) => r.group === "Real Pilot");
   assert.equal(v.length, 3);
   assert.deepEqual(v.filter((r) => r.status !== "pass"), [], JSON.stringify(v, null, 1));
+});
+
+test("self-test: the ASAVEXA Network steps run and pass", async () => {
+  const results = await runSelfTest(fakeApi(), { orgId: "org1" });
+  const v = results.filter((r) => r.group === "ASAVEXA Network");
+  assert.equal(v.length, 3);
+  assert.deepEqual(v.filter((r) => r.status !== "pass"), [], JSON.stringify(v, null, 1));
+});
+
+test("self-test: a network that over-shares or keeps access after ending is caught", async () => {
+  const r1 = await runSelfTest(fakeApi({ breakNetworkConsent: true }), { orgId: "org1" });
+  assert.ok(r1.some((r) => r.status === "fail" && r.group === "ASAVEXA Network" && /agree/.test(r.name)), "accepting your own invitation was not caught");
+  const r2 = await runSelfTest(fakeApi({ breakNetwork: true }), { orgId: "org1" });
+  assert.ok(r2.some((r) => r.status === "fail" && r.group === "ASAVEXA Network" && /only what the business granted/.test(r.name)), "over-sharing was not caught");
 });
 
 test("self-test: a pilot that skips consent, or invents a satisfaction figure from one answer, is caught", async () => {

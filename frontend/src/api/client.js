@@ -341,6 +341,20 @@ export class ApiClient {
   completeEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/complete`); }
   validationStatement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}/statement`); }
 
+  // ---- ASAVEXA Network (src/asavexa/api/routers/network.py) ----
+  networkGuide() { return this.get("/network/guide"); }
+  networkMe() { return this.get("/network/me"); }
+  setNetworkProfile(body) { return this.put("/network/profile", body); }
+  networkInvites() { return this.get("/network/invites"); }
+  createNetworkInvite(body) { return this.post("/network/invites", body); }
+  cancelNetworkInvite(id) { return this.post(`/network/invites/${encodeURIComponent(id)}/cancel`); }
+  previewNetworkInvite(code) { return this.post("/network/invites/preview", { code }); }
+  acceptNetworkInvite(body) { return this.post("/network/invites/accept", body); }
+  updateNetworkConnection(id, body) { return this.put(`/network/connections/${encodeURIComponent(id)}`, body); }
+  endNetworkConnection(id, reason) { return this.post(`/network/connections/${encodeURIComponent(id)}/end`, { reason }); }
+  networkAccessLog(id) { return this.get(`/network/connections/${encodeURIComponent(id)}/access-log`); }
+  networkPassport(id) { return this.get(`/network/connections/${encodeURIComponent(id)}/passport`); }
+
   // ---- Real pilot (src/asavexa/api/routers/pilot.py) ----
   pilotGuide() { return this.get("/pilot/guide"); }
   pilotMe() { return this.get("/pilot/me"); }

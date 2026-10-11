@@ -43,6 +43,8 @@ import { runSelfTest } from "./lib/selftest.js";
 import { Security, visibleTabs } from "./pages/Security.js";
 import { Validation } from "./pages/Validation.js";
 import { Pilot } from "./pages/Pilot.js";
+import { Network } from "./pages/Network.js";
+import { inviteBody, inviteProblem, acceptGrant, emptyInviteForm } from "./lib/network.js";
 import { pilotBody, clientBody, clientFormProblem, timeBody, issueBody, passportUseBody, surveyBody, surveyProblem, emptyPilotForm, emptyClientForm, today, download } from "./lib/pilot.js";
 import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, emptyObservation, actingMode } from "./lib/validation.js";
 import { makeBinding, parseOidcReturn, interpretLogin, parseRegions } from "./lib/signin.js";
@@ -77,6 +79,7 @@ const NAV_ITEMS = [
   { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
   { path: "/validation", label: "Professional Validation", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/network", label: "ASAVEXA Network", permission: null },
   { path: "/pilot", label: "Real Pilot", permission: null },
   { path: "/security", label: "Security", permission: null },
   { path: "/diagnostics", label: "Connection & Self-Test", permission: null },
@@ -109,6 +112,7 @@ const routes = [
   { path: "/shared/:token", name: "shared" },
   { path: "/standards", name: "standards" },
   { path: "/validation", name: "validation" },
+  { path: "/network", name: "network" },
   { path: "/pilot", name: "pilot" },
   { path: "/security", name: "security" },
   { path: "/diagnostics", name: "diagnostics" },
@@ -394,6 +398,7 @@ function renderPage(matched, authState) {
   if (name === "security") return renderSecurityPage(authState);
   if (name === "validation") return renderValidationPage(authState);
   if (name === "pilot") return renderPilotPage(authState);
+  if (name === "network") return renderNetworkPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -538,6 +543,7 @@ async function handleSsoReturn() {
 function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
+  uiState.net = null; loadedOnce.delete("netLoading");
   uiState.sec = null; uiState.secNoOrg = false; uiState.mfaChallenge = null;
   loadedOnce.delete("secLoading");
 }
@@ -2671,3 +2677,86 @@ function pilotActions(authState) {
     }, "Thank you. Your answers are recorded."),
   };
 }
+
+// ----------------------------------------------------------------------
+// ASAVEXA Network page
+// ----------------------------------------------------------------------
+function newNet() {
+  return { tab: "connections", guide: null, me: null, invites: null, form: null, created: null, code: "", preview: null, accept: { scopes: [], detail: false }, view: null, log: null, logFor: null,
+    busy: false, notice: null, error: null };
+}
+
+function renderNetworkPage(authState) {
+  if (!uiState.net) uiState.net = newNet();
+  once("netLoading", () => loadNetwork());
+  return Network({ net: uiState.net, loading: uiState.netLoading, onRetry: () => { loadedOnce.delete("netLoading"); render(); }, actions: networkActions(authState) });
+}
+
+async function loadNetwork() {
+  const net = uiState.net || (uiState.net = newNet());
+  net.error = null;
+  try {
+    [net.guide, net.me] = await Promise.all([api.networkGuide(), api.networkMe()]);
+    net.invites = net.me.can_manage && net.me.profile ? await api.networkInvites() : [];
+  } catch (err) {
+    net.error = err.message || "The network could not be loaded.";
+  }
+}
+
+function networkActions() {
+  const net = uiState.net;
+  const run = async (fn, okNotice) => {
+    net.error = null; net.notice = null; net.busy = true; render();
+    try { await fn(); if (okNotice) net.notice = okNotice; } catch (err) { net.error = err.message || "That did not work."; }
+    net.busy = false; render();
+  };
+  const reload = async () => { await loadNetwork(); };
+  const profileForm = () => { const p = net.me && net.me.profile; return { kind: "profile", f: { org_type: p ? p.org_type : "", display_name: p ? p.display_name : "", description: p ? p.description : "" } }; };
+  return {
+    setTab: (t) => { net.tab = t; net.view = null; net.form = t === "profile" ? profileForm() : null; net.preview = null; net.error = null; net.notice = null; net.logFor = null; render(); },
+    cancelForm: () => { net.form = null; render(); },
+    formChange: (k, v) => { if (!net.form && (net.tab === "profile" || (net.me && !net.me.profile))) net.form = profileForm(); if (net.form) net.form.f[k] = v; },
+    toggleScope: (s, on) => { const cur = new Set(net.form.f.scopes || []); if (on) cur.add(s); else cur.delete(s); net.form.f.scopes = Object.keys(SCOPE_ORDER).filter((x) => cur.has(x)); },
+    // profile
+    saveProfile: () => run(async () => {
+      const f = (net.form && net.form.f) || profileForm().f;
+      if (!f.org_type) throw new Error("Choose what kind of organisation you are.");
+      await api.setNetworkProfile({ org_type: f.org_type, display_name: (f.display_name || "").trim(), description: (f.description || "").trim() }); net.form = null; await reload(); net.tab = "connections";
+    }, "Profile saved."),
+    // invitations
+    startInvite: () => { net.form = { kind: "invite", f: emptyInviteForm() }; net.error = null; render(); },
+    createInvite: () => run(async () => {
+      const bad = inviteProblem(net.form.f, net.me.can_offer_to); if (bad) throw new Error(bad);
+      net.created = await api.createNetworkInvite(inviteBody(net.form.f)); net.form = null; await reload();
+    }),
+    dismissCreated: () => { net.created = null; render(); },
+    cancelInvite: (id) => run(async () => { await api.cancelNetworkInvite(id); await reload(); }, "Invitation cancelled."),
+    setCode: (v) => { net.code = v; },
+    previewCode: () => run(async () => {
+      if (!(net.code || "").trim()) throw new Error("Enter the invitation code first.");
+      net.preview = await api.previewNetworkInvite(net.code.trim()); net.accept = { scopes: [...net.preview.grant.scopes], detail: !!net.preview.grant.include_detail };
+    }),
+    clearPreview: () => { net.preview = null; render(); },
+    toggleAcceptScope: (s, on) => { const cur = new Set(net.accept.scopes); if (on) cur.add(s); else cur.delete(s); net.accept.scopes = net.preview.grant.scopes.filter((x) => cur.has(x)); render(); },
+    setAcceptDetail: (on) => { net.accept.detail = on; },
+    acceptCode: () => run(async () => {
+      const pv = net.preview, body = { code: net.code.trim() };
+      if (pv.you_decide) { const g = acceptGrant(pv, net.accept.scopes, net.accept.detail, pv.grant.closed_periods_only); if (g) body.grant = g; }
+      await api.acceptNetworkInvite(body); net.preview = null; net.code = ""; await reload(); net.tab = "connections";
+    }, "Connected. Both organisations' audit trails record it."),
+    // connections
+    openView: (id) => run(async () => { net.view = await api.networkPassport(id); }),
+    closeView: () => { net.view = null; render(); },
+    loadLog: (id) => run(async () => { net.log = await api.networkAccessLog(id); net.logFor = id; }),
+    startGrant: (c) => { net.form = { kind: "grant", f: { id: c.id, scopes: [...c.grant.scopes], include_detail: c.grant.include_detail, closed_periods_only: c.grant.closed_periods_only, extend_days: "" } }; net.error = null; render(); },
+    saveGrant: () => run(async () => {
+      const f = net.form.f; if (!f.scopes.length) throw new Error("Leave at least one kind of information, or end the connection instead.");
+      const body = { grant: { scopes: f.scopes, include_detail: !!f.include_detail, closed_periods_only: !!f.closed_periods_only } };
+      if (String(f.extend_days || "").trim()) { const n = Number(f.extend_days); if (!Number.isInteger(n) || n < 1 || n > 365) throw new Error("Extend by a whole number of days from 1 to 365."); body.extend_days = n; }
+      await api.updateNetworkConnection(f.id, body); net.form = null; await reload();
+    }, "Saved. The change applies the next time they open it."),
+    startEnd: (id) => { net.form = { kind: "end", f: { id, reason: "" } }; net.error = null; render(); },
+    endConnection: () => run(async () => { await api.endNetworkConnection(net.form.f.id, (net.form.f.reason || "").trim()); net.form = null; await reload(); }, "Connection ended. They can no longer open anything."),
+  };
+}
+const SCOPE_ORDER = { IDENTITY: 1, FINANCIAL_HISTORY: 1, EVIDENCE_QUALITY: 1, GOVERNANCE: 1, REPORTING: 1, AUDIT_TRAIL: 1 };

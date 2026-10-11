@@ -107,6 +107,15 @@ def get_pilot(security: SecurityContext = Depends(get_security), session=Depends
     return PilotService(SqlAlchemyDocStore(session), log=make_log(security))
 
 
+def get_network(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Network service over the shared document store; every action is written to the audit trail of the organisation concerned."""
+    from ..network.service import NetworkService
+    from ..network.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return NetworkService(SqlAlchemyDocStore(session), log=make_log(security))
+
+
 def get_accounting_engine(session=Depends(get_session)) -> AccountingEngine:
     return AccountingEngine(
         accounts=SqlAlchemyAccountRepository(session),
