@@ -107,6 +107,15 @@ def get_pilot(security: SecurityContext = Depends(get_security), session=Depends
     return PilotService(SqlAlchemyDocStore(session), log=make_log(security))
 
 
+def get_analysis(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Financial Analysis service: reads the real accounting ledger (never writes to it) and keeps its own records in the shared document store; every action is audited."""
+    from ..analysis.service import AnalysisService
+    from ..analysis.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return AnalysisService(SqlAlchemyDocStore(session), get_accounting_engine(session), log=make_log(security))
+
+
 def get_network(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Network service over the shared document store; every action is written to the audit trail of the organisation concerned."""
     from ..network.service import NetworkService

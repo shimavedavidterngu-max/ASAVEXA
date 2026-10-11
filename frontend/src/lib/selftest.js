@@ -370,6 +370,25 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     check(a.layers.length >= 10, `only ${a.layers.length} layers reported`);
     return `${a.layers.length} layers loaded and mounted`;
   });
+  await step("Financial Analysis", "The analysis agrees with the ledger and does not guess unclassified ratios", ["posted", "period"], async () => {
+    const o = await api.analysisOverview(ctx.period.id);
+    const t = o.totals, cents = (v) => Math.round(Number(v) * 100);
+    check(cents(t.assets) - cents(t.liabilities) === cents(t.equity_total), `assets ${t.assets} less liabilities ${t.liabilities} is not total equity ${t.equity_total}`);
+    check(cents(t.revenue) - cents(t.expenses) === cents(t.net_income), "revenue less expenses is not net income");
+    const r = await api.analysisRatios(ctx.period.id);
+    check(r.ratios.length > 0 && r.calculated <= r.total, "the ratio list is malformed");
+    check(r.ratios.every((x) => x.status === "CALCULATED" ? x.value !== null && x.value !== undefined : x.value == null), "a ratio that could not be calculated still shows a number");
+    return `${r.calculated} of ${r.total} ratios calculated, totals tie to the ledger`;
+  });
+  await step("Financial Analysis", "Forecasts are labelled and the workspace list is honest", ["orgId"], async () => {
+    const be = await api.analysisBreakeven({ fixed_costs: "1000", price: "50", variable_cost: "30" });
+    check(String(be.break_even_units) === "50", `break-even came back as ${be.break_even_units}, expected 50`);
+    const w = await api.workspaces();
+    const tax = w.workspaces.find((x) => x.id === "tax"), an = w.workspaces.find((x) => x.id === "analysis");
+    check(!!an && an.path === "/analysis", "Financial Analysis is not listed");
+    check(!tax || (tax.status !== "VERIFIED IN TEST ENVIRONMENT" && !tax.path), "an unbuilt workspace is shown as built");
+    return "break-even correct, workspace statuses honest";
+  });
   await step("Reporting", "Invalid account id gives a clean error", ["period"], async () => {
     const e = await expectRejected(() => api.traceLine("not-a-uuid", ctx.period.id));
     return `HTTP ${e.status}: ${e.message}`;

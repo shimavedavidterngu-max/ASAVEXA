@@ -8,7 +8,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false, breakNetwork = false, breakNetworkConsent = false, breakProof = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false, breakNetwork = false, breakNetworkConsent = false, breakProof = false, breakAnalysis = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -65,6 +65,10 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
       return { state: "PARTIAL", meaning: "x", summary: { tie_failures: 0, journals: 1, with_evidence: breakProof ? 0 : 1 }, nodes, edges, checks: [] };
     },
     async proofArchitecture() { return { ok: !breakProof, layers: Array.from({ length: 10 }, (_, i) => ({ name: `L${i}`, ok: !(breakProof && i === 3), problems: breakProof && i === 3 ? ["API prefix /proof is not mounted"] : [] })) }; },
+    async analysisOverview() { return { totals: { assets: "75000.00", liabilities: breakAnalysis ? "5.00" : "1075000.00", equity_total: "-1000000.00", revenue: "100.00", expenses: "40.00", net_income: "60.00" } }; },
+    async analysisRatios() { return { calculated: 1, total: 2, ratios: [{ id: "a", status: "CALCULATED", value: "1.50" }, { id: "b", status: "INCOMPLETE", value: breakAnalysis ? "9.99" : null }] }; },
+    async analysisBreakeven() { return { break_even_units: "50" }; },
+    async workspaces() { return { workspaces: [{ id: "analysis", path: "/analysis", status: "VERIFIED IN TEST ENVIRONMENT" }, { id: "tax", path: null, status: "BLOCKED" }] }; },
     async seedStandardControls() { return []; },
     async listControls() { return ["ACC-001", "ACC-002", "ACC-003", "REC-001", "EVI-001", "EVI-002", "REP-001", "CLS-001", "CLS-002"].map((code) => ({ id: id(), code })); },
     async executeControl(cid) { const e = { id: id(), result: cid.endsWith("1") ? "FAIL" : "PASS", explanation: "e", finding_id: cid.endsWith("1") ? "f1" : null }; ex[e.id] = e; return e; },
@@ -459,4 +463,11 @@ test("self-test: a credential that is wrongly shown as verified is caught", asyn
   const results = await runSelfTest(fakeApi({ breakValidation: true }), { orgId: "org1" });
   assert.ok(results.some((r) => r.status === "fail" && r.group === "Professional Validation" && /declared and never verified/.test(r.name)));
   assert.ok(results.some((r) => r.status === "fail" && r.group === "Professional Validation" && /disclaimer/.test(r.name)));
+});
+
+test("self-test: analysis totals that do not tie, or a ratio that shows a number it could not calculate, are caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakAnalysis: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Financial Analysis" && /agrees with the ledger/.test(x.name)), "the analysis mismatch was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Financial Analysis" && x.status !== "pass"), []);
 });

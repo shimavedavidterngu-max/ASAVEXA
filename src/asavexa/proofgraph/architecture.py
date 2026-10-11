@@ -25,6 +25,8 @@ LAYERS: List[dict] = [
      "modules": ["asavexa.passport.builder", "asavexa.passport.sharing"], "prefixes": ["/passport", "/shared-passport"]},
     {"id": "ai", "group": "Use", "name": "AI", "parts": ["ASAVEXA AI", "External data ingestion"],
      "modules": ["asavexa.ai", "asavexa.ingestion"], "prefixes": ["/ai", "/ingestion"]},
+    {"id": "workspaces", "group": "Workspaces", "name": "Professional Workspaces", "parts": ["Workspace selector", "Financial Analysis"],
+     "modules": ["asavexa.workspaces", "asavexa.analysis.service"], "prefixes": ["/workspaces", "/analysis"]},
     {"id": "trust_network", "group": "Network", "name": "Trust Network", "parts": ["Banks", "Investors", "Auditors", "Donors", "Regulators", "Accountants"],
      "modules": ["asavexa.network.service", "asavexa.pilot.service", "asavexa.security.store"], "prefixes": ["/network", "/pilot", "/security"]},
 ]
@@ -32,7 +34,7 @@ LAYERS: List[dict] = [
 # The links the diagram draws between layers; each is checked as "both ends present".
 FLOWS = [("financial_core", "evidence_layer"), ("evidence_layer", "identity"), ("financial_core", "standards"), ("standards", "reporting"),
          ("reporting", "proof_graph"), ("proof_graph", "audit"), ("proof_graph", "passport"), ("proof_graph", "ai"),
-         ("audit", "trust_network"), ("passport", "trust_network"), ("ai", "trust_network")]
+         ("reporting", "workspaces"), ("workspaces", "trust_network"), ("audit", "trust_network"), ("passport", "trust_network"), ("ai", "trust_network")]
 
 
 def _is_mounted(prefix: str, route_paths: List[str]) -> bool:

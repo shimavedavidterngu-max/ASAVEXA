@@ -132,11 +132,11 @@ class Architecture(unittest.TestCase):
         paths = router_paths(); self.assertIn("/proof", paths)
         r = arch.check_architecture(paths)
         self.assertEqual([l["problems"] for l in r["layers"] if not l["ok"]], []); self.assertTrue(r["ok"])
-        self.assertEqual(len(r["layers"]), 10); self.assertTrue(all(f["ok"] for f in r["flows"]))
+        self.assertEqual(len(r["layers"]), 11); self.assertTrue(all(f["ok"] for f in r["flows"]))
 
     def test_the_diagram_is_fully_covered(self):
         names = {l["name"] for l in arch.LAYERS}
-        for n in ("Financial Core", "Evidence Layer", "Identity", "Standards Engine", "Reporting Engine", "Proof-to-Report Graph", "Audit", "Passport", "AI", "Trust Network"): self.assertIn(n, names)
+        for n in ("Financial Core", "Evidence Layer", "Identity", "Standards Engine", "Reporting Engine", "Proof-to-Report Graph", "Audit", "Passport", "AI", "Trust Network", "Professional Workspaces"): self.assertIn(n, names)
         parts = {p for l in arch.LAYERS for p in l["parts"]}
         for p in ("IFRS", "IFRS for SMEs", "US GAAP", "IPSAS", "Local GAAP", "Banks", "Investors", "Auditors", "Donors", "Regulators", "Journals", "Reconciliation", "Provenance"): self.assertIn(p, parts)
 

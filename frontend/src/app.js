@@ -45,6 +45,9 @@ import { Validation } from "./pages/Validation.js";
 import { Pilot } from "./pages/Pilot.js";
 import { Network } from "./pages/Network.js";
 import { Proof } from "./pages/Proof.js";
+import { Analysis } from "./pages/Analysis.js";
+import { Workspaces } from "./pages/Workspaces.js";
+import { scenarioProblem, scenarioBody, scenarioForm, emptyScenario, budgetBody, budgetProblem, emptyReportForm, reportProblem, reportBody } from "./lib/analysis.js";
 import { inviteBody, inviteProblem, acceptGrant, emptyInviteForm } from "./lib/network.js";
 import { pilotBody, clientBody, clientFormProblem, timeBody, issueBody, passportUseBody, surveyBody, surveyProblem, emptyPilotForm, emptyClientForm, today, download } from "./lib/pilot.js";
 import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, emptyObservation, actingMode } from "./lib/validation.js";
@@ -72,6 +75,8 @@ const NAV_ITEMS = [
   { path: "/reconciliation", label: "Reconciliation", permission: PERMISSIONS.RECONCILIATION_READ },
   { path: "/reporting", label: "Reporting", permission: PERMISSIONS.REPORTING_READ },
   { path: "/proof", label: "Proof Graph", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/workspaces", label: "Professional Workspaces", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/analysis", label: "Financial Analysis", permission: PERMISSIONS.REPORTING_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
@@ -103,6 +108,8 @@ const routes = [
   { path: "/reconciliation", name: "reconciliation" },
   { path: "/reporting", name: "reporting" },
   { path: "/proof", name: "proof" },
+  { path: "/workspaces", name: "workspaces" },
+  { path: "/analysis", name: "analysis" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
   { path: "/compliance/findings", name: "compliance-findings" },
@@ -403,6 +410,8 @@ function renderPage(matched, authState) {
   if (name === "pilot") return renderPilotPage(authState);
   if (name === "network") return renderNetworkPage(authState);
   if (name === "proof") return renderProofPage(authState);
+  if (name === "workspaces") return renderWorkspacesPage(authState, nav);
+  if (name === "analysis") return renderAnalysisPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -549,6 +558,8 @@ function resetSecurityState() {
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
   uiState.proof = null; loadedOnce.delete("proofLoading");
+  uiState.ws = null; loadedOnce.delete("wsLoading");
+  uiState.an = null; loadedOnce.delete("anLoading");
   uiState.sec = null; uiState.secNoOrg = false; uiState.mfaChallenge = null;
   loadedOnce.delete("secLoading");
 }
@@ -2715,6 +2726,134 @@ function proofActions() {
     toggle: (id) => { proof.open[id] = !proof.open[id]; render(); },
     build: () => run(async () => { proof.graph = await api.proofGraph(proof.period_id, proof.report); proof.open = {}; }),
     checkArchitecture: () => run(async () => { proof.arch = await api.proofArchitecture(); }),
+  };
+}
+
+
+// ----------------------------------------------------------------------
+// Professional Workspaces + Financial Analysis
+// ----------------------------------------------------------------------
+function renderWorkspacesPage(authState, nav) {
+  if (!uiState.ws) uiState.ws = { data: null, error: null };
+  once("wsLoading", () => loadWorkspaces());
+  return Workspaces({ data: uiState.ws.data, loading: uiState.wsLoading, error: uiState.ws.error, role: authState.role, onOpen: (path) => nav(path), onRetry: () => { loadedOnce.delete("wsLoading"); render(); } });
+}
+
+async function loadWorkspaces() {
+  const ws = uiState.ws || (uiState.ws = { data: null, error: null });
+  ws.error = null;
+  try { ws.data = await api.workspaces(); } catch (err) { ws.error = err.message || "The workspaces could not be loaded."; }
+}
+
+function newAnalysis() {
+  return { tab: "overview", period_id: "", loaded: {}, busy: false, error: null, notice: null, open: {}, periodNames: {},
+    overview: null, ratios: null, variance: null, budget: null, budgetVar: null, config: null, scenarios: [], reports: [], report: null,
+    noteFor: null, noteText: "", budgetForm: {}, budgetNote: "", scenarioForm: emptyScenario(), suggestNote: null, run: null, be: { fixed_costs: "", price: "", variable_cost: "" }, beResult: null,
+    reportForm: emptyReportForm(), decisionNote: "", verify: null, tagDraft: {}, thresholdForm: { percent: "", amount: "" } };
+}
+
+function renderAnalysisPage(authState) {
+  if (!uiState.an) uiState.an = newAnalysis();
+  once("anLoading", () => loadAnalysisBase());
+  return Analysis({ an: uiState.an, periods: uiState.periods, loading: uiState.anLoading, role: authState.role, userId: authState.user && authState.user.id, onRetry: () => { loadedOnce.delete("anLoading"); render(); }, actions: analysisActions() });
+}
+
+async function loadAnalysisBase() {
+  const an = uiState.an || (uiState.an = newAnalysis());
+  an.error = null;
+  try {
+    uiState.periods = await api.listPeriods();
+    an.periodNames = Object.fromEntries(uiState.periods.map((p) => [p.id, p.name]));
+    if (!an.period_id && uiState.periods.length) an.period_id = uiState.periods[uiState.periods.length - 1].id;
+    await loadAnalysisTab();
+  } catch (err) {
+    an.error = err.message || "Financial Analysis could not be loaded.";
+  }
+}
+
+/** Loads whatever the current tab needs. Called when the tab or period changes. */
+async function loadAnalysisTab() {
+  const an = uiState.an, id = an.period_id, tab = an.tab;
+  if (!id && tab !== "reports" && tab !== "setup") return;
+  an.busy = true; an.error = null; render();
+  try {
+    if (tab === "overview") an.overview = await api.analysisOverview(id);
+    else if (tab === "ratios") an.ratios = await api.analysisRatios(id);
+    else if (tab === "variance") { an.variance = await api.analysisVariance(id); an.config = an.config || await api.analysisConfig(); }
+    else if (tab === "budget") {
+      [an.budget, an.budgetVar, an.config] = await Promise.all([api.analysisBudget(id), api.analysisBudgetVariance(id), an.config ? Promise.resolve(an.config) : api.analysisConfig()]);
+      an.budgetForm = { ...an.budget.lines }; an.budgetNote = "";
+    } else if (tab === "forecast") an.scenarios = await api.analysisScenarios(id);
+    else if (tab === "reports") { an.reports = await api.analysisReports(); if (id) an.scenarios = await api.analysisScenarios(id); }
+    else if (tab === "setup") { an.config = await api.analysisConfig(); an.tagDraft = {}; an.thresholdForm = { percent: an.config.thresholds.percent, amount: an.config.thresholds.amount }; }
+    an.loaded[tab] = true;
+  } catch (err) {
+    an.error = err.message || "That could not be loaded.";
+  }
+  an.busy = false; render();
+}
+
+function analysisActions() {
+  const an = uiState.an;
+  const run = async (fn, ok) => { an.error = null; an.notice = null; an.busy = true; render(); try { await fn(); if (ok) an.notice = ok; } catch (err) { an.error = err.message || "That did not work."; } an.busy = false; render(); };
+  const reload = async (tab) => { an.loaded[tab] = false; await loadAnalysisTab(); };
+  const fail = (m) => { an.error = m; render(); };
+  return {
+    setPeriod: (id) => { an.period_id = id; an.loaded = {}; an.overview = an.ratios = an.variance = an.budget = an.budgetVar = null; an.run = null; an.report = null; loadAnalysisTab(); },
+    setTab: (t) => { an.tab = t; an.error = null; an.notice = null; an.report = null; if (!an.loaded[t]) loadAnalysisTab(); else render(); },
+    toggle: (id) => { an.open[id] = !an.open[id]; render(); },
+    // variance notes
+    noteFor: (accountId) => { an.noteFor = accountId; an.noteText = ""; render(); },
+    noteChange: (v) => { an.noteText = v; },
+    saveNote: () => run(async () => { await api.addAnalysisComment({ period_id: an.period_id, account_id: an.noteFor, text: an.noteText }); an.noteFor = null; an.noteText = ""; an.variance = await api.analysisVariance(an.period_id); }, "Note saved."),
+    // budget
+    budgetChange: (id, v) => { an.budgetForm = { ...an.budgetForm, [id]: v }; },
+    budgetNoteChange: (v) => { an.budgetNote = v; },
+    saveBudget: () => {
+      const problem = budgetProblem(an.budgetForm); if (problem) return fail(problem);
+      return run(async () => { await api.saveAnalysisBudget(budgetBody(an.budgetForm, an.period_id, an.budgetNote)); await reload("budget"); }, "Budget saved.");
+    },
+    // forecast
+    scenarioChange: (k, v) => { an.scenarioForm = { ...an.scenarioForm, [k]: v }; },
+    fillFromActuals: () => run(async () => {
+      const s = await api.analysisSuggest(an.period_id);
+      const a = s.assumptions || s;
+      an.scenarioForm = { ...an.scenarioForm, base_monthly_revenue: String(a.base_monthly_revenue ?? ""), base_monthly_expenses: String(a.base_monthly_expenses ?? ""), opening_cash: String(a.opening_cash ?? "") };
+      an.suggestNote = [s.basis, s.opening_cash_note].filter(Boolean).join(" ") || null;
+    }),
+    editScenario: (id) => { const s = an.scenarios.find((x) => x.id === id); if (s) { an.scenarioForm = scenarioForm(s); render(); } },
+    saveScenario: () => {
+      const problem = scenarioProblem(an.scenarioForm); if (problem) return fail(problem);
+      return run(async () => { const id = an.scenarioForm.id; await api.saveAnalysisScenario(scenarioBody(an.scenarioForm, an.period_id), id || null); an.scenarioForm = emptyScenario(); an.scenarios = await api.analysisScenarios(an.period_id); }, "Scenario saved.");
+    },
+    runScenario: (id) => run(async () => { an.run = await api.runAnalysisScenario(id); }),
+    beChange: (k, v) => { an.be = { ...an.be, [k]: v }; },
+    runBreakeven: () => run(async () => { an.beResult = await api.analysisBreakeven(an.be); }),
+    // reports
+    reportChange: (k, v) => { an.reportForm = { ...an.reportForm, [k]: v }; },
+    reportScenario: (id, on) => { const cur = new Set(an.reportForm.scenario_ids); on ? cur.add(id) : cur.delete(id); an.reportForm = { ...an.reportForm, scenario_ids: [...cur] }; render(); },
+    createReport: () => {
+      const problem = reportProblem(an.reportForm); if (problem) return fail(problem);
+      return run(async () => { an.report = await api.createAnalysisReport(reportBody(an.reportForm, an.period_id)); an.reportForm = emptyReportForm(); an.verify = null; an.reports = await api.analysisReports(); }, "Draft created.");
+    },
+    openReport: (id) => run(async () => { an.report = await api.analysisReport(id); an.verify = null; an.decisionNote = ""; }),
+    closeReport: () => { an.report = null; an.verify = null; reload("reports"); },
+    submitReport: () => run(async () => { an.report = await api.submitAnalysisReport(an.report.id); an.verify = null; }, "Submitted for review. The figures are now frozen."),
+    verifyReport: () => run(async () => { an.verify = await api.verifyAnalysisReport(an.report.id); }),
+    decisionChange: (v) => { an.decisionNote = v; },
+    decide: (approve) => {
+      if (!approve && an.decisionNote.trim().length < 3) return fail("Say why you are sending it back (at least 3 characters).");
+      return run(async () => { an.report = approve ? await api.approveAnalysisReport(an.report.id, an.decisionNote) : await api.rejectAnalysisReport(an.report.id, an.decisionNote); an.decisionNote = ""; }, approve ? "Approved." : "Sent back.");
+    },
+    exportReport: () => run(async () => { const { blob, filename } = await api.exportAnalysisReport(an.report.id); saveBlob(blob, filename); }, "Downloaded."),
+    // setup
+    tagChange: (accountId, tag) => { an.tagDraft = { ...an.tagDraft, [accountId]: tag || null }; },
+    thresholdChange: (k, v) => { an.thresholdForm = { ...an.thresholdForm, [k]: v }; },
+    saveConfig: () => {
+      const f = an.thresholdForm;
+      if (!/^\d+(\.\d+)?$/.test(String(f.percent).trim()) || !/^\d+(\.\d+)?$/.test(String(f.amount).trim())) return fail("The thresholds must be positive numbers.");
+      return run(async () => { await api.saveAnalysisConfig({ tags: an.tagDraft, thresholds: { percent: String(f.percent).trim(), amount: String(f.amount).trim() } }); an.loaded = {}; await loadAnalysisTab(); }, "Setup saved.");
+    },
   };
 }
 

@@ -345,6 +345,47 @@ export class ApiClient {
   proofGraph(periodId, report) { return this.get("/proof/graph", { period_id: periodId, report }); }
   proofArchitecture() { return this.get("/proof/architecture"); }
 
+  // ---- Professional workspaces + Financial Analysis (src/asavexa/api/routers/{workspaces,analysis}.py) ----
+  workspaces() { return this.get("/workspaces"); }
+  analysisOverview(periodId) { return this.get("/analysis/overview", { period_id: periodId }); }
+  analysisRatios(periodId) { return this.get("/analysis/ratios", { period_id: periodId }); }
+  analysisVariance(periodId) { return this.get("/analysis/variance", { period_id: periodId }); }
+  analysisConfig() { return this.get("/analysis/config"); }
+  saveAnalysisConfig(body) { return this.put("/analysis/config", body); }
+  analysisBudget(periodId) { return this.get("/analysis/budget", { period_id: periodId }); }
+  saveAnalysisBudget(body) { return this.put("/analysis/budget", body); }
+  analysisBudgetVariance(periodId) { return this.get("/analysis/budget-variance", { period_id: periodId }); }
+  addAnalysisComment(body) { return this.post("/analysis/commentary", body); }
+  analysisSuggest(periodId) { return this.get("/analysis/suggest", { period_id: periodId }); }
+  analysisScenarios(periodId) { return this.get("/analysis/scenarios", { period_id: periodId }); }
+  saveAnalysisScenario(body, id) { return id ? this.put(`/analysis/scenarios/${encodeURIComponent(id)}`, body) : this.post("/analysis/scenarios", body); }
+  runAnalysisScenario(id) { return this.get(`/analysis/scenarios/${encodeURIComponent(id)}/run`); }
+  analysisBreakeven(body) { return this.post("/analysis/breakeven", body); }
+  analysisReports() { return this.get("/analysis/reports"); }
+  createAnalysisReport(body) { return this.post("/analysis/reports", body); }
+  analysisReport(id) { return this.get(`/analysis/reports/${encodeURIComponent(id)}`); }
+  submitAnalysisReport(id) { return this.post(`/analysis/reports/${encodeURIComponent(id)}/submit`); }
+  approveAnalysisReport(id, note) { return this.post(`/analysis/reports/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectAnalysisReport(id, note) { return this.post(`/analysis/reports/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  verifyAnalysisReport(id) { return this.get(`/analysis/reports/${encodeURIComponent(id)}/verify`); }
+  /** The approved report as a CSV Blob (needs the Authorization header, so it cannot be a plain link). */
+  async exportAnalysisReport(id) {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/analysis/reports/${encodeURIComponent(id)}/export`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, `/analysis/reports/${id}/export`);
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "analysis.csv" };
+  }
+
   // ---- ASAVEXA Network (src/asavexa/api/routers/network.py) ----
   networkGuide() { return this.get("/network/guide"); }
   networkMe() { return this.get("/network/me"); }

@@ -237,6 +237,8 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "pilot.router": "/pilot",
         "network.router": "/network",
         "proof.router": "/proof",
+        "analysis.router": "/analysis",
+        "workspaces.router": "/workspaces",
     }
 
     def test_every_expected_router_registered_exactly_once(self):
