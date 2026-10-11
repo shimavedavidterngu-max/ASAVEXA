@@ -8,7 +8,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false, breakNetwork = false, breakNetworkConsent = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false, breakNetwork = false, breakNetworkConsent = false, breakProof = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -57,6 +57,14 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
     async generalLedger(p, a) { return { accounts: [{ account_id: a }] }; },
     async traceLine(a) { uuid(a); return { entries: [{ journal_id: db.journals[0].id }] }; },
     async evidenceCompleteness() { return { score: 1 }; },
+    async proofGraph() {
+      const j = db.journals[0], ev = db.evidence[0];
+      const nodes = [{ id: "report:income_statement", kind: "report" }, { id: "line:a", kind: "line" }, { id: `journal:${j.id}`, kind: "journal", evidence_status: breakProof ? "MISSING" : "VERIFIED" }];
+      const edges = [{ from: "report:income_statement", to: "line:a", kind: "reports" }, { from: "line:a", to: `journal:${j.id}`, kind: "built_from" }];
+      if (!breakProof) { nodes.push({ id: "evidence:e1", kind: "evidence" }); edges.push({ from: `journal:${j.id}`, to: "evidence:e1", kind: "supported_by" }); }
+      return { state: "PARTIAL", meaning: "x", summary: { tie_failures: 0, journals: 1, with_evidence: breakProof ? 0 : 1 }, nodes, edges, checks: [] };
+    },
+    async proofArchitecture() { return { ok: !breakProof, layers: Array.from({ length: 10 }, (_, i) => ({ name: `L${i}`, ok: !(breakProof && i === 3), problems: breakProof && i === 3 ? ["API prefix /proof is not mounted"] : [] })) }; },
     async seedStandardControls() { return []; },
     async listControls() { return ["ACC-001", "ACC-002", "ACC-003", "REC-001", "EVI-001", "EVI-002", "REP-001", "CLS-001", "CLS-002"].map((code) => ({ id: id(), code })); },
     async executeControl(cid) { const e = { id: id(), result: cid.endsWith("1") ? "FAIL" : "PASS", explanation: "e", finding_id: cid.endsWith("1") ? "f1" : null }; ex[e.id] = e; return e; },
@@ -431,6 +439,14 @@ test("self-test: a network that over-shares or keeps access after ending is caug
   assert.ok(r1.some((r) => r.status === "fail" && r.group === "ASAVEXA Network" && /agree/.test(r.name)), "accepting your own invitation was not caught");
   const r2 = await runSelfTest(fakeApi({ breakNetwork: true }), { orgId: "org1" });
   assert.ok(r2.some((r) => r.status === "fail" && r.group === "ASAVEXA Network" && /only what the business granted/.test(r.name)), "over-sharing was not caught");
+});
+
+test("self-test: a graph that loses the link to evidence, or a layer that is not wired, is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakProof: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Proof-to-Report Graph" && /links to its evidence/.test(x.name)), "the missing evidence link was not caught");
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Proof-to-Report Graph" && /architecture/.test(x.name)), "the unwired layer was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Proof-to-Report Graph" && x.status !== "pass"), []);
 });
 
 test("self-test: a pilot that skips consent, or invents a satisfaction figure from one answer, is caught", async () => {

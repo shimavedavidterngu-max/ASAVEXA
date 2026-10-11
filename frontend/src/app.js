@@ -44,6 +44,7 @@ import { Security, visibleTabs } from "./pages/Security.js";
 import { Validation } from "./pages/Validation.js";
 import { Pilot } from "./pages/Pilot.js";
 import { Network } from "./pages/Network.js";
+import { Proof } from "./pages/Proof.js";
 import { inviteBody, inviteProblem, acceptGrant, emptyInviteForm } from "./lib/network.js";
 import { pilotBody, clientBody, clientFormProblem, timeBody, issueBody, passportUseBody, surveyBody, surveyProblem, emptyPilotForm, emptyClientForm, today, download } from "./lib/pilot.js";
 import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, emptyObservation, actingMode } from "./lib/validation.js";
@@ -70,6 +71,7 @@ const NAV_ITEMS = [
   { path: "/evidence", label: "Evidence", permission: PERMISSIONS.EVIDENCE_READ },
   { path: "/reconciliation", label: "Reconciliation", permission: PERMISSIONS.RECONCILIATION_READ },
   { path: "/reporting", label: "Reporting", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/proof", label: "Proof Graph", permission: PERMISSIONS.REPORTING_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
@@ -100,6 +102,7 @@ const routes = [
   { path: "/reconciliation/:id", name: "reconciliation-detail" },
   { path: "/reconciliation", name: "reconciliation" },
   { path: "/reporting", name: "reporting" },
+  { path: "/proof", name: "proof" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
   { path: "/compliance/findings", name: "compliance-findings" },
@@ -399,6 +402,7 @@ function renderPage(matched, authState) {
   if (name === "validation") return renderValidationPage(authState);
   if (name === "pilot") return renderPilotPage(authState);
   if (name === "network") return renderNetworkPage(authState);
+  if (name === "proof") return renderProofPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -544,6 +548,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading");
   uiState.sec = null; uiState.secNoOrg = false; uiState.mfaChallenge = null;
   loadedOnce.delete("secLoading");
 }
@@ -2681,6 +2686,38 @@ function pilotActions(authState) {
 // ----------------------------------------------------------------------
 // ASAVEXA Network page
 // ----------------------------------------------------------------------
+function newProof() { return { period_id: "", report: "balance_sheet", graph: null, arch: null, open: {}, busy: false, error: null }; }
+
+function renderProofPage(authState) {
+  if (!uiState.proof) uiState.proof = newProof();
+  once("proofLoading", () => loadProof());
+  return Proof({ proof: uiState.proof, periods: uiState.periods, loading: uiState.proofLoading, onRetry: () => { loadedOnce.delete("proofLoading"); render(); }, actions: proofActions() });
+}
+
+async function loadProof() {
+  const proof = uiState.proof || (uiState.proof = newProof());
+  proof.error = null;
+  try {
+    uiState.periods = await api.listPeriods();
+    const last = uiState.periods[uiState.periods.length - 1];
+    if (!proof.period_id && last) proof.period_id = last.id;
+  } catch (err) {
+    proof.error = err.message || "The periods could not be loaded.";
+  }
+}
+
+function proofActions() {
+  const proof = uiState.proof;
+  const run = async (fn) => { proof.error = null; proof.busy = true; render(); try { await fn(); } catch (err) { proof.error = err.message || "That did not work."; } proof.busy = false; render(); };
+  return {
+    setPeriod: (id) => { proof.period_id = id; proof.graph = null; proof.open = {}; render(); },
+    setReport: (r) => { proof.report = r; proof.graph = null; proof.open = {}; render(); },
+    toggle: (id) => { proof.open[id] = !proof.open[id]; render(); },
+    build: () => run(async () => { proof.graph = await api.proofGraph(proof.period_id, proof.report); proof.open = {}; }),
+    checkArchitecture: () => run(async () => { proof.arch = await api.proofArchitecture(); }),
+  };
+}
+
 function newNet() {
   return { tab: "connections", guide: null, me: null, invites: null, form: null, created: null, code: "", preview: null, accept: { scopes: [], detail: false }, view: null, log: null, logFor: null,
     busy: false, notice: null, error: null };

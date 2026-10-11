@@ -341,6 +341,10 @@ export class ApiClient {
   completeEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/complete`); }
   validationStatement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}/statement`); }
 
+  // ---- Proof-to-Report Graph (src/asavexa/api/routers/proof.py) ----
+  proofGraph(periodId, report) { return this.get("/proof/graph", { period_id: periodId, report }); }
+  proofArchitecture() { return this.get("/proof/architecture"); }
+
   // ---- ASAVEXA Network (src/asavexa/api/routers/network.py) ----
   networkGuide() { return this.get("/network/guide"); }
   networkMe() { return this.get("/network/me"); }

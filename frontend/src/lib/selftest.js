@@ -351,6 +351,25 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     check(text.includes(ctx.journal.id), "journal id not present in trace");
     return "journal found in trace";
   });
+  await step("Proof-to-Report Graph", "Every figure links down to its journals, and the journal links to its evidence", ["posted", "period", "evidence"], async () => {
+    const g = await api.proofGraph(ctx.period.id, "income_statement");
+    check(["PROVEN", "PARTIAL"].includes(g.state), `the graph says ${g.state}: ${g.meaning}`);
+    check(g.summary.tie_failures === 0, `${g.summary.tie_failures} figure(s) do not tie to their journals`);
+    const ids = new Set(g.nodes.map((n) => n.id));
+    check(g.edges.every((e) => ids.has(e.from) && ids.has(e.to)), "the graph has a link to something that is not in it");
+    const j = g.nodes.find((n) => n.kind === "journal" && n.id === `journal:${ctx.journal.id}`);
+    check(!!j, "the test journal is not in the graph");
+    check(j.evidence_status !== "MISSING", "the test journal's evidence is not linked");
+    check(g.edges.some((e) => e.kind === "supported_by" && e.from === j.id), "no link from the journal to its evidence");
+    return `${g.state}: ${g.summary.journals} journal(s), ${g.summary.with_evidence} with evidence, every figure ties`;
+  });
+  await step("Proof-to-Report Graph", "Every layer of the architecture is present and wired", ["orgId"], async () => {
+    const a = await api.proofArchitecture();
+    const bad = a.layers.filter((l) => !l.ok);
+    check(bad.length === 0, `not wired: ${bad.map((l) => `${l.name} (${l.problems.join("; ")})`).join(" | ")}`);
+    check(a.layers.length >= 10, `only ${a.layers.length} layers reported`);
+    return `${a.layers.length} layers loaded and mounted`;
+  });
   await step("Reporting", "Invalid account id gives a clean error", ["period"], async () => {
     const e = await expectRejected(() => api.traceLine("not-a-uuid", ctx.period.id));
     return `HTTP ${e.status}: ${e.message}`;
