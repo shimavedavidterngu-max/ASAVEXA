@@ -386,6 +386,282 @@ export class ApiClient {
     return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "analysis.csv" };
   }
 
+  // ---- Forensic Accounting (src/asavexa/api/routers/forensic.py) ----
+  forensicOptions() { return this.get("/forensic/options"); }
+  forensicCases() { return this.get("/forensic/cases"); }
+  createForensicCase(body) { return this.post("/forensic/cases", body); }
+  forensicCase(id) { return this.get(`/forensic/cases/${encodeURIComponent(id)}`); }
+  closeForensicCase(id, note) { return this.post(`/forensic/cases/${encodeURIComponent(id)}/close`, { note: note || "" }); }
+  addForensicEvidence(id, body) { return this.post(`/forensic/cases/${encodeURIComponent(id)}/evidence`, body); }
+  forensicCustody(id) { return this.get(`/forensic/cases/${encodeURIComponent(id)}/custody`); }
+  runForensicAnalytics(id, body) { return this.post(`/forensic/cases/${encodeURIComponent(id)}/analytics`, body); }
+  forensicRun(id) { return this.get(`/forensic/runs/${encodeURIComponent(id)}`); }
+  createForensicFinding(caseId, body) { return this.post(`/forensic/cases/${encodeURIComponent(caseId)}/findings`, body); }
+  updateForensicFinding(id, body) { return this.put(`/forensic/findings/${encodeURIComponent(id)}`, body); }
+  discardForensicFinding(id) { return this.delete(`/forensic/findings/${encodeURIComponent(id)}`); }
+  submitForensicFinding(id) { return this.post(`/forensic/findings/${encodeURIComponent(id)}/submit`); }
+  approveForensicFinding(id, note) { return this.post(`/forensic/findings/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectForensicFinding(id, note) { return this.post(`/forensic/findings/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  createForensicReport(caseId, title) { return this.post(`/forensic/cases/${encodeURIComponent(caseId)}/reports`, { title }); }
+  forensicReport(id) { return this.get(`/forensic/reports/${encodeURIComponent(id)}`); }
+  submitForensicReport(id) { return this.post(`/forensic/reports/${encodeURIComponent(id)}/submit`); }
+  approveForensicReport(id, note) { return this.post(`/forensic/reports/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectForensicReport(id, note) { return this.post(`/forensic/reports/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  async exportForensicReport(id) {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/forensic/reports/${encodeURIComponent(id)}/export`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, `/forensic/reports/${id}/export`);
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "forensic-report.csv" };
+  }
+
+  // ---- Governance, Risk and Compliance (src/asavexa/api/routers/grc.py) ----
+  grcOptions() { return this.get("/grc/options"); }
+  grcDashboard() { return this.get("/grc/dashboard"); }
+  setGrcAppetite(appetite) { return this.put("/grc/appetite", { appetite }); }
+  grcRisks(status, category) { return this.get("/grc/risks", { status: status || undefined, category: category || undefined }); }
+  createGrcRisk(body) { return this.post("/grc/risks", body); }
+  grcRisk(id) { return this.get(`/grc/risks/${encodeURIComponent(id)}`); }
+  updateGrcRisk(id, body) { return this.put(`/grc/risks/${encodeURIComponent(id)}`, body); }
+  treatGrcRisk(id) { return this.post(`/grc/risks/${encodeURIComponent(id)}/treat`); }
+  acceptGrcRisk(id, body) { return this.post(`/grc/risks/${encodeURIComponent(id)}/accept`, body); }
+  approveGrcAcceptance(id, note) { return this.post(`/grc/risks/${encodeURIComponent(id)}/approve-acceptance`, { note: note || "" }); }
+  rejectGrcAcceptance(id, note) { return this.post(`/grc/risks/${encodeURIComponent(id)}/reject-acceptance`, { note: note || "" }); }
+  reopenGrcRisk(id, note) { return this.post(`/grc/risks/${encodeURIComponent(id)}/reopen`, { note: note || "" }); }
+  closeGrcRisk(id, note) { return this.post(`/grc/risks/${encodeURIComponent(id)}/close`, { note: note || "" }); }
+  grcActions(riskId, status) { return this.get("/grc/actions", { risk_id: riskId || undefined, status: status || undefined }); }
+  createGrcAction(body) { return this.post("/grc/actions", body); }
+  updateGrcAction(id, body) { return this.put(`/grc/actions/${encodeURIComponent(id)}`, body); }
+  completeGrcAction(id, body) { return this.post(`/grc/actions/${encodeURIComponent(id)}/complete`, body); }
+  verifyGrcAction(id, note) { return this.post(`/grc/actions/${encodeURIComponent(id)}/verify`, { note: note || "" }); }
+  sendBackGrcAction(id, note) { return this.post(`/grc/actions/${encodeURIComponent(id)}/send-back`, { note: note || "" }); }
+  cancelGrcAction(id, note) { return this.post(`/grc/actions/${encodeURIComponent(id)}/cancel`, { note: note || "" }); }
+  grcObligations(state) { return this.get("/grc/obligations", { state: state || undefined }); }
+  createGrcObligation(body) { return this.post("/grc/obligations", body); }
+  updateGrcObligation(id, body) { return this.put(`/grc/obligations/${encodeURIComponent(id)}`, body); }
+  markGrcObligationMet(id, body) { return this.post(`/grc/obligations/${encodeURIComponent(id)}/met`, body); }
+  retireGrcObligation(id, note) { return this.post(`/grc/obligations/${encodeURIComponent(id)}/retire`, { note: note || "" }); }
+  async exportGrcRegister() {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/grc/export`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, "/grc/export");
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "asavexa-grc-register.csv" };
+  }
+
+  // ---- Public Finance (src/asavexa/api/routers/pubfin.py) ----
+  pubfinOptions() { return this.get("/pubfin/options"); }
+  pubfinOverview() { return this.get("/pubfin/overview"); }
+  setPubfinPolicy(body) { return this.put("/pubfin/policy", body); }
+  pubfinBudgets() { return this.get("/pubfin/budgets"); }
+  createPubfinBudget(body) { return this.post("/pubfin/budgets", body); }
+  pubfinBudget(id) { return this.get(`/pubfin/budgets/${encodeURIComponent(id)}`); }
+  updatePubfinBudget(id, body) { return this.put(`/pubfin/budgets/${encodeURIComponent(id)}`, body); }
+  discardPubfinBudget(id) { return this.delete(`/pubfin/budgets/${encodeURIComponent(id)}`); }
+  submitPubfinBudget(id) { return this.post(`/pubfin/budgets/${encodeURIComponent(id)}/submit`); }
+  approvePubfinBudget(id, note) { return this.post(`/pubfin/budgets/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectPubfinBudget(id, note) { return this.post(`/pubfin/budgets/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  closePubfinBudget(id, note) { return this.post(`/pubfin/budgets/${encodeURIComponent(id)}/close`, { note: note || "" }); }
+  proposePubfinVirement(id, body) { return this.post(`/pubfin/budgets/${encodeURIComponent(id)}/virements`, body); }
+  approvePubfinVirement(id, vid, note) { return this.post(`/pubfin/budgets/${encodeURIComponent(id)}/virements/${encodeURIComponent(vid)}/approve`, { note: note || "" }); }
+  rejectPubfinVirement(id, vid, note) { return this.post(`/pubfin/budgets/${encodeURIComponent(id)}/virements/${encodeURIComponent(vid)}/reject`, { note: note || "" }); }
+  pubfinCommitments(budgetId, status) { return this.get("/pubfin/commitments", { budget_id: budgetId || undefined, status: status || undefined }); }
+  createPubfinCommitment(body) { return this.post("/pubfin/commitments", body); }
+  settlePubfinCommitment(id, body) { return this.post(`/pubfin/commitments/${encodeURIComponent(id)}/settle`, body); }
+  cancelPubfinCommitment(id, note) { return this.post(`/pubfin/commitments/${encodeURIComponent(id)}/cancel`, { note: note || "" }); }
+  pubfinProcurements() { return this.get("/pubfin/procurements"); }
+  createPubfinProcurement(body) { return this.post("/pubfin/procurements", body); }
+  pubfinProcurement(id) { return this.get(`/pubfin/procurements/${encodeURIComponent(id)}`); }
+  addPubfinQuote(id, body) { return this.post(`/pubfin/procurements/${encodeURIComponent(id)}/quotes`, body); }
+  proposePubfinAward(id, body) { return this.post(`/pubfin/procurements/${encodeURIComponent(id)}/award`, body); }
+  approvePubfinAward(id, note) { return this.post(`/pubfin/procurements/${encodeURIComponent(id)}/approve-award`, { note: note || "" }); }
+  rejectPubfinAward(id, note) { return this.post(`/pubfin/procurements/${encodeURIComponent(id)}/reject-award`, { note: note || "" }); }
+  cancelPubfinProcurement(id, note) { return this.post(`/pubfin/procurements/${encodeURIComponent(id)}/cancel`, { note: note || "" }); }
+  pubfinGrants() { return this.get("/pubfin/grants"); }
+  createPubfinGrant(body) { return this.post("/pubfin/grants", body); }
+  pubfinGrant(id) { return this.get(`/pubfin/grants/${encodeURIComponent(id)}`); }
+  recordPubfinReceipt(id, body) { return this.post(`/pubfin/grants/${encodeURIComponent(id)}/receipts`, body); }
+  addPubfinSpend(id, body) { return this.post(`/pubfin/grants/${encodeURIComponent(id)}/spend`, body); }
+  approvePubfinSpend(id, sid, note) { return this.post(`/pubfin/grants/${encodeURIComponent(id)}/spend/${encodeURIComponent(sid)}/approve`, { note: note || "" }); }
+  rejectPubfinSpend(id, sid, note) { return this.post(`/pubfin/grants/${encodeURIComponent(id)}/spend/${encodeURIComponent(sid)}/reject`, { note: note || "" }); }
+  closePubfinGrant(id, note) { return this.post(`/pubfin/grants/${encodeURIComponent(id)}/close`, { note: note || "" }); }
+  pubfinReports() { return this.get("/pubfin/reports"); }
+  createPubfinReport(body) { return this.post("/pubfin/reports", body); }
+  pubfinReport(id) { return this.get(`/pubfin/reports/${encodeURIComponent(id)}`); }
+  submitPubfinReport(id) { return this.post(`/pubfin/reports/${encodeURIComponent(id)}/submit`); }
+  approvePubfinReport(id, note) { return this.post(`/pubfin/reports/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectPubfinReport(id, note) { return this.post(`/pubfin/reports/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  async exportPubfinReport(id) {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/pubfin/reports/${encodeURIComponent(id)}/export`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, `/pubfin/reports/${id}/export`);
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "accountability-report.csv" };
+  }
+
+  // ---- Business Development (src/asavexa/api/routers/bizdev.py) ----
+  bdOptions() { return this.get("/bizdev/options"); }
+  bdOverview() { return this.get("/bizdev/overview"); }
+  setBdPolicy(body) { return this.put("/bizdev/policy", body); }
+  bdAccounts() { return this.get("/bizdev/accounts"); }
+  createBdAccount(body) { return this.post("/bizdev/accounts", body); }
+  bdAccount(id) { return this.get(`/bizdev/accounts/${encodeURIComponent(id)}`); }
+  updateBdAccount(id, body) { return this.put(`/bizdev/accounts/${encodeURIComponent(id)}`, body); }
+  archiveBdAccount(id, note) { return this.post(`/bizdev/accounts/${encodeURIComponent(id)}/archive`, { note: note || "" }); }
+  bdOpportunities(stage, accountId) { return this.get("/bizdev/opportunities", { stage: stage || undefined, account_id: accountId || undefined }); }
+  createBdOpportunity(body) { return this.post("/bizdev/opportunities", body); }
+  bdOpportunity(id) { return this.get(`/bizdev/opportunities/${encodeURIComponent(id)}`); }
+  updateBdOpportunity(id, body) { return this.put(`/bizdev/opportunities/${encodeURIComponent(id)}`, body); }
+  addBdActivity(id, body) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/activities`, body); }
+  moveBdStage(id, stage, note) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/stage`, { stage, note: note || "" }); }
+  markBdLost(id, note) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/lost`, { note: note || "" }); }
+  requestBdWin(id, note) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/win/request`, { note: note || "" }); }
+  approveBdWin(id, note) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/win/approve`, { note: note || "" }); }
+  rejectBdWin(id, note) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/win/reject`, { note: note || "" }); }
+  createBdProposal(id, body) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/proposals`, body); }
+  updateBdProposal(id, pid, body) { return this.put(`/bizdev/opportunities/${encodeURIComponent(id)}/proposals/${encodeURIComponent(pid)}`, body); }
+  bdProposalStep(id, pid, step, note) { return this.post(`/bizdev/opportunities/${encodeURIComponent(id)}/proposals/${encodeURIComponent(pid)}/${step}`, step === "submit" || step === "send" ? undefined : { note: note || "" }); }
+  bdTargets() { return this.get("/bizdev/targets"); }
+  createBdTarget(body) { return this.post("/bizdev/targets", body); }
+  retireBdTarget(id, note) { return this.post(`/bizdev/targets/${encodeURIComponent(id)}/retire`, { note: note || "" }); }
+  bdReports() { return this.get("/bizdev/reports"); }
+  createBdReport(body) { return this.post("/bizdev/reports", body); }
+  bdReport(id) { return this.get(`/bizdev/reports/${encodeURIComponent(id)}`); }
+  submitBdReport(id) { return this.post(`/bizdev/reports/${encodeURIComponent(id)}/submit`); }
+  approveBdReport(id, note) { return this.post(`/bizdev/reports/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectBdReport(id, note) { return this.post(`/bizdev/reports/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  async exportBdReport(id) {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/bizdev/reports/${encodeURIComponent(id)}/export`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, `/bizdev/reports/${id}/export`);
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "pipeline-report.csv" };
+  }
+
+  // ---- Cybersecurity (src/asavexa/api/routers/cyber.py) ----
+  cyOptions() { return this.get("/cyber/options"); }
+  cyOverview() { return this.get("/cyber/overview"); }
+  setCyPolicy(body) { return this.put("/cyber/policy", body); }
+  cyAssets() { return this.get("/cyber/assets"); }
+  createCyAsset(body) { return this.post("/cyber/assets", body); }
+  cyAsset(id) { return this.get(`/cyber/assets/${encodeURIComponent(id)}`); }
+  updateCyAsset(id, body) { return this.put(`/cyber/assets/${encodeURIComponent(id)}`, body); }
+  retireCyAsset(id, note) { return this.post(`/cyber/assets/${encodeURIComponent(id)}/retire`, { note: note || "" }); }
+  cyVulns(status, severity, assetId) { return this.get("/cyber/vulnerabilities", { status: status || undefined, severity: severity || undefined, asset_id: assetId || undefined }); }
+  createCyVuln(body) { return this.post("/cyber/vulnerabilities", body); }
+  cyVuln(id) { return this.get(`/cyber/vulnerabilities/${encodeURIComponent(id)}`); }
+  cyVulnStep(id, step, body) { return this.post(`/cyber/vulnerabilities/${encodeURIComponent(id)}/${step}`, body || { note: "" }); }
+  cyIncidents(status) { return this.get("/cyber/incidents", { status: status || undefined }); }
+  createCyIncident(body) { return this.post("/cyber/incidents", body); }
+  cyIncident(id) { return this.get(`/cyber/incidents/${encodeURIComponent(id)}`); }
+  cyIncidentStep(id, step, body) { return this.post(`/cyber/incidents/${encodeURIComponent(id)}/${step}`, body || { note: "" }); }
+  cyReviews() { return this.get("/cyber/reviews"); }
+  createCyReview(body) { return this.post("/cyber/reviews", body); }
+  cyReview(id) { return this.get(`/cyber/reviews/${encodeURIComponent(id)}`); }
+  addCyEntry(id, body) { return this.post(`/cyber/reviews/${encodeURIComponent(id)}/entries`, body); }
+  decideCyEntry(id, eid, decision, note) { return this.post(`/cyber/reviews/${encodeURIComponent(id)}/entries/${encodeURIComponent(eid)}/decide`, { decision, note: note || "" }); }
+  confirmCyRemoved(id, eid) { return this.post(`/cyber/reviews/${encodeURIComponent(id)}/entries/${encodeURIComponent(eid)}/removed`); }
+  cyReviewStep(id, step, note) { return this.post(`/cyber/reviews/${encodeURIComponent(id)}/${step}`, step === "submit" ? undefined : { note: note || "" }); }
+  cyReports() { return this.get("/cyber/reports"); }
+  createCyReport(body) { return this.post("/cyber/reports", body); }
+  cyReport(id) { return this.get(`/cyber/reports/${encodeURIComponent(id)}`); }
+  submitCyReport(id) { return this.post(`/cyber/reports/${encodeURIComponent(id)}/submit`); }
+  approveCyReport(id, note) { return this.post(`/cyber/reports/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectCyReport(id, note) { return this.post(`/cyber/reports/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  async exportCyReport(id) {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/cyber/reports/${encodeURIComponent(id)}/export`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, `/cyber/reports/${id}/export`);
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "posture-report.csv" };
+  }
+
+  // ---- Health Centre Administration (src/asavexa/api/routers/health.py) ----
+  hcOptions() { return this.get("/health/options"); }
+  hcGet(path, query) { return this.get("/health" + path, query); }
+  hcPost(path, body) { return this.post("/health" + path, body); }
+  hcPut(path, body) { return this.put("/health" + path, body); }
+  async exportHcReport(id) {
+    const token = this.getToken();
+    const url = `${this.baseUrl}/health/reports/${encodeURIComponent(id)}/export`;
+    let response;
+    try {
+      response = await this._fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch (cause) {
+      throw await this._networkError(cause, url);
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = JSON.parse(await response.text()); } catch { /* keep null */ }
+      throw new ApiError(response.status, body, `/health/reports/${id}/export`);
+    }
+    return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "facility-report.csv" };
+  }
+
+  // ---- Tax Compliance (src/asavexa/api/routers/tax.py) ----
+  taxOverview() { return this.get("/tax/overview"); }
+  taxCountries(q, region) { return this.get("/tax/countries", { q: q || undefined, region: region || undefined }); }
+  setTaxCountry(code, body) { return this.put(`/tax/countries/${encodeURIComponent(code)}`, body); }
+  taxOptions() { return this.get("/tax/options"); }
+  taxRules(country, status) { return this.get("/tax/rules", { country: country || undefined, status: status || undefined }); }
+  createTaxRule(body) { return this.post("/tax/rules", body); }
+  taxRule(id) { return this.get(`/tax/rules/${encodeURIComponent(id)}`); }
+  updateTaxRule(id, body) { return this.put(`/tax/rules/${encodeURIComponent(id)}`, body); }
+  discardTaxRule(id) { return this.delete(`/tax/rules/${encodeURIComponent(id)}`); }
+  submitTaxRule(id) { return this.post(`/tax/rules/${encodeURIComponent(id)}/submit`); }
+  approveTaxRule(id, note) { return this.post(`/tax/rules/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectTaxRule(id, note) { return this.post(`/tax/rules/${encodeURIComponent(id)}/reject`, { note: note || "" }); }
+  taxLedgerBase(periodId, kind) { return this.get("/tax/ledger-base", { period_id: periodId, kind }); }
+  taxCalculate(body) { return this.post("/tax/calculate", body); }
+  taxCalculations() { return this.get("/tax/calculations"); }
+  taxCalendar(start, end) { return this.get("/tax/calendar", { start, end }); }
+  markTaxFiled(body) { return this.post("/tax/filed", body); }
+
   // ---- ASAVEXA Network (src/asavexa/api/routers/network.py) ----
   networkGuide() { return this.get("/network/guide"); }
   networkMe() { return this.get("/network/me"); }

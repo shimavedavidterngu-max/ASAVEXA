@@ -386,8 +386,90 @@ export async function runSelfTest(api, { onResult, orgId } = {}) {
     const w = await api.workspaces();
     const tax = w.workspaces.find((x) => x.id === "tax"), an = w.workspaces.find((x) => x.id === "analysis");
     check(!!an && an.path === "/analysis", "Financial Analysis is not listed");
-    check(!tax || (tax.status !== "VERIFIED IN TEST ENVIRONMENT" && !tax.path), "an unbuilt workspace is shown as built");
+    check(w.workspaces.every((x) => !["NOT STARTED", "BLOCKED"].includes(x.status) || !x.path), "an unbuilt workspace is shown as built");
     return "break-even correct, workspace statuses honest";
+  });
+  await step("Tax Compliance", "All countries are listed, and none has rules until a person enters and approves them", ["orgId"], async () => {
+    const c = await api.taxCountries("", "");
+    check(c.total >= 150 && c.countries.length === c.total, `only ${c.countries.length} countries listed`);
+    check(new Set(c.countries.map((x) => x.code)).size === c.countries.length, "a country appears twice");
+    const o = await api.taxOptions();
+    check(Object.keys(o.tax_types).length >= 5, "the tax types are missing");
+    return `${c.total} countries and territories listed`;
+  });
+  await step("Tax Compliance", "A draft tax rule cannot be used for a calculation until a second person approves it", ["orgId"], async () => {
+    const stamp = Date.now().toString(36);
+    const rule = await api.createTaxRule({ country: "GH", tax_type: "OTHER", name: `SelfTest rule ${stamp}`, method: "FLAT", rate: "1", rounding: "HALF_UP", effective_from: "2000-01-01", effective_to: "2000-12-31", authority: "Self-test", source_title: "Self-test only, not a real rule", source_url: "https://example.org/self-test", filing: null });
+    try {
+      check(rule.status === "DRAFT", `a new rule started as ${rule.status}`);
+      const e = await expectRejected(() => api.taxCalculate({ rule_id: rule.id, amount: "100", date: "2000-06-01", inclusive: false }));
+      check(e.status === 409, `calculating with a draft rule gave HTTP ${e.status}, expected 409`);
+    } finally {
+      await api.discardTaxRule(rule.id).catch(() => {});
+    }
+    return "draft refused (409), self-test rule discarded";
+  });
+  await step("Forensic Investigation", "The investigation tools load, and every test is described as an indicator", ["orgId"], async () => {
+    const o = await api.forensicOptions();
+    check(Object.keys(o.tests).length >= 9, `only ${Object.keys(o.tests).length} tests are offered`);
+    check(o.limitations.some((l) => /not proof/i.test(l)), "the limitations do not say flags are not proof");
+    const cases = await api.forensicCases();
+    check(Array.isArray(cases), "the case list is malformed");
+    return `${Object.keys(o.tests).length} tests, ${cases.length} case(s) in this organisation`;
+  });
+  await step("Governance, Risk and Compliance", "The risk register loads, the heat map is 5 by 5, and an impossible score is refused", ["orgId"], async () => {
+    const o = await api.grcOptions();
+    check(Object.keys(o.categories).length >= 8, "the risk categories are missing");
+    check(o.limitations.some((l) => /judgement/i.test(l)), "the limitations do not say scores are judgements");
+    const d = await api.grcDashboard();
+    check(d.heatmap.cells.length === 5 && d.heatmap.cells.every((r) => r.length === 5), "the heat map is not 5 by 5");
+    const risks = await api.grcRisks();
+    check(Array.isArray(risks), "the risk list is malformed");
+    const e = await expectRejected(() => api.createGrcRisk({ title: "Self-test", owner: "Self-test", category: "OTHER", inherent_l: 9, inherent_i: 1, treatment: "MITIGATE", next_review: "2099-01-01" }));
+    check(e.status === 400, `a score of 9 gave HTTP ${e.status}, expected 400`);
+    return `${risks.length} risk(s), appetite ${d.appetite}, score of 9 refused (400)`;
+  });
+  await step("Public Finance", "The public-finance tools load, the ledger-based limits are stated, and an empty budget is refused", ["orgId"], async () => {
+    const o = await api.pubfinOptions();
+    check(Array.isArray(o.accounts), "the account list is malformed");
+    check(o.limitations.some((l) => /posted journals/i.test(l)), "the limitations do not say actuals come from posted journals");
+    check(o.policy && o.policy.min_quotes >= 1, "the procurement policy is missing");
+    const ov = await api.pubfinOverview();
+    check(typeof ov.counts.budgets === "number", "the overview counts are missing");
+    const e = await expectRejected(() => api.createPubfinBudget({ name: "Self-test", start: "2099-01-01", end: "2099-12-31", currency: "USD", lines: [] }));
+    check(e.status === 400, `an empty budget gave HTTP ${e.status}, expected 400`);
+    return `${ov.counts.budgets} budget(s), ${ov.counts.grants_active} active grant(s), empty budget refused (400)`;
+  });
+  await step("Business Development", "The pipeline tools load, the policy and limits are stated, and a worthless opportunity is refused", ["orgId"], async () => {
+    const o = await api.bdOptions();
+    check(Array.isArray(o.accounts) && Array.isArray(o.stages), "the option lists are malformed");
+    check(o.policy && o.policy.probabilities && o.policy.discount_limit_pct != null, "the policy is missing");
+    const ov = await api.bdOverview();
+    check(ov.limitations.some((l) => /never converted|not converted/i.test(l)), "the limitations do not say currencies are never mixed");
+    check(typeof ov.counts.opportunities === "number", "the overview counts are missing");
+    const e = await expectRejected(() => api.createBdOpportunity({ account_id: "not-an-account", title: "Self-test", currency: "USD", value: "0", expected_close: "2099-01-01" }));
+    check(e.status === 400 || e.status === 404, `a bad opportunity gave HTTP ${e.status}, expected 400 or 404`);
+    return `${ov.counts.opportunities} opportunit(ies), ${ov.counts.accounts} account(s), bad opportunity refused (${e.status})`;
+  });
+  await step("Cybersecurity", "The records load, the limits say nothing is scanned, and a vulnerability on a missing asset is refused", ["orgId"], async () => {
+    const o = await api.cyOptions();
+    check(Array.isArray(o.assets) && Array.isArray(o.severities), "the option lists are malformed");
+    check(o.policy && o.policy.sla_days && o.policy.acceptance_max_days >= 1, "the policy is missing");
+    const ov = await api.cyOverview();
+    check(ov.limitations.some((l) => /does not scan/i.test(l)), "the limitations do not say that nothing is scanned");
+    check(typeof ov.counts.vulnerabilities_open === "number", "the overview counts are missing");
+    const e = await expectRejected(() => api.createCyVuln({ asset_id: "not-an-asset", title: "Self-test", severity: "LOW", source: "self-test" }));
+    check(e.status === 400 || e.status === 404, `a bad vulnerability gave HTTP ${e.status}, expected 400 or 404`);
+    return `${ov.counts.assets} asset(s), ${ov.counts.vulnerabilities_open} open vulnerabilit(ies), bad vulnerability refused (${e.status})`;
+  });
+  await step("Health Centre", "The option lists load, the limits say no patient data is held, and an incomplete facility is refused", ["orgId"], async () => {
+    const o = await api.hcOptions();
+    check(Array.isArray(o.categories) && Array.isArray(o.facilities), "the option lists are malformed");
+    check(o.limitations.some((l) => /no patient/i.test(l)), "the limitations do not say that no patient information is held");
+    check(o.limitations.some((l) => /does not post|never post/i.test(l)), "the limitations do not say that nothing is posted to the ledger");
+    const e = await expectRejected(() => api.hcPost("/facilities", { name: "Self-test" }));
+    check(e.status === 400 || e.status === 403, `an incomplete facility gave HTTP ${e.status}, expected 400 or 403`);
+    return `${o.facilities.length} facilit(ies) visible, incomplete facility refused (${e.status})`;
   });
   await step("Reporting", "Invalid account id gives a clean error", ["period"], async () => {
     const e = await expectRejected(() => api.traceLine("not-a-uuid", ctx.period.id));

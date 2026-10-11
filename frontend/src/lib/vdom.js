@@ -145,7 +145,9 @@ function restoreUiState(container, state) {
   }
 }
 
-function render(vnode) {
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function render(vnode, ns) {
   if (vnode === null || vnode === undefined || vnode === false) return null;
   if (typeof vnode === "string" || typeof vnode === "number") {
     return document.createTextNode(String(vnode));
@@ -153,12 +155,14 @@ function render(vnode) {
   if (vnode.tag === null) {
     const frag = document.createDocumentFragment();
     for (const child of vnode.children) {
-      const childNode = render(child);
+      const childNode = render(child, ns);
       if (childNode) frag.appendChild(childNode);
     }
     return frag;
   }
-  const el = document.createElement(vnode.tag);
+  // SVG elements need their own namespace, which then applies to everything inside an <svg>.
+  const inSvg = ns === SVG_NS || vnode.tag === "svg";
+  const el = inSvg ? document.createElementNS(SVG_NS, vnode.tag) : document.createElement(vnode.tag);
   let pendingValue;
   for (const [key, value] of Object.entries(vnode.props || {})) {
     if (value === null || value === undefined || value === false) continue;
@@ -179,7 +183,7 @@ function render(vnode) {
     }
   }
   for (const child of vnode.children) {
-    const childNode = render(child);
+    const childNode = render(child, inSvg ? SVG_NS : undefined);
     if (childNode) el.appendChild(childNode);
   }
   if (pendingValue !== undefined) el.value = pendingValue;

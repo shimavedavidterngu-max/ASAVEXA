@@ -1,0 +1,100 @@
+/* ASAVEXA AI, docked everywhere: "the Proof Lens".
+   A navy-and-gold Seal, and a Margin Ledger panel: ruled paper, a red margin line, folio numbers, rubber-stamp confidence marks,
+   and a Proof Thread of beads (solid = the link exists, hollow = it is missing). */
+.lens-root { --lens-paper: #fbf8f1; --lens-text: #1d2430; --lens-muted: #5b6472; --lens-card: rgba(255,255,255,.75); --lens-card-line: #cfc6b0; --lens-note: rgba(255,255,255,.55); --lens-chip: rgba(255,255,255,.7); --lens-input: #fff; --lens-input-line: #b9ae95; --lens-watch: #8a6420; --lens-hi: #0b5c56; --lens-lo: #b4443a;
+  --lens-ink: var(--ink-900); --lens-red: #b4443a; --lens-gold: #b88a44; --lens-gold-lt: #dcbb84; --lens-teal: #0f766e; --lens-navy: #0a1526; position: fixed; z-index: 60; right: 0; bottom: 0; }
+.lens-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lens-root { --lens-paper: #161b22; --lens-text: #e6e9ee; --lens-muted: #a3afbd; --lens-card: rgba(255,255,255,.06); --lens-card-line: #2c3542; --lens-note: rgba(255,255,255,.06); --lens-chip: rgba(255,255,255,.07); --lens-input: #0f141a; --lens-input-line: #3a4656; --lens-watch: #dcbb84; --lens-hi: #4fd1c5; --lens-lo: #f19b93; } }
+:root[data-theme="dark"] .lens-root { --lens-paper: #161b22; --lens-text: #e6e9ee; --lens-muted: #a3afbd; --lens-card: rgba(255,255,255,.06); --lens-card-line: #2c3542; --lens-note: rgba(255,255,255,.06); --lens-chip: rgba(255,255,255,.07); --lens-input: #0f141a; --lens-input-line: #3a4656; --lens-watch: #dcbb84; --lens-hi: #4fd1c5; --lens-lo: #f19b93; }
+/* ---- the Seal launcher ---- */
+.lens-launch { position: fixed; right: 22px; bottom: 22px; width: 62px; height: 62px; padding: 3px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; filter: drop-shadow(0 6px 14px rgba(10,21,38,.35)); transition: transform .18s ease; }
+.lens-launch:hover { transform: translateY(-2px) scale(1.04); }
+.lens-launch:focus-visible, .lens-x:focus-visible, .lens-tabs button:focus-visible, .lens-btn:focus-visible, .lens-chip:focus-visible, .lens-link:focus-visible, .lens-open:focus-visible, .lens-askrow input:focus-visible { outline: 3px solid var(--lens-gold); outline-offset: 2px; }
+.lens-seal-svg { display: block; }
+.seal-disc { fill: #0a1526; } .seal-rim { stroke: #b88a44; stroke-width: 1.4; } .seal-ticks line { stroke: #dcbb84; }
+.seal-inner { stroke: #b88a44; stroke-width: .8; stroke-dasharray: 1.2 1.6; }
+.seal-a { stroke: #f4ead7; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.seal-check { stroke: #dcbb84; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.lens-launch:hover .seal-ticks { transform: rotate(7.5deg); transform-origin: 32px 32px; transition: transform .35s ease; }
+.lens-launch.has-news .seal-rim { stroke: #dcbb84; stroke-width: 2; }
+.lens-drop { position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--lens-red); color: #fff; font: 700 12px/22px var(--font-ui); text-align: center; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+
+/* ---- the Margin Ledger panel ---- */
+.lens-scrim { position: fixed; inset: 0; background: rgba(10,21,38,.28); }
+.lens-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 100vw; display: flex; flex-direction: column; background: var(--lens-paper); color: var(--lens-text); border-left: 3px double var(--lens-gold); box-shadow: -14px 0 40px rgba(10,21,38,.28); font-family: var(--font-ui); }
+.lens-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--lens-navy); color: #f4ead7; border-bottom: 2px solid var(--lens-gold); }
+.lens-mark { flex: none; }
+.lens-titles { flex: 1; min-width: 0; }
+.lens-title { font-family: var(--font-display); font-size: 20px; font-style: italic; letter-spacing: .02em; line-height: 1.1; }
+.lens-sub { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--lens-gold-lt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lens-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(220,187,132,.5); background: transparent; color: #f4ead7; font-size: 22px; line-height: 1; cursor: pointer; }
+.lens-x:hover { background: rgba(255,255,255,.1); }
+.lens-tabs { display: flex; border-bottom: 1px solid var(--line); background: rgba(184,138,68,.08); }
+.lens-tabs button { flex: 1; padding: 11px 0; border: 0; background: transparent; font: 600 12.5px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: inherit; opacity: .65; cursor: pointer; border-bottom: 3px solid transparent; }
+.lens-tabs button.on { opacity: 1; border-bottom-color: var(--lens-gold); }
+.lens-body { flex: 1; overflow-y: auto; padding: 14px 16px 18px 16px; position: relative;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 27px, rgba(15,118,110,.10) 27px 28px); }
+.lens-body.is-brief::before { content: ""; position: absolute; top: 0; bottom: 0; left: 48px; width: 1px; background: rgba(180,68,58,.4); pointer-events: none; }
+.lens-foot { padding: 10px 16px; font-size: 11.5px; line-height: 1.45; color: var(--lens-muted); border-top: 1px solid var(--line); background: rgba(184,138,68,.07); }
+
+/* brief entries */
+.lens-entries { list-style: none; margin: 0; padding: 0; position: relative; }
+.lens-entry { display: flex; gap: 14px; padding: 10px 0 12px; border-bottom: 1px dotted rgba(91,100,114,.4); }
+.lens-folio { flex: none; width: 28px; font-family: var(--font-mono); font-size: 11px; color: var(--lens-red); padding-top: 3px; text-align: right; }
+.lens-entry-body { flex: 1; padding-left: 12px; min-width: 0; }
+.lens-tone { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 1px 0; }
+.lens-urgent .lens-tone { color: var(--lens-red); } .lens-watch .lens-tone { color: var(--lens-watch); } .lens-clear .lens-tone { color: var(--lens-teal); }
+.lens-entry-text { font-size: 14px; line-height: 1.45; margin: 2px 0 4px; }
+.lens-open, .lens-link { font: 600 12.5px var(--font-ui); color: var(--lens-teal); text-decoration: underline; text-underline-offset: 2px; background: none; border: 0; padding: 0; cursor: pointer; }
+.lens-meta { margin-top: 14px; font-size: 11.5px; color: var(--lens-muted); position: relative; }
+.lens-note { margin: 6px 0; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--lens-gold); background: var(--lens-note); font-size: 13px; position: relative; }
+.lens-note p { margin: 4px 0 0; } .lens-small { font-size: 12px; margin-top: 12px; }
+
+/* ask */
+.lens-label { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; position: relative; }
+.lens-askrow { display: flex; gap: 8px; position: relative; }
+.lens-askrow input { flex: 1; min-width: 0; padding: 10px 12px; font: 14px var(--font-ui); border: 1px solid var(--lens-input-line); border-radius: 6px; background: var(--lens-input); color: var(--lens-text); }
+.lens-btn { padding: 9px 14px; border-radius: 6px; border: 1px solid var(--lens-navy); background: transparent; color: inherit; font: 600 13px var(--font-ui); cursor: pointer; }
+.lens-btn-primary { background: var(--lens-navy); color: #f4ead7; border-color: var(--lens-gold); }
+.lens-btn:disabled, .lens-chip:disabled { opacity: .55; cursor: default; }
+.lens-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; position: relative; }
+.lens-chip { padding: 5px 10px; border-radius: 14px; border: 1px solid var(--lens-input-line); background: var(--lens-chip); color: var(--lens-text); font: 12.5px var(--font-ui); cursor: pointer; }
+.lens-chip:hover { border-color: var(--lens-gold); }
+.lens-error, .lens-refusal { margin: 10px 0; padding: 12px 14px; border: 1px solid var(--lens-red); border-left-width: 4px; background: rgba(180,68,58,.07); font-size: 13px; position: relative; }
+.lens-refusal { border-color: var(--lens-gold); background: rgba(184,138,68,.1); }
+.lens-refusal p { margin: 4px 0 0; }
+.lens-headline { font-family: var(--font-display); font-size: 17px; margin: 14px 0 8px; color: inherit; position: relative; }
+.lens-card { position: relative; margin: 12px 0; padding: 12px 14px 12px 14px; background: var(--lens-card); border: 1px solid var(--lens-card-line); border-radius: 4px; }
+.lens-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.lens-summary { margin: 6px 0; font-size: 13.5px; } .lens-points { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; }
+.lens-stamp { flex: none; display: inline-block; padding: 2px 8px; border: 2px double currentColor; border-radius: 3px; transform: rotate(-4deg); font: 700 11px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.lens-stamp-high { color: var(--lens-hi); } .lens-stamp-medium { color: var(--lens-watch); } .lens-stamp-low { color: var(--lens-lo); }
+  .lens-review { margin-top: 8px; padding: 5px 8px; font-size: 12px; font-weight: 600; color: var(--lens-red); border: 1px dashed var(--lens-red); }
+.lens-limits { margin-top: 10px; font-size: 12px; position: relative; } .lens-limits ul { padding-left: 18px; }
+
+/* the Proof Thread */
+.lens-thread { list-style: none; margin: 10px 0 2px 6px; padding: 0 0 0 16px; border-left: 2px dotted var(--lens-gold); }
+.lens-bead { position: relative; display: flex; flex-wrap: wrap; gap: 0 6px; padding: 3px 0 5px; font-size: 12.5px; }
+.lens-bead-dot { position: absolute; left: -24px; top: 6px; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; background: var(--lens-gold); border: 2px solid var(--lens-gold); }
+.lens-bead.is-ok .lens-bead-dot { background: var(--lens-teal); border-color: var(--lens-teal); }
+.lens-bead.is-partial .lens-bead-dot { background: transparent; border-color: var(--lens-gold); border-style: solid; box-shadow: inset 0 0 0 2px var(--lens-paper); background: var(--lens-gold); }
+.lens-bead.is-missing .lens-bead-dot { background: transparent; border: 2px dashed #8b95a3; }
+.lens-bead-label { font-weight: 600; } .lens-bead-state { font-weight: 400; color: var(--lens-red); }
+.lens-bead.is-ok .lens-bead-state { display: none; } .lens-bead-note { color: var(--lens-muted); flex-basis: 100%; font-size: 11.5px; }
+
+/* loading skeleton */
+.lens-skel { display: grid; gap: 10px; padding: 8px 0; position: relative; }
+.lens-skel span { display: block; height: 14px; border-radius: 3px; background: linear-gradient(90deg, rgba(184,138,68,.15), rgba(184,138,68,.3), rgba(184,138,68,.15)); background-size: 200% 100%; animation: lens-shimmer 1.6s linear infinite; }
+.lens-skel span:nth-child(2) { width: 82%; } .lens-skel span:nth-child(3) { width: 60%; }
+@keyframes lens-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .lens-skel span { animation: none; } .lens-launch, .lens-launch:hover .seal-ticks { transition: none; transform: none; } }
+
+/* small screens: the panel becomes a bottom sheet and the Seal shrinks */
+@media (max-width: 720px) {
+  .lens-launch { right: 14px; bottom: 14px; width: 54px; height: 54px; }
+  .lens-launch .lens-seal-svg { width: 48px; height: 48px; }
+  .lens-panel { top: auto; left: 0; width: 100%; height: 86vh; border-left: 0; border-top: 3px double var(--lens-gold); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 34px rgba(10,21,38,.35); }
+  .lens-body.is-brief::before { left: 40px; }
+}
+@media print { .lens-root { display: none !important; } }

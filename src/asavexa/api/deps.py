@@ -116,6 +116,77 @@ def get_analysis(security: SecurityContext = Depends(get_security), session=Depe
     return AnalysisService(SqlAlchemyDocStore(session), get_accounting_engine(session), log=make_log(security))
 
 
+def get_tax(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Tax Compliance service: reviewed tax rules, calculator and filing calendar in the shared document store; reads the ledger only for starting amounts; every action is audited."""
+    from ..tax.service import TaxService
+    from ..tax.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return TaxService(SqlAlchemyDocStore(session), get_accounting_engine(session), log=make_log(security))
+
+
+def get_grc(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """GRC service: risks, actions and obligations in the shared document store; links to existing Controls and the Evidence Vault; never changes the ledger; every action is audited."""
+    from ..grc.service import GrcService
+    from ..grc.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    compliance = get_compliance_service(session)
+    return GrcService(SqlAlchemyDocStore(session), lambda org: compliance.list_controls(org), get_evidence_vault(session), log=make_log(security))
+
+
+def get_health(security: SecurityContext = Depends(get_security), session=Depends(get_session), identity: IdentityService = Depends(get_identity_service)):
+    """Health Centre Administration service: facilities, budgets, procurement, stock, claims administration, assets and staffing costs in the shared document store; reads the ledger and Evidence Vault, never changes them; every action is audited. Holds no patient information."""
+    from ..health.service import HealthService
+    from ..health.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    def can(org, actor, perm):
+        try:
+            identity.require_permission(actor, org, perm)
+            return True
+        except PermissionDeniedError:
+            return False
+
+    return HealthService(SqlAlchemyDocStore(session), get_evidence_vault(session), get_accounting_engine(session), log=make_log(security), can=can)
+
+
+def get_cyber(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Cybersecurity service: assets, vulnerabilities, incidents, access reviews and reports in the shared document store; reads the Evidence Vault, never changes it; every action is audited. It does not scan or connect to any system."""
+    from ..cyber.service import CyberService
+    from ..cyber.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return CyberService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_bizdev(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Business Development service: accounts, opportunities, proposals, targets and reports in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
+    from ..bizdev.service import BizDevService
+    from ..bizdev.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return BizDevService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_pubfin(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Public Finance service: budgets, commitments, procurement, grants and reports in the shared document store; reads the ledger and Evidence Vault, never changes them; every action is audited."""
+    from ..pubfin.service import PubFinService
+    from ..pubfin.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return PubFinService(SqlAlchemyDocStore(session), get_accounting_engine(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_forensic(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Forensic service: confidential cases in the shared document store; reads the ledger and Evidence Vault, never changes them; every action is audited."""
+    from ..forensic.service import ForensicService
+    from ..forensic.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ForensicService(SqlAlchemyDocStore(session), get_accounting_engine(session), get_evidence_vault(session), log=make_log(security))
+
+
 def get_network(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Network service over the shared document store; every action is written to the audit trail of the organisation concerned."""
     from ..network.service import NetworkService

@@ -26,7 +26,7 @@ LAYERS: List[dict] = [
     {"id": "ai", "group": "Use", "name": "AI", "parts": ["ASAVEXA AI", "External data ingestion"],
      "modules": ["asavexa.ai", "asavexa.ingestion"], "prefixes": ["/ai", "/ingestion"]},
     {"id": "workspaces", "group": "Workspaces", "name": "Professional Workspaces", "parts": ["Workspace selector", "Financial Analysis"],
-     "modules": ["asavexa.workspaces", "asavexa.analysis.service"], "prefixes": ["/workspaces", "/analysis"]},
+     "modules": ["asavexa.workspaces", "asavexa.analysis.service", "asavexa.tax.service", "asavexa.forensic.service", "asavexa.grc.service", "asavexa.pubfin.service", "asavexa.bizdev.service", "asavexa.cyber.service", "asavexa.health.service"], "prefixes": ["/workspaces", "/analysis", "/tax", "/forensic", "/grc", "/pubfin", "/bizdev", "/cyber", "/health"]},
     {"id": "trust_network", "group": "Network", "name": "Trust Network", "parts": ["Banks", "Investors", "Auditors", "Donors", "Regulators", "Accountants"],
      "modules": ["asavexa.network.service", "asavexa.pilot.service", "asavexa.security.store"], "prefixes": ["/network", "/pilot", "/security"]},
 ]

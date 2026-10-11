@@ -239,6 +239,13 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "proof.router": "/proof",
         "analysis.router": "/analysis",
         "workspaces.router": "/workspaces",
+        "tax.router": "/tax",
+        "forensic.router": "/forensic",
+        "grc.router": "/grc",
+        "pubfin.router": "/pubfin",
+        "bizdev.router": "/bizdev",
+        "cyber.router": "/cyber",
+        "health.router": "/health",
     }
 
     def test_every_expected_router_registered_exactly_once(self):

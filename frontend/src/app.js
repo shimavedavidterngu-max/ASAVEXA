@@ -47,6 +47,22 @@ import { Network } from "./pages/Network.js";
 import { Proof } from "./pages/Proof.js";
 import { Analysis } from "./pages/Analysis.js";
 import { Workspaces } from "./pages/Workspaces.js";
+import { Tax } from "./pages/Tax.js";
+import { Forensic } from "./pages/Forensic.js";
+import { Grc } from "./pages/Grc.js";
+import { Pubfin } from "./pages/Pubfin.js";
+import * as PF from "./lib/pubfin.js";
+import { Bizdev } from "./pages/Bizdev.js";
+import * as BD from "./lib/bizdev.js";
+import { Cyber } from "./pages/Cyber.js";
+import * as CY from "./lib/cyber.js";
+import { Health } from "./pages/Health.js";
+import * as HC from "./lib/health.js";
+import { AiDock } from "./components/AiDock.js";
+import * as DK from "./lib/aidock.js";
+import { emptyRisk, riskProblem, riskBody, riskForm, emptyAction, actionProblem, actionBody, actionForm, doneProblem, emptyObligation, obligationProblem, obligationBody, obligationForm, emptyMet, metProblem, noteProblem, acceptProblem } from "./lib/grc.js";
+import { emptyCase, caseProblem, emptyRun, runProblem, runBody, emptyFinding, findingProblem, findingBody, findingForm } from "./lib/forensic.js";
+import { emptyRule, ruleProblem, ruleBody, ruleForm, calcProblem, todayIso } from "./lib/tax.js";
 import { scenarioProblem, scenarioBody, scenarioForm, emptyScenario, budgetBody, budgetProblem, emptyReportForm, reportProblem, reportBody } from "./lib/analysis.js";
 import { inviteBody, inviteProblem, acceptGrant, emptyInviteForm } from "./lib/network.js";
 import { pilotBody, clientBody, clientFormProblem, timeBody, issueBody, passportUseBody, surveyBody, surveyProblem, emptyPilotForm, emptyClientForm, today, download } from "./lib/pilot.js";
@@ -77,6 +93,13 @@ const NAV_ITEMS = [
   { path: "/proof", label: "Proof Graph", permission: PERMISSIONS.REPORTING_READ },
   { path: "/workspaces", label: "Professional Workspaces", permission: PERMISSIONS.REPORTING_READ },
   { path: "/analysis", label: "Financial Analysis", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/tax", label: "Tax Compliance", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/forensic", label: "Forensic Investigation", permission: PERMISSIONS.FORENSIC_READ },
+  { path: "/grc", label: "Governance, Risk and Compliance", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/pubfin", label: "Public Finance", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/bizdev", label: "Business Development", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/cyber", label: "Cybersecurity", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/health", label: "Health Centre", permission: PERMISSIONS.HEALTH_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
@@ -110,6 +133,13 @@ const routes = [
   { path: "/proof", name: "proof" },
   { path: "/workspaces", name: "workspaces" },
   { path: "/analysis", name: "analysis" },
+  { path: "/tax", name: "tax" },
+  { path: "/forensic", name: "forensic" },
+  { path: "/grc", name: "grc" },
+  { path: "/pubfin", name: "pubfin" },
+  { path: "/bizdev", name: "bizdev" },
+  { path: "/cyber", name: "cyber" },
+  { path: "/health", name: "health" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
   { path: "/compliance/findings", name: "compliance-findings" },
@@ -337,6 +367,7 @@ function renderShell(authState) {
         ),
         renderPage(matched, authState)
       ),
+      renderDock(authState, path),
       DrilldownPanel({
         open: uiState.drilldownOpen, loading: uiState.drilldownLoading, error: uiState.drilldownError,
         note: uiState.drilldownNote, journal: uiState.drilldownJournal, chainLinks: uiState.drilldownChain,
@@ -412,6 +443,13 @@ function renderPage(matched, authState) {
   if (name === "proof") return renderProofPage(authState);
   if (name === "workspaces") return renderWorkspacesPage(authState, nav);
   if (name === "analysis") return renderAnalysisPage(authState);
+  if (name === "tax") return renderTaxPage(authState);
+  if (name === "forensic") return renderForensicPage(authState);
+  if (name === "grc") return renderGrcPage(authState);
+  if (name === "pubfin") return renderPubfinPage(authState);
+  if (name === "bizdev") return renderBizdevPage(authState);
+  if (name === "cyber") return renderCyberPage(authState);
+  if (name === "health") return renderHealthPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
 }
@@ -560,6 +598,14 @@ function resetSecurityState() {
   uiState.proof = null; loadedOnce.delete("proofLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
+  uiState.tx = null; loadedOnce.delete("txLoading");
+  uiState.fm = null; loadedOnce.delete("fmLoading");
+  uiState.gc = null; loadedOnce.delete("gcLoading");
+  uiState.pf = null; loadedOnce.delete("pfLoading");
+  uiState.bd = null; loadedOnce.delete("bdLoading");
+  uiState.cy = null; loadedOnce.delete("cyLoading");
+  uiState.hc = null; loadedOnce.delete("hcLoading");
+  uiState.dock = null;
   uiState.sec = null; uiState.secNoOrg = false; uiState.mfaChallenge = null;
   loadedOnce.delete("secLoading");
 }
@@ -2856,6 +2902,815 @@ function analysisActions() {
     },
   };
 }
+
+
+// ----------------------------------------------------------------------
+// Tax Compliance
+// ----------------------------------------------------------------------
+function newTax() {
+  const t = new Date(), y = t.getFullYear();
+  return { tab: "countries", busy: false, error: null, notice: null, loaded: {}, overview: null, countries: null, q: "", region: "", regDraft: {}, countryList: [], options: null,
+    rules: [], ruleFilter: "", rule: null, form: null, decisionNote: "", liveRules: [], periods: [], calcForm: { rule_id: "", amount: "", date: todayIso(t), inclusive: false, period_id: "", kind: "revenue" }, calc: null, ledgerNote: null, ledgerBasis: null, history: [],
+    cal: { start: `${y}-01-01`, end: `${y}-12-31`, data: null }, refDraft: {} };
+}
+
+function renderTaxPage(authState) {
+  if (!uiState.tx) uiState.tx = newTax();
+  once("txLoading", () => loadTaxBase());
+  return Tax({ tx: uiState.tx, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.txLoading, onRetry: () => { loadedOnce.delete("txLoading"); render(); }, actions: taxActions() });
+}
+
+async function loadTaxBase() {
+  const tx = uiState.tx || (uiState.tx = newTax());
+  tx.error = null;
+  try {
+    [tx.overview, tx.options] = await Promise.all([api.taxOverview(), api.taxOptions()]);
+    const all = await api.taxCountries("", "");
+    tx.countryList = all.countries.map((c) => ({ code: c.code, name: c.name }));
+    await loadTaxTab();
+  } catch (err) { tx.error = err.message || "Tax Compliance could not be loaded."; }
+}
+
+async function loadTaxTab() {
+  const tx = uiState.tx, tab = tx.tab;
+  tx.busy = true; tx.error = null; render();
+  try {
+    tx.overview = await api.taxOverview();
+    if (tab === "countries") tx.countries = await api.taxCountries(tx.q, tx.region);
+    else if (tab === "rules") tx.rules = await api.taxRules(tx.ruleFilter, "");
+    else if (tab === "calculator") {
+      const [rules, periods, history] = await Promise.all([api.taxRules("", "APPROVED"), api.listPeriods().catch(() => []), api.taxCalculations()]);
+      tx.liveRules = rules; tx.periods = periods; tx.history = history;
+    } else if (tab === "calendar") tx.cal.data = await api.taxCalendar(tx.cal.start, tx.cal.end);
+    tx.loaded[tab] = true;
+  } catch (err) { tx.error = err.message || "That could not be loaded."; }
+  tx.busy = false; render();
+}
+
+function taxActions() {
+  const tx = uiState.tx;
+  const run = async (fn, ok) => { tx.error = null; tx.notice = null; tx.busy = true; render(); try { await fn(); if (ok) tx.notice = ok; } catch (err) { tx.error = err.message || "That did not work."; } tx.busy = false; render(); };
+  const fail = (m) => { tx.error = m; render(); };
+  const refreshRules = async () => { tx.rules = await api.taxRules(tx.ruleFilter, ""); tx.overview = await api.taxOverview(); };
+  let timer = null;
+  return {
+    setTab: (t) => { tx.tab = t; tx.error = null; tx.notice = null; tx.rule = null; tx.form = null; loadTaxTab(); },
+    // countries
+    search: (v) => { tx.q = v; clearTimeout(timer); timer = setTimeout(async () => { try { tx.countries = await api.taxCountries(tx.q, tx.region); } catch (err) { tx.error = err.message; } render(); const el = document.getElementById("tx-q"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); },
+    setRegion: (v) => { tx.region = v; loadTaxTab(); },
+    toggleCountry: (code, on) => run(async () => { await api.setTaxCountry(code, { selected: on, registration: tx.regDraft[code] || "" }); tx.countries = await api.taxCountries(tx.q, tx.region); tx.overview = await api.taxOverview(); }),
+    regChange: (code, v) => { tx.regDraft = { ...tx.regDraft, [code]: v }; },
+    saveReg: (code) => { if (tx.regDraft[code] === undefined) return; run(async () => { await api.setTaxCountry(code, { selected: true, registration: tx.regDraft[code] }); delete tx.regDraft[code]; tx.countries = await api.taxCountries(tx.q, tx.region); }, "Registration number saved."); },
+    viewRules: (code) => { tx.ruleFilter = code; tx.tab = "rules"; loadTaxTab(); },
+    // rules
+    filterRules: (code) => { tx.ruleFilter = code; loadTaxTab(); },
+    newRule: () => { tx.form = emptyRule(tx.ruleFilter); render(); },
+    formChange: (k, v) => { tx.form = { ...tx.form, [k]: v }; if (["method", "filing_on", "country"].includes(k)) render(); },
+    bandChange: (i, k, v) => { tx.form.brackets = tx.form.brackets.map((b, j) => (j === i ? { ...b, [k]: v } : b)); },
+    addBand: () => { const last = tx.form.brackets[tx.form.brackets.length - 1]; tx.form.brackets = [...tx.form.brackets, { from: last && last.up_to ? last.up_to : "", up_to: "", rate: "" }]; render(); },
+    removeBand: (i) => { tx.form.brackets = tx.form.brackets.filter((_, j) => j !== i); render(); },
+    cancelForm: () => { tx.form = null; render(); },
+    saveRule: () => {
+      const problem = ruleProblem(tx.form); if (problem) return fail(problem);
+      return run(async () => {
+        const f = tx.form, body = ruleBody(f);
+        tx.rule = f.id ? await api.updateTaxRule(f.id, body) : await api.createTaxRule(body);
+        tx.form = null; tx.decisionNote = ""; await refreshRules();
+      }, "Saved as a draft. Submit it for review when it is ready.");
+    },
+    openRule: (id) => run(async () => { tx.rule = await api.taxRule(id); tx.decisionNote = ""; }),
+    closeRule: () => { tx.rule = null; loadTaxTab(); },
+    editRule: () => { tx.form = ruleForm(tx.rule); render(); },
+    replaceRule: () => { tx.form = { ...ruleForm(tx.rule), id: "", replaces: tx.rule.id, effective_from: "", effective_to: "" }; render(); },
+    submitRule: () => run(async () => { tx.rule = await api.submitTaxRule(tx.rule.id); await refreshRules(); }, "Submitted. A different person must now review it."),
+    discardRule: () => run(async () => { await api.discardTaxRule(tx.rule.id); tx.rule = null; await refreshRules(); }, "Draft discarded."),
+    decisionChange: (v) => { tx.decisionNote = v; },
+    decide: (approve) => {
+      if (!approve && tx.decisionNote.trim().length < 3) return fail("Say why you are sending it back (at least 3 characters).");
+      return run(async () => { tx.rule = approve ? await api.approveTaxRule(tx.rule.id, tx.decisionNote) : await api.rejectTaxRule(tx.rule.id, tx.decisionNote); tx.decisionNote = ""; await refreshRules(); }, approve ? "Approved. The rule can now be used." : "Sent back.");
+    },
+    // calculator
+    calcChange: (k, v) => { if (k === "amount") tx.ledgerBasis = null; tx.calcForm = { ...tx.calcForm, [k]: v }; if (k === "rule_id" || k === "period_id") render(); },
+    useLedger: () => run(async () => {
+      const b = await api.taxLedgerBase(tx.calcForm.period_id, tx.calcForm.kind);
+      tx.calcForm = { ...tx.calcForm, amount: b.amount };
+      tx.ledgerBasis = { label: `${b.kind.replace("_", " ")} for ${b.period.name}` };
+      tx.ledgerNote = [b.warning, b.note].filter(Boolean).join(" ");
+    }),
+    runCalc: () => {
+      const problem = calcProblem(tx.calcForm); if (problem) return fail(problem);
+      return run(async () => {
+        const f = tx.calcForm;
+        tx.calc = await api.taxCalculate({ rule_id: f.rule_id, amount: String(f.amount).trim(), date: f.date, inclusive: !!f.inclusive, basis: tx.ledgerBasis });
+        tx.history = await api.taxCalculations();
+      });
+    },
+    // calendar
+    calRange: (k, v) => { tx.cal[k] = v; },
+    loadCalendar: () => run(async () => { tx.cal.data = await api.taxCalendar(tx.cal.start, tx.cal.end); }),
+    refChange: (key, v) => { tx.refDraft = { ...tx.refDraft, [key]: v }; },
+    markFiled: (item) => {
+      const ref = (tx.refDraft[item.key] || "").trim(); if (ref.length < 2) return fail("Enter the reference the tax authority gave you when you filed.");
+      return run(async () => { await api.markTaxFiled({ rule_id: item.rule_id, period_end: item.period_end, reference: ref }); delete tx.refDraft[item.key]; tx.cal.data = await api.taxCalendar(tx.cal.start, tx.cal.end); }, "Recorded. ASAVEXA did not submit anything to the authority; this is your record that you did.");
+    },
+  };
+}
+
+
+// ----------------------------------------------------------------------
+// Forensic Accounting and Investigation
+// ----------------------------------------------------------------------
+function newForensic() {
+  return { cases: [], case: null, tab: "overview", caseForm: null, options: null, busy: false, error: null, notice: null, periods: [], vault: [], ev: { id: "", note: "" }, runForm: emptyRun(), run: null,
+    findingForm: null, decisionNotes: {}, report: null, reportTitle: "", reportNote: "", closeNote: "", custodyCheck: null };
+}
+
+function renderForensicPage(authState) {
+  if (!uiState.fm) uiState.fm = newForensic();
+  once("fmLoading", () => loadForensic());
+  return Forensic({ fm: uiState.fm, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.fmLoading, onRetry: () => { loadedOnce.delete("fmLoading"); render(); }, actions: forensicActions() });
+}
+
+async function loadForensic() {
+  const fm = uiState.fm || (uiState.fm = newForensic());
+  fm.error = null;
+  try {
+    [fm.options, fm.cases] = await Promise.all([api.forensicOptions(), api.forensicCases()]);
+    fm.runForm = emptyRun(fm.options.defaults);
+  } catch (err) { fm.error = err.message || "Investigations could not be loaded."; }
+}
+
+function forensicActions() {
+  const fm = uiState.fm;
+  const run = async (fn, ok) => { fm.error = null; fm.notice = null; fm.busy = true; render(); try { await fn(); if (ok) fm.notice = ok; } catch (err) { fm.error = err.message || "That did not work."; } fm.busy = false; render(); };
+  const fail = (m) => { fm.error = m; render(); };
+  const reloadCase = async () => { fm.case = await api.forensicCase(fm.case.id); };
+  return {
+    // list
+    newCase: () => { fm.caseForm = emptyCase(); render(); },
+    caseChange: (k, v) => { fm.caseForm = { ...fm.caseForm, [k]: v }; },
+    cancelCase: () => { fm.caseForm = null; render(); },
+    saveCase: () => { const p = caseProblem(fm.caseForm); if (p) return fail(p); return run(async () => { const c = await api.createForensicCase({ title: fm.caseForm.title.trim(), description: fm.caseForm.description.trim(), case_type: fm.caseForm.case_type }); fm.caseForm = null; fm.cases = await api.forensicCases(); fm.case = await api.forensicCase(c.id); fm.tab = "overview"; fm.custodyCheck = null; fm.run = null; }, "Case opened."); },
+    openCase: (id) => run(async () => { fm.case = await api.forensicCase(id); fm.tab = "overview"; fm.custodyCheck = null; fm.run = null; fm.report = null; fm.findingForm = null; fm.closeNote = ""; }),
+    closeCaseView: async () => { fm.case = null; fm.report = null; fm.findingForm = null; try { fm.cases = await api.forensicCases(); } catch (err) { fm.error = err.message; } render(); },
+    setTab: async (t) => {
+      fm.tab = t; fm.error = null; fm.notice = null; fm.report = null; render();
+      try {
+        if (t === "evidence") fm.vault = await api.listEvidence();
+        if (t === "analytics" && !fm.periods.length) fm.periods = await api.listPeriods();
+        if (t === "findings" || t === "reports" || t === "overview") await reloadCase();
+        if (t === "findings" && !fm.vault.length) fm.vault = await api.listEvidence().catch(() => []);
+      } catch (err) { fm.error = err.message || "That could not be loaded."; }
+      render();
+    },
+    // overview
+    verifyCustody: () => run(async () => { fm.custodyCheck = await api.forensicCustody(fm.case.id); }),
+    closeNoteChange: (v) => { fm.closeNote = v; },
+    closeCase: () => { if (fm.closeNote.trim().length < 3) return fail("Add a closing note (at least 3 characters)."); return run(async () => { await api.closeForensicCase(fm.case.id, fm.closeNote); await reloadCase(); }, "Case closed."); },
+    // evidence
+    evChange: (k, v) => { fm.ev = { ...fm.ev, [k]: v }; },
+    addEvidence: () => { if (!fm.ev.id) return fail("Choose an evidence file."); return run(async () => { await api.addForensicEvidence(fm.case.id, { evidence_id: fm.ev.id, note: fm.ev.note }); fm.ev = { id: "", note: "" }; await reloadCase(); }, "Evidence added and its fingerprint recorded."); },
+    // analytics
+    runChange: (k, v) => { fm.runForm = { ...fm.runForm, [k]: v }; if (k === "scope_kind") render(); },
+    runTest: (k, on) => { const s = new Set(fm.runForm.tests); on ? s.add(k) : s.delete(k); fm.runForm = { ...fm.runForm, tests: [...s] }; },
+    runAnalytics: () => { const p = runProblem(fm.runForm); if (p) return fail(p); return run(async () => { fm.run = await api.runForensicAnalytics(fm.case.id, runBody(fm.runForm)); await reloadCase(); }, "Tests finished. These are indicators, not conclusions."); },
+    openRun: (id) => run(async () => { fm.run = await api.forensicRun(id); }),
+    citeJournal: (hit, runId) => {
+      const f = fm.findingForm || emptyFinding();
+      if (!f.journals.some((j) => j.id === hit.journal_id)) f.journals = [...f.journals, { id: hit.journal_id, number: hit.number, date: hit.date, amount: hit.amount }];
+      f.run_id = f.run_id || runId; fm.findingForm = f; fm.tab = "findings"; fm.notice = `${hit.number} added to a draft finding.`; render();
+    },
+    // findings
+    newFinding: () => { fm.findingForm = emptyFinding(); render(); },
+    findingChange: (k, v) => { fm.findingForm = { ...fm.findingForm, [k]: v }; },
+    uncite: (id) => { fm.findingForm = { ...fm.findingForm, journals: fm.findingForm.journals.filter((j) => j.id !== id) }; render(); },
+    findingEvidence: (id, on) => { const s = new Set(fm.findingForm.evidence_ids); on ? s.add(id) : s.delete(id); fm.findingForm = { ...fm.findingForm, evidence_ids: [...s] }; },
+    cancelFinding: () => { fm.findingForm = null; render(); },
+    editFinding: (id) => { fm.findingForm = findingForm(fm.case.findings.find((x) => x.id === id)); render(); },
+    saveFinding: () => { const p = findingProblem(fm.findingForm); if (p) return fail(p); return run(async () => { const f = fm.findingForm, b = findingBody(f); if (f.id) await api.updateForensicFinding(f.id, b); else await api.createForensicFinding(fm.case.id, b); fm.findingForm = null; await reloadCase(); }, "Saved as a draft. Submit it for review when it is ready."); },
+    submitFinding: (id) => run(async () => { await api.submitForensicFinding(id); await reloadCase(); }, "Submitted. A different person must now review it."),
+    discardFinding: (id) => run(async () => { await api.discardForensicFinding(id); await reloadCase(); }, "Draft discarded."),
+    decisionChange: (id, v) => { fm.decisionNotes = { ...fm.decisionNotes, [id]: v }; },
+    decideFinding: (id, approve) => { const n = fm.decisionNotes[id] || ""; if (!approve && n.trim().length < 3) return fail("Say why you are sending it back (at least 3 characters)."); return run(async () => { approve ? await api.approveForensicFinding(id, n) : await api.rejectForensicFinding(id, n); fm.decisionNotes = { ...fm.decisionNotes, [id]: "" }; await reloadCase(); }, approve ? "Approved." : "Sent back."); },
+    // reports
+    reportTitleChange: (v) => { fm.reportTitle = v; },
+    createReport: () => { if (fm.reportTitle.trim().length < 3) return fail("Give the report a title."); return run(async () => { fm.report = await api.createForensicReport(fm.case.id, fm.reportTitle.trim()); fm.reportTitle = ""; fm.reportNote = ""; await reloadCase(); }, "Report frozen as a draft."); },
+    openReport: (id) => run(async () => { fm.report = await api.forensicReport(id); fm.reportNote = ""; }),
+    closeReport: () => { fm.report = null; reloadCase().then(render); },
+    submitReport: () => run(async () => { fm.report = await api.submitForensicReport(fm.report.id); }, "Submitted for review."),
+    reportNoteChange: (v) => { fm.reportNote = v; },
+    decideReport: (approve) => { if (!approve && fm.reportNote.trim().length < 3) return fail("Say why you are sending it back (at least 3 characters)."); return run(async () => { fm.report = approve ? await api.approveForensicReport(fm.report.id, fm.reportNote) : await api.rejectForensicReport(fm.report.id, fm.reportNote); fm.reportNote = ""; }, approve ? "Approved." : "Sent back."); },
+    exportReport: () => run(async () => { const { blob, filename } = await api.exportForensicReport(fm.report.id); saveBlob(blob, filename); }, "Downloaded."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Governance, Risk and Compliance
+// ----------------------------------------------------------------------
+function newGrc() {
+  return { options: null, dash: null, risks: [], actions: [], obligations: [], vault: [], tab: "overview", filter: "", risk: null, riskForm: null, acceptForm: null, actionForm: null, doneForm: null, cancelId: null,
+    obForm: null, metForm: null, retireId: null, notes: {}, appetiteInput: "", busy: false, error: null, notice: null };
+}
+
+function renderGrcPage(authState) {
+  if (!uiState.gc) uiState.gc = newGrc();
+  once("gcLoading", () => loadGrc());
+  return Grc({ gc: uiState.gc, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.gcLoading, onRetry: () => { loadedOnce.delete("gcLoading"); render(); }, actions: grcActions() });
+}
+
+async function grcRefresh(gc) {
+  [gc.dash, gc.risks, gc.actions, gc.obligations] = await Promise.all([api.grcDashboard(), api.grcRisks(gc.filter), api.grcActions(), api.grcObligations()]);
+  gc.appetiteInput = String(gc.dash.appetite);
+  if (gc.risk) gc.risk = await api.grcRisk(gc.risk.id);
+}
+
+async function loadGrc() {
+  const gc = uiState.gc || (uiState.gc = newGrc());
+  gc.error = null;
+  try {
+    gc.options = await api.grcOptions();
+    await grcRefresh(gc);
+    gc.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { gc.error = err.message || "Governance, risk and compliance could not be loaded."; }
+}
+
+function grcActions() {
+  const gc = uiState.gc;
+  const run = async (fn, ok) => { gc.error = null; gc.notice = null; gc.busy = true; render(); try { await fn(); if (ok) gc.notice = ok; } catch (err) { gc.error = err.message || "That did not work."; } gc.busy = false; render(); };
+  const fail = (m) => { gc.error = m; render(); };
+  const today = () => (gc.dash && gc.dash.as_of) || new Date().toISOString().slice(0, 10);
+  const clearForms = () => { gc.riskForm = gc.acceptForm = gc.actionForm = gc.doneForm = gc.obForm = gc.metForm = null; gc.cancelId = gc.retireId = null; gc.notes = {}; };
+  const refresh = () => grcRefresh(gc);
+  const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const note = (k) => gc.notes[k] || "";
+  return {
+    setTab: (t) => run(async () => { gc.tab = t; gc.risk = null; clearForms(); await refresh(); }),
+    setFilter: (v) => run(async () => { gc.filter = v; gc.risks = await api.grcRisks(v); }),
+    exportRegister: () => run(async () => { const { blob, filename } = await api.exportGrcRegister(); saveBlob(blob, filename); }, "Downloaded."),
+    appetiteChange: (v) => { gc.appetiteInput = v; },
+    saveAppetite: () => { const v = String(gc.appetiteInput).trim(); if (!/^\d+$/.test(v) || +v < 1 || +v > 25) return fail("The risk appetite is a whole number from 1 to 25."); return run(async () => { await api.setGrcAppetite(+v); await refresh(); }, "Risk appetite saved."); },
+    noteChange: (k, v) => { gc.notes[k] = v; },
+    // risks
+    newRisk: () => { clearForms(); gc.riskForm = emptyRisk(); render(); },
+    riskChange: (k, v) => {
+      const f = gc.riskForm, n = { ...f, [k]: v };
+      if (k === "inherent_l" && f.residual_l === f.inherent_l) n.residual_l = v;
+      if (k === "inherent_i" && f.residual_i === f.inherent_i) n.residual_i = v;
+      gc.riskForm = n;
+      if (/^(inherent|residual)_[li]$/.test(k)) render();
+    },
+    riskControl: (id) => { gc.riskForm = { ...gc.riskForm, control_ids: toggle(gc.riskForm.control_ids, id) }; },
+    cancelRisk: () => { gc.riskForm = null; render(); },
+    saveRisk: () => { const p = riskProblem(gc.riskForm); if (p) return fail(p); return run(async () => {
+      const f = gc.riskForm, b = riskBody(f), r = f.id ? await api.updateGrcRisk(f.id, b) : await api.createGrcRisk(b);
+      gc.riskForm = null; gc.risk = r; await refresh(); gc.notice = f.id ? "Risk updated." : `Risk ${r.ref} added.`; }); },
+    openRisk: (id) => run(async () => { clearForms(); gc.risk = await api.grcRisk(id); }),
+    closeRiskView: () => run(async () => { gc.risk = null; clearForms(); await refresh(); }),
+    editRisk: () => { gc.riskForm = riskForm(gc.risk); render(); },
+    treatRisk: () => run(async () => { await api.treatGrcRisk(gc.risk.id); await refresh(); }, "Treatment started."),
+    openAccept: () => { gc.acceptForm = { justification: "", review_by: "" }; render(); },
+    acceptChange: (k, v) => { gc.acceptForm = { ...gc.acceptForm, [k]: v }; },
+    cancelAccept: () => { gc.acceptForm = null; render(); },
+    submitAccept: () => { const p = acceptProblem(gc.acceptForm, today()); if (p) return fail(p); return run(async () => {
+      const r = await api.acceptGrcRisk(gc.risk.id, { justification: gc.acceptForm.justification.trim(), review_by: gc.acceptForm.review_by.trim() });
+      gc.acceptForm = null; await refresh(); gc.notice = r.status === "ACCEPTED" ? "Accepted and recorded." : "Sent for approval. A different person must decide it."; }); },
+    decideAcceptance: (approve) => { if (!approve) { const p = noteProblem(note("decide"), "a note saying why you are sending it back"); if (p) return fail(p); }
+      return run(async () => { await (approve ? api.approveGrcAcceptance(gc.risk.id, note("decide")) : api.rejectGrcAcceptance(gc.risk.id, note("decide"))); gc.notes.decide = ""; await refresh(); }, approve ? "Acceptance approved." : "Sent back."); },
+    reopenRisk: () => { const p = noteProblem(note("reopen"), "a reason for reopening"); if (p) return fail(p); return run(async () => { await api.reopenGrcRisk(gc.risk.id, note("reopen")); gc.notes.reopen = ""; await refresh(); }, "Risk reopened."); },
+    closeRisk: () => { const p = noteProblem(note("close"), "a reason for closing", 10); if (p) return fail(p); return run(async () => { await api.closeGrcRisk(gc.risk.id, note("close")); gc.notes.close = ""; await refresh(); }, "Risk closed."); },
+    // actions
+    newAction: (riskId) => { gc.actionForm = { ...emptyAction(riskId), fixedRisk: !!riskId }; render(); },
+    actionChange: (k, v) => { gc.actionForm = { ...gc.actionForm, [k]: v }; },
+    cancelAction: () => { gc.actionForm = null; render(); },
+    editAction: (x) => { gc.actionForm = { ...actionForm(x), fixedRisk: true }; render(); },
+    saveAction: () => { const p = actionProblem(gc.actionForm); if (p) return fail(p); return run(async () => {
+      const f = gc.actionForm; if (f.id) await api.updateGrcAction(f.id, actionBody(f)); else await api.createGrcAction(actionBody(f));
+      gc.actionForm = null; await refresh(); gc.notice = f.id ? "Action updated." : "Action added."; }); },
+    openDone: (x) => { gc.doneForm = { id: x.id, note: "", evidence_ids: [] }; render(); },
+    doneChange: (k, v) => { gc.doneForm = { ...gc.doneForm, [k]: v }; },
+    doneEvidence: (id) => { gc.doneForm = { ...gc.doneForm, evidence_ids: toggle(gc.doneForm.evidence_ids, id) }; },
+    cancelDone: () => { gc.doneForm = null; render(); },
+    submitDone: () => { const p = doneProblem(gc.doneForm); if (p) return fail(p); return run(async () => { const f = gc.doneForm; await api.completeGrcAction(f.id, { note: f.note.trim(), evidence_ids: f.evidence_ids }); gc.doneForm = null; await refresh(); },
+      "Marked done. A different person must now verify it."); },
+    verifyAction: (id, ok) => { if (!ok) { const p = noteProblem(note("verify"), "a note saying what is missing"); if (p) return fail(p); }
+      return run(async () => { await (ok ? api.verifyGrcAction(id, note("verify")) : api.sendBackGrcAction(id, note("verify"))); gc.notes.verify = ""; await refresh(); }, ok ? "Verified." : "Sent back to the owner."); },
+    cancelActionRec: (id) => { gc.cancelId = id; render(); },
+    keepAction: () => { gc.cancelId = null; render(); },
+    confirmCancelAction: () => { const p = noteProblem(note("cancel"), "a reason for cancelling"); if (p) return fail(p); return run(async () => { await api.cancelGrcAction(gc.cancelId, note("cancel")); gc.cancelId = null; gc.notes.cancel = ""; await refresh(); }, "Action cancelled."); },
+    // obligations
+    newObligation: () => { clearForms(); gc.obForm = emptyObligation(); render(); },
+    obChange: (k, v) => { gc.obForm = { ...gc.obForm, [k]: v }; },
+    obControl: (id) => { gc.obForm = { ...gc.obForm, control_ids: toggle(gc.obForm.control_ids, id) }; },
+    cancelObligation: () => { gc.obForm = null; render(); },
+    editObligation: (x) => { clearForms(); gc.obForm = obligationForm(x); render(); },
+    saveObligation: () => { const p = obligationProblem(gc.obForm); if (p) return fail(p); return run(async () => {
+      const f = gc.obForm, b = obligationBody(f); if (f.id) await api.updateGrcObligation(f.id, b); else await api.createGrcObligation(b);
+      gc.obForm = null; await refresh(); gc.notice = f.id ? "Obligation updated." : "Obligation added."; }); },
+    openMet: (x) => { clearForms(); gc.metForm = { id: x.id, ...emptyMet(today()) }; render(); },
+    metChange: (k, v) => { gc.metForm = { ...gc.metForm, [k]: v }; },
+    metEvidence: (id) => { gc.metForm = { ...gc.metForm, evidence_ids: toggle(gc.metForm.evidence_ids, id) }; },
+    cancelMet: () => { gc.metForm = null; render(); },
+    submitMet: () => { const p = metProblem(gc.metForm, today()); if (p) return fail(p); return run(async () => { const f = gc.metForm; await api.markGrcObligationMet(f.id, { met_on: f.met_on.trim(), note: f.note.trim(), evidence_ids: f.evidence_ids }); gc.metForm = null; await refresh(); },
+      "Recorded. The next due date has moved on."); },
+    retireObligation: (id) => { clearForms(); gc.retireId = id; render(); },
+    keepObligation: () => { gc.retireId = null; render(); },
+    confirmRetire: () => { const p = noteProblem(note("retire"), "a reason for retiring it"); if (p) return fail(p); return run(async () => { await api.retireGrcObligation(gc.retireId, note("retire")); gc.retireId = null; gc.notes.retire = ""; await refresh(); }, "Obligation retired."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Financial Management and Public Finance
+// ----------------------------------------------------------------------
+function newPubfin() {
+  return { options: null, ov: null, budgets: [], commitments: [], procs: [], grants: [], reports: [], vault: [], tab: "overview", budget: null, budgetForm: null, virementForm: null, commitForm: null, settleForm: null, cancelCommitId: null,
+    procForm: null, proc: null, quoteForm: null, awardForm: null, grant: null, grantForm: null, receiptForm: null, spendForm: null, reportForm: null, report: null, notes: {}, policyForm: null, busy: false, error: null, notice: null };
+}
+
+function renderPubfinPage(authState) {
+  if (!uiState.pf) uiState.pf = newPubfin();
+  once("pfLoading", () => loadPubfin());
+  return Pubfin({ pf: uiState.pf, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.pfLoading, onRetry: () => { loadedOnce.delete("pfLoading"); render(); }, actions: pubfinActions() });
+}
+
+async function pubfinRefresh(pf) {
+  [pf.ov, pf.budgets, pf.commitments, pf.procs, pf.grants, pf.reports] = await Promise.all([api.pubfinOverview(), api.pubfinBudgets(), api.pubfinCommitments(), api.pubfinProcurements(), api.pubfinGrants(), api.pubfinReports()]);
+  pf.policyForm = { min_quotes: String(pf.ov.policy.min_quotes), quote_threshold: pf.ov.policy.quote_threshold };
+  if (pf.budget) pf.budget = await api.pubfinBudget(pf.budget.id);
+  if (pf.proc) pf.proc = await api.pubfinProcurement(pf.proc.id);
+  if (pf.grant) pf.grant = await api.pubfinGrant(pf.grant.id);
+  if (pf.report) pf.report = await api.pubfinReport(pf.report.id);
+}
+
+async function loadPubfin() {
+  const pf = uiState.pf || (uiState.pf = newPubfin());
+  pf.error = null;
+  try {
+    pf.options = await api.pubfinOptions();
+    await pubfinRefresh(pf);
+    pf.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { pf.error = err.message || "Public finance could not be loaded."; }
+}
+
+function pubfinActions() {
+  const pf = uiState.pf;
+  const run = async (fn, ok) => { pf.error = null; pf.notice = null; pf.busy = true; render(); try { await fn(); if (ok) pf.notice = ok; } catch (err) { pf.error = err.message || "That did not work."; } pf.busy = false; render(); };
+  const fail = (m) => { pf.error = m; render(); };
+  const refresh = () => pubfinRefresh(pf);
+  const note = (k) => pf.notes[k] || "";
+  const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const clearForms = () => { pf.budgetForm = pf.virementForm = pf.commitForm = pf.settleForm = pf.procForm = pf.quoteForm = pf.awardForm = pf.grantForm = pf.receiptForm = pf.spendForm = pf.reportForm = null; pf.cancelCommitId = null; pf.notes = {}; };
+  const set = (key) => (k, v) => { pf[key] = { ...pf[key], [k]: v }; };
+  const decide = (needNote, label, f) => (ok, id) => { if (!ok) { const p = PF.noteProblem(needNote(), label, 3); if (p) return fail(p); } return f(ok, id); };
+  return {
+    setTab: (t) => run(async () => { pf.tab = t; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); await refresh(); }),
+    policyChange: (k, v) => { pf.policyForm = { ...pf.policyForm, [k]: v }; },
+    savePolicy: () => { const p = PF.policyProblem(pf.policyForm); if (p) return fail(p); return run(async () => { await api.setPubfinPolicy({ min_quotes: +pf.policyForm.min_quotes, quote_threshold: pf.policyForm.quote_threshold.trim() }); await refresh(); }, "Procurement policy saved."); },
+    noteChange: (k, v) => { pf.notes[k] = v; },
+    // budgets
+    newBudget: () => { clearForms(); pf.budgetForm = PF.emptyBudget(); render(); },
+    budgetChange: set("budgetForm"),
+    budgetAmount: (id, v) => { pf.budgetForm = { ...pf.budgetForm, amounts: { ...pf.budgetForm.amounts, [id]: v } }; },
+    cancelBudget: () => { pf.budgetForm = null; render(); },
+    saveBudget: () => { const p = PF.budgetProblem(pf.budgetForm); if (p) return fail(p); return run(async () => { const f = pf.budgetForm, b = PF.budgetBody(f); const r = f.id ? await api.updatePubfinBudget(f.id, b) : await api.createPubfinBudget(b);
+      pf.budgetForm = null; pf.budget = r; await refresh(); pf.notice = f.id ? "Budget updated." : `Budget ${r.ref} saved as a draft.`; }); },
+    openBudget: (id) => run(async () => { clearForms(); pf.budget = await api.pubfinBudget(id); }),
+    closeBudgetView: () => run(async () => { pf.budget = null; clearForms(); await refresh(); }),
+    editBudget: () => { pf.budgetForm = PF.budgetForm(pf.budget); render(); },
+    submitBudget: () => run(async () => { await api.submitPubfinBudget(pf.budget.id); await refresh(); }, "Submitted. A different person must now approve it."),
+    discardBudget: () => run(async () => { await api.discardPubfinBudget(pf.budget.id); pf.budget = null; await refresh(); }, "Draft discarded."),
+    decideBudget: decide(() => note("decide"), "a note saying why you are sending it back", (ok) => run(async () => { await (ok ? api.approvePubfinBudget(pf.budget.id, note("decide")) : api.rejectPubfinBudget(pf.budget.id, note("decide"))); pf.notes.decide = ""; await refresh(); }, ok ? "Budget approved." : "Sent back.")),
+    closeBudget: () => { const p = PF.noteProblem(note("close"), "a closing note"); if (p) return fail(p); return run(async () => { await api.closePubfinBudget(pf.budget.id, note("close")); pf.notes.close = ""; await refresh(); }, "Budget closed."); },
+    newVirement: () => { pf.virementForm = { from_account: "", to_account: "", amount: "", reason: "" }; render(); },
+    virementChange: (k, v) => { pf.virementForm = { ...pf.virementForm, [k]: v }; if (k !== "amount" && k !== "reason") render(); },
+    cancelVirement: () => { pf.virementForm = null; render(); },
+    saveVirement: () => { const p = PF.virementProblem(pf.virementForm, pf.budget); if (p) return fail(p); return run(async () => { const f = pf.virementForm; await api.proposePubfinVirement(pf.budget.id, { from_account: f.from_account, to_account: f.to_account, amount: f.amount.trim(), reason: f.reason.trim() }); pf.virementForm = null; await refresh(); }, "Proposed. A different person must approve it."); },
+    decideVirement: (vid, ok) => decide(() => note("virement"), "a note saying why you are sending it back", () => run(async () => { await (ok ? api.approvePubfinVirement(pf.budget.id, vid, note("virement")) : api.rejectPubfinVirement(pf.budget.id, vid, note("virement"))); pf.notes.virement = ""; await refresh(); }, ok ? "Virement approved." : "Sent back."))(ok, vid),
+    // commitments
+    newCommit: (budgetId) => { const keep = pf.budget; clearForms(); pf.commitForm = { ...PF.emptyCommit(budgetId), fixedBudget: !!budgetId }; if (keep) pf.budget = keep; render(); },
+    commitChange: (k, v) => { pf.commitForm = { ...pf.commitForm, [k]: v }; if (k === "budget_id") { pf.commitForm.account_id = ""; render(); } },
+    commitEvidence: (id) => { pf.commitForm = { ...pf.commitForm, evidence_ids: toggle(pf.commitForm.evidence_ids, id) }; },
+    cancelCommit: () => { pf.commitForm = null; render(); },
+    saveCommit: () => { const p = PF.commitProblem(pf.commitForm); if (p) return fail(p); return run(async () => { const c = await api.createPubfinCommitment(PF.commitBody(pf.commitForm)); pf.commitForm = null; await refresh(); pf.notice = `Commitment ${c.ref} recorded.`; }); },
+    openSettle: (c) => { pf.settleForm = { id: c.id, settled_amount: c.amount, note: "" }; render(); },
+    settleChange: set("settleForm"),
+    cancelSettle: () => { pf.settleForm = null; render(); },
+    saveSettle: () => { const p = PF.settleProblem(pf.settleForm); if (p) return fail(p); return run(async () => { const f = pf.settleForm; await api.settlePubfinCommitment(f.id, { settled_amount: f.settled_amount.trim(), note: f.note.trim() }); pf.settleForm = null; await refresh(); }, "Settled."); },
+    askCancelCommit: (id) => { pf.cancelCommitId = id; render(); },
+    keepCommit: () => { pf.cancelCommitId = null; render(); },
+    confirmCancelCommit: () => { const p = PF.noteProblem(note("cancelCommit"), "a reason for cancelling"); if (p) return fail(p); return run(async () => { await api.cancelPubfinCommitment(pf.cancelCommitId, note("cancelCommit")); pf.cancelCommitId = null; pf.notes.cancelCommit = ""; await refresh(); }, "Commitment cancelled."); },
+    // procurement
+    newProc: () => { clearForms(); pf.procForm = PF.emptyProc(); render(); },
+    procChange: (k, v) => { pf.procForm = { ...pf.procForm, [k]: v }; if (k === "budget_id") { pf.procForm.account_id = ""; render(); } },
+    cancelProc: () => { pf.procForm = null; render(); },
+    saveProc: () => { const p = PF.procProblem(pf.procForm); if (p) return fail(p); return run(async () => { const f = pf.procForm; const r = await api.createPubfinProcurement({ budget_id: f.budget_id, account_id: f.account_id, title: f.title.trim(), description: (f.description || "").trim(), estimate: f.estimate.trim() }); pf.procForm = null; pf.proc = r; await refresh(); pf.notice = `Procurement ${r.ref} created.`; }); },
+    openProc: (id) => run(async () => { clearForms(); pf.proc = await api.pubfinProcurement(id); }),
+    closeProcView: () => run(async () => { pf.proc = null; clearForms(); await refresh(); }),
+    newQuote: () => { pf.quoteForm = { vendor: "", amount: "", note: "" }; render(); },
+    quoteChange: set("quoteForm"),
+    cancelQuote: () => { pf.quoteForm = null; render(); },
+    saveQuote: () => { const p = PF.quoteProblem(pf.quoteForm); if (p) return fail(p); return run(async () => { const f = pf.quoteForm; await api.addPubfinQuote(pf.proc.id, { vendor: f.vendor.trim(), amount: f.amount.trim(), note: (f.note || "").trim() }); pf.quoteForm = null; await refresh(); }, "Quote added."); },
+    newAward: () => { pf.awardForm = { quote_id: "", justification: "", exception_reason: "" }; render(); },
+    awardChange: (k, v) => { pf.awardForm = { ...pf.awardForm, [k]: v }; },
+    cancelAward: () => { pf.awardForm = null; render(); },
+    saveAward: () => { const p = PF.awardProblem(pf.awardForm, pf.proc, pf.ov.policy); if (p) return fail(p); return run(async () => { const f = pf.awardForm; await api.proposePubfinAward(pf.proc.id, { quote_id: f.quote_id, justification: (f.justification || "").trim(), exception_reason: (f.exception_reason || "").trim() }); pf.awardForm = null; await refresh(); }, "Award proposed. A different person must approve it."); },
+    decideAward: decide(() => note("award"), "a note saying why you are sending it back", (ok) => run(async () => { await (ok ? api.approvePubfinAward(pf.proc.id, note("award")) : api.rejectPubfinAward(pf.proc.id, note("award"))); pf.notes.award = ""; await refresh(); }, ok ? "Award approved and the commitment recorded." : "Sent back.")),
+    cancelProcurement: () => { const p = PF.noteProblem(note("procCancel"), "a reason for cancelling"); if (p) return fail(p); return run(async () => { await api.cancelPubfinProcurement(pf.proc.id, note("procCancel")); pf.notes.procCancel = ""; await refresh(); }, "Procurement cancelled."); },
+    // grants
+    newGrant: () => { clearForms(); pf.grantForm = PF.emptyGrant(); render(); },
+    grantChange: set("grantForm"),
+    cancelGrant: () => { pf.grantForm = null; render(); },
+    saveGrant: () => { const p = PF.grantProblem(pf.grantForm); if (p) return fail(p); return run(async () => { const g = await api.createPubfinGrant(PF.grantBody(pf.grantForm)); pf.grantForm = null; pf.grant = g; await refresh(); pf.notice = `Grant ${g.ref} recorded.`; }); },
+    openGrant: (id) => run(async () => { clearForms(); pf.grant = await api.pubfinGrant(id); }),
+    closeGrantView: () => run(async () => { pf.grant = null; clearForms(); await refresh(); }),
+    newReceipt: () => { pf.receiptForm = { amount: "", date: "", reference: "" }; render(); },
+    receiptChange: set("receiptForm"),
+    cancelReceipt: () => { pf.receiptForm = null; render(); },
+    saveReceipt: () => { const p = PF.receiptProblem(pf.receiptForm); if (p) return fail(p); return run(async () => { const f = pf.receiptForm; await api.recordPubfinReceipt(pf.grant.id, { amount: f.amount.trim(), date: f.date.trim(), reference: f.reference.trim() }); pf.receiptForm = null; await refresh(); }, "Receipt recorded."); },
+    newSpend: () => { pf.spendForm = { amount: "", date: "", description: "", reference: "", evidence_ids: [] }; render(); },
+    spendChange: set("spendForm"),
+    spendEvidence: (id) => { pf.spendForm = { ...pf.spendForm, evidence_ids: toggle(pf.spendForm.evidence_ids, id) }; },
+    cancelSpend: () => { pf.spendForm = null; render(); },
+    saveSpend: () => { const p = PF.spendProblem(pf.spendForm); if (p) return fail(p); return run(async () => { const f = pf.spendForm; await api.addPubfinSpend(pf.grant.id, { amount: f.amount.trim(), date: f.date.trim(), description: f.description.trim(), reference: (f.reference || "").trim(), evidence_ids: f.evidence_ids }); pf.spendForm = null; await refresh(); }, "Recorded. A different person must approve it before it counts."); },
+    decideSpend: (sid, ok) => decide(() => note("spend"), "a note saying why you are sending it back", () => run(async () => { await (ok ? api.approvePubfinSpend(pf.grant.id, sid, note("spend")) : api.rejectPubfinSpend(pf.grant.id, sid, note("spend"))); pf.notes.spend = ""; await refresh(); }, ok ? "Spending approved." : "Sent back."))(ok, sid),
+    closeGrant: () => { const p = PF.noteProblem(note("grantClose"), "a closing note"); if (p) return fail(p); return run(async () => { await api.closePubfinGrant(pf.grant.id, note("grantClose")); pf.notes.grantClose = ""; await refresh(); }, "Grant closed."); },
+    // reports
+    newReport: () => { clearForms(); pf.reportForm = { budget_id: "", title: "" }; render(); },
+    reportChange: set("reportForm"),
+    cancelReport: () => { pf.reportForm = null; render(); },
+    saveReport: () => { const p = PF.reportProblem(pf.reportForm); if (p) return fail(p); return run(async () => { const r = await api.createPubfinReport({ budget_id: pf.reportForm.budget_id, title: pf.reportForm.title.trim() }); pf.reportForm = null; pf.report = r; await refresh(); pf.notice = `Report ${r.ref} created.`; }); },
+    openReport: (id) => run(async () => { clearForms(); pf.report = await api.pubfinReport(id); }),
+    closeReportView: () => run(async () => { pf.report = null; clearForms(); await refresh(); }),
+    submitReport: () => run(async () => { await api.submitPubfinReport(pf.report.id); await refresh(); }, "Frozen and submitted. A different person must now approve it."),
+    decideReport: decide(() => note("report"), "a note saying why you are sending it back", (ok) => run(async () => { await (ok ? api.approvePubfinReport(pf.report.id, note("report")) : api.rejectPubfinReport(pf.report.id, note("report"))); pf.notes.report = ""; await refresh(); }, ok ? "Report approved." : "Sent back.")),
+    exportReport: () => run(async () => { const { blob, filename } = await api.exportPubfinReport(pf.report.id); saveBlob(blob, filename); }, "Downloaded."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Business Development
+// ----------------------------------------------------------------------
+function newBizdev() {
+  return { options: null, ov: null, accounts: [], opps: [], targets: [], reports: [], vault: [], tab: "overview", stageFilter: "", account: null, accountForm: null, opp: null, oppForm: null, moveTo: "", activityForm: null,
+    proposalForm: null, targetForm: null, reportForm: null, report: null, notes: {}, policyForm: null, busy: false, error: null, notice: null };
+}
+
+function renderBizdevPage(authState) {
+  if (!uiState.bd) uiState.bd = newBizdev();
+  once("bdLoading", () => loadBizdev());
+  return Bizdev({ bd: uiState.bd, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.bdLoading, onRetry: () => { loadedOnce.delete("bdLoading"); render(); }, actions: bizdevActions() });
+}
+
+async function bizdevRefresh(bd) {
+  [bd.options, bd.ov, bd.accounts, bd.opps, bd.targets, bd.reports] = await Promise.all([api.bdOptions(), api.bdOverview(), api.bdAccounts(), api.bdOpportunities(), api.bdTargets(), api.bdReports()]);
+  bd.policyForm = BD.policyForm(bd.ov.policy);
+  if (bd.account) bd.account = await api.bdAccount(bd.account.id);
+  if (bd.opp) bd.opp = await api.bdOpportunity(bd.opp.id);
+  if (bd.report) bd.report = await api.bdReport(bd.report.id);
+}
+
+async function loadBizdev() {
+  const bd = uiState.bd || (uiState.bd = newBizdev());
+  bd.error = null;
+  try {
+    await bizdevRefresh(bd);
+    bd.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { bd.error = err.message || "Business development could not be loaded."; }
+}
+
+function bizdevActions() {
+  const bd = uiState.bd;
+  const run = async (fn, ok) => { bd.error = null; bd.notice = null; bd.busy = true; render(); try { await fn(); if (ok) bd.notice = ok; } catch (err) { bd.error = err.message || "That did not work."; } bd.busy = false; render(); };
+  const fail = (m) => { bd.error = m; render(); };
+  const refresh = () => bizdevRefresh(bd);
+  const note = (k) => bd.notes[k] || "";
+  const clearForms = () => { bd.accountForm = bd.oppForm = bd.activityForm = bd.proposalForm = bd.targetForm = bd.reportForm = null; bd.moveTo = ""; bd.notes = {}; };
+  const set = (key) => (k, v) => { bd[key] = { ...bd[key], [k]: v }; };
+  const need = (k, what, min) => BD.noteProblem(note(k), what, min);
+  return {
+    setTab: (t) => run(async () => { bd.tab = t; bd.account = bd.opp = bd.report = null; clearForms(); await refresh(); }),
+    noteChange: (k, v) => { bd.notes[k] = v; },
+    policyChange: (k, v) => { bd.policyForm = { ...bd.policyForm, [k]: v }; },
+    savePolicy: () => { const p = BD.policyProblem(bd.policyForm); if (p) return fail(p); return run(async () => { await api.setBdPolicy(BD.policyBody(bd.policyForm)); await refresh(); }, "Policy saved."); },
+    // accounts
+    newAccount: () => { clearForms(); bd.accountForm = BD.emptyAccount(); render(); },
+    accountChange: set("accountForm"),
+    cancelAccount: () => { bd.accountForm = null; render(); },
+    editAccount: () => { bd.accountForm = BD.accountForm(bd.account); render(); },
+    saveAccount: () => { const p = BD.accountProblem(bd.accountForm); if (p) return fail(p); return run(async () => { const f = bd.accountForm, b = BD.accountBody(f); const r = f.id ? await api.updateBdAccount(f.id, b) : await api.createBdAccount(b); bd.accountForm = null; if (f.id) bd.account = r; await refresh(); bd.notice = f.id ? "Account updated." : `Account ${r.ref} saved.`; }); },
+    openAccount: (id) => run(async () => { clearForms(); bd.account = await api.bdAccount(id); }),
+    closeAccountView: () => run(async () => { bd.account = null; clearForms(); await refresh(); }),
+    archiveAccount: () => { const p = need("archive", "a reason", 3); if (p) return fail(p); return run(async () => { await api.archiveBdAccount(bd.account.id, note("archive")); bd.account = null; clearForms(); await refresh(); }, "Account archived."); },
+    // opportunities
+    filterStage: (v) => { bd.stageFilter = v; render(); },
+    newOpp: (accountId) => { const keepAcc = bd.account; clearForms(); bd.tab = "pipeline"; bd.account = null; bd.oppForm = BD.emptyOpp(accountId); if (!accountId && keepAcc) bd.oppForm.account_id = keepAcc.id; render(); },
+    oppChange: set("oppForm"),
+    cancelOpp: () => { bd.oppForm = null; render(); },
+    editOpp: () => { bd.oppForm = BD.oppForm(bd.opp); render(); },
+    saveOpp: () => { const f = bd.oppForm, isNew = !f.id, p = BD.oppProblem(f, isNew); if (p) return fail(p); return run(async () => { const b = BD.oppBody(f, isNew); const r = isNew ? await api.createBdOpportunity(b) : await api.updateBdOpportunity(f.id, b); bd.oppForm = null; bd.opp = r; await refresh(); bd.notice = isNew ? `Opportunity ${r.ref} saved.` : "Opportunity updated."; }); },
+    openOpp: (id) => run(async () => { clearForms(); bd.tab = "pipeline"; bd.account = null; bd.opp = await api.bdOpportunity(id); }),
+    closeOppView: () => run(async () => { bd.opp = null; clearForms(); await refresh(); }),
+    moveChange: (v) => { bd.moveTo = v; },
+    moveStage: () => { if (!bd.moveTo) return fail("Choose the stage to move to."); return run(async () => { await api.moveBdStage(bd.opp.id, bd.moveTo, note("move")); bd.moveTo = ""; bd.notes.move = ""; await refresh(); }, "Stage changed."); },
+    newActivity: () => { bd.activityForm = BD.emptyActivity(); render(); },
+    activityChange: set("activityForm"),
+    cancelActivity: () => { bd.activityForm = null; render(); },
+    saveActivity: () => { const p = BD.activityProblem(bd.activityForm); if (p) return fail(p); return run(async () => { await api.addBdActivity(bd.opp.id, BD.activityBody(bd.activityForm)); bd.activityForm = null; await refresh(); }, "Activity logged."); },
+    markLost: () => { const p = need("lost", "the reason it was lost", 10); if (p) return fail(p); return run(async () => { await api.markBdLost(bd.opp.id, note("lost")); bd.notes.lost = ""; await refresh(); }, "Marked as lost."); },
+    requestWin: () => run(async () => { await api.requestBdWin(bd.opp.id, note("win")); bd.notes.win = ""; await refresh(); }, "Asked for the win to be confirmed. A different person must decide."),
+    decideWin: (ok) => { if (!ok) { const p = need("windecide", "a note saying why you are sending it back", 3); if (p) return fail(p); } return run(async () => { await (ok ? api.approveBdWin(bd.opp.id, note("windecide")) : api.rejectBdWin(bd.opp.id, note("windecide"))); bd.notes.windecide = ""; await refresh(); }, ok ? "Win confirmed." : "Sent back to negotiation."); },
+    // proposals
+    newProposal: () => { bd.proposalForm = BD.emptyProposal(); render(); },
+    editProposal: (p) => { bd.proposalForm = BD.proposalForm(p); render(); },
+    proposalChange: set("proposalForm"),
+    itemChange: (i, k, v) => { bd.proposalForm = { ...bd.proposalForm, items: bd.proposalForm.items.map((it, j) => (j === i ? { ...it, [k]: v } : it)) }; if (k !== "description") render(); },
+    addItem: () => { bd.proposalForm = { ...bd.proposalForm, items: [...bd.proposalForm.items, { description: "", quantity: "1", unit_price: "" }] }; render(); },
+    removeItem: (i) => { bd.proposalForm = { ...bd.proposalForm, items: bd.proposalForm.items.filter((_, j) => j !== i) }; render(); },
+    proposalEvidence: (id) => { const l = bd.proposalForm.evidence_ids || []; bd.proposalForm = { ...bd.proposalForm, evidence_ids: l.includes(id) ? l.filter((x) => x !== id) : [...l, id] }; },
+    cancelProposal: () => { bd.proposalForm = null; render(); },
+    saveProposal: () => { const f = bd.proposalForm, p = BD.proposalProblem(f); if (p) return fail(p); return run(async () => { const b = BD.proposalBody(f); await (f.id ? api.updateBdProposal(bd.opp.id, f.id, b) : api.createBdProposal(bd.opp.id, b)); bd.proposalForm = null; await refresh(); }, "Proposal saved as a draft."); },
+    submitProposal: (pid) => run(async () => { await api.bdProposalStep(bd.opp.id, pid, "submit"); await refresh(); }, "Submitted. If the discount is above the limit, a different person must approve it."),
+    decideProposal: (pid, ok) => { if (!ok) { const p = need("prop", "a note saying why you are sending it back", 3); if (p) return fail(p); } return run(async () => { await api.bdProposalStep(bd.opp.id, pid, ok ? "approve" : "reject", note("prop")); bd.notes.prop = ""; await refresh(); }, ok ? "Discount approved." : "Sent back."); },
+    sendProposal: (pid) => run(async () => { await api.bdProposalStep(bd.opp.id, pid, "send"); await refresh(); }, "Marked as sent to the client."),
+    acceptProposal: (pid) => { const p = need("prop", "a note about how the client accepted", 3); if (p) return fail(p); return run(async () => { await api.bdProposalStep(bd.opp.id, pid, "accept", note("prop")); bd.notes.prop = ""; await refresh(); }, "Acceptance recorded. Ask for the win to be confirmed."); },
+    declineProposal: (pid) => { const p = need("prop", "the reason the client declined", 3); if (p) return fail(p); return run(async () => { await api.bdProposalStep(bd.opp.id, pid, "decline", note("prop")); bd.notes.prop = ""; await refresh(); }, "Decline recorded."); },
+    // targets
+    newTarget: () => { clearForms(); bd.targetForm = BD.emptyTarget(); render(); },
+    targetChange: set("targetForm"),
+    cancelTarget: () => { bd.targetForm = null; render(); },
+    saveTarget: () => { const p = BD.targetProblem(bd.targetForm); if (p) return fail(p); return run(async () => { const t = await api.createBdTarget(BD.targetBody(bd.targetForm)); bd.targetForm = null; await refresh(); bd.notice = `Target ${t.ref} saved.`; }); },
+    retireTarget: (tid) => { const p = need("retire", "a reason", 3); if (p) return fail(p); return run(async () => { await api.retireBdTarget(tid, note("retire")); bd.notes.retire = ""; await refresh(); }, "Target retired."); },
+    // reports
+    newReport: () => { clearForms(); bd.reportForm = { currency: "", title: "" }; render(); },
+    reportChange: set("reportForm"),
+    cancelReport: () => { bd.reportForm = null; render(); },
+    saveReport: () => { const p = BD.reportProblem(bd.reportForm); if (p) return fail(p); return run(async () => { const r = await api.createBdReport({ currency: bd.reportForm.currency, title: bd.reportForm.title.trim() }); bd.reportForm = null; bd.report = r; await refresh(); bd.notice = `Report ${r.ref} created.`; }); },
+    openReport: (id) => run(async () => { clearForms(); bd.report = await api.bdReport(id); }),
+    closeReportView: () => run(async () => { bd.report = null; clearForms(); await refresh(); }),
+    submitReport: () => run(async () => { await api.submitBdReport(bd.report.id); await refresh(); }, "Frozen and submitted. A different person must now approve it."),
+    decideReport: (ok) => { if (!ok) { const p = need("report", "a note saying why you are sending it back", 3); if (p) return fail(p); } return run(async () => { await (ok ? api.approveBdReport(bd.report.id, note("report")) : api.rejectBdReport(bd.report.id, note("report"))); bd.notes.report = ""; await refresh(); }, ok ? "Report approved." : "Sent back."); },
+    exportReport: () => run(async () => { const { blob, filename } = await api.exportBdReport(bd.report.id); saveBlob(blob, filename); }, "Downloaded."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Cybersecurity and Digital Risk
+// ----------------------------------------------------------------------
+function newCyber() {
+  return { options: null, ov: null, assets: [], vulns: [], incidents: [], reviews: [], reports: [], vault: [], tab: "overview", vulnFilter: "", asset: null, assetForm: null, vuln: null, vulnForm: null, fixForm: null, acceptForm: null,
+    incident: null, incidentForm: null, closeForm: null, review: null, reviewForm: null, entryForm: null, report: null, reportForm: null, notes: {}, policyForm: null, busy: false, error: null, notice: null };
+}
+
+function renderCyberPage(authState) {
+  if (!uiState.cy) uiState.cy = newCyber();
+  once("cyLoading", () => loadCyber());
+  return Cyber({ cy: uiState.cy, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.cyLoading, onRetry: () => { loadedOnce.delete("cyLoading"); render(); }, actions: cyberActions() });
+}
+
+async function cyberRefresh(cy) {
+  [cy.options, cy.ov, cy.assets, cy.vulns, cy.incidents, cy.reviews, cy.reports] = await Promise.all([api.cyOptions(), api.cyOverview(), api.cyAssets(), api.cyVulns(), api.cyIncidents(), api.cyReviews(), api.cyReports()]);
+  cy.policyForm = CY.policyForm(cy.ov.policy);
+  if (cy.asset) cy.asset = await api.cyAsset(cy.asset.id);
+  if (cy.vuln) cy.vuln = await api.cyVuln(cy.vuln.id);
+  if (cy.incident) cy.incident = await api.cyIncident(cy.incident.id);
+  if (cy.review) cy.review = await api.cyReview(cy.review.id);
+  if (cy.report) cy.report = await api.cyReport(cy.report.id);
+}
+
+async function loadCyber() {
+  const cy = uiState.cy || (uiState.cy = newCyber());
+  cy.error = null;
+  try {
+    await cyberRefresh(cy);
+    cy.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { cy.error = err.message || "Cybersecurity could not be loaded."; }
+}
+
+function cyberActions() {
+  const cy = uiState.cy;
+  const run = async (fn, ok) => { cy.error = null; cy.notice = null; cy.busy = true; render(); try { await fn(); if (ok) cy.notice = ok; } catch (err) { cy.error = err.message || "That did not work."; } cy.busy = false; render(); };
+  const fail = (m) => { cy.error = m; render(); };
+  const refresh = () => cyberRefresh(cy);
+  const note = (k) => cy.notes[k] || "";
+  const clearForms = () => { cy.assetForm = cy.vulnForm = cy.fixForm = cy.acceptForm = cy.incidentForm = cy.closeForm = cy.reviewForm = cy.entryForm = cy.reportForm = null; cy.notes = {}; };
+  const closeViews = () => { cy.asset = cy.vuln = cy.incident = cy.review = cy.report = null; };
+  const set = (key) => (k, v) => { cy[key] = { ...cy[key], [k]: v }; };
+  const need = (k, what, min) => CY.noteProblem(note(k), what, min);
+  const clearNote = (k) => { cy.notes[k] = ""; };
+  return {
+    setTab: (t) => run(async () => { cy.tab = t; closeViews(); clearForms(); await refresh(); }),
+    noteChange: (k, v) => { cy.notes[k] = v; },
+    policyChange: (k, v) => { cy.policyForm = { ...cy.policyForm, [k]: v }; },
+    savePolicy: () => { const p = CY.policyProblem(cy.policyForm); if (p) return fail(p); return run(async () => { await api.setCyPolicy(CY.policyBody(cy.policyForm)); await refresh(); }, "Policy saved. It applies to vulnerabilities recorded from now on."); },
+    // assets
+    newAsset: () => { clearForms(); cy.assetForm = CY.emptyAsset(); render(); },
+    assetChange: set("assetForm"),
+    cancelAsset: () => { cy.assetForm = null; render(); },
+    editAsset: () => { cy.assetForm = CY.assetForm(cy.asset); render(); },
+    saveAsset: () => { const p = CY.assetProblem(cy.assetForm); if (p) return fail(p); return run(async () => { const f = cy.assetForm, b = CY.assetBody(f); const r = f.id ? await api.updateCyAsset(f.id, b) : await api.createCyAsset(b); cy.assetForm = null; if (f.id) cy.asset = r; await refresh(); cy.notice = f.id ? "Asset updated." : `Asset ${r.ref} saved.`; }); },
+    openAsset: (id) => run(async () => { clearForms(); closeViews(); cy.tab = "assets"; cy.asset = await api.cyAsset(id); }),
+    closeAssetView: () => run(async () => { cy.asset = null; clearForms(); await refresh(); }),
+    retireAsset: () => { const p = need("retire", "a reason", 3); if (p) return fail(p); return run(async () => { await api.retireCyAsset(cy.asset.id, note("retire")); cy.asset = null; clearForms(); await refresh(); }, "Asset retired."); },
+    // vulnerabilities
+    filterVulns: (v) => { cy.vulnFilter = v; render(); },
+    newVuln: (assetId) => { clearForms(); closeViews(); cy.tab = "vulns"; cy.vulnForm = CY.emptyVuln(assetId || ""); render(); },
+    vulnChange: set("vulnForm"),
+    cancelVuln: () => { cy.vulnForm = null; render(); },
+    saveVuln: () => { const p = CY.vulnProblem(cy.vulnForm); if (p) return fail(p); return run(async () => { const r = await api.createCyVuln(CY.vulnBody(cy.vulnForm)); cy.vulnForm = null; cy.vuln = r; await refresh(); cy.notice = `Vulnerability ${r.ref} saved. Fix deadline: ${r.due}.`; }); },
+    openVuln: (id) => run(async () => { clearForms(); closeViews(); cy.tab = "vulns"; cy.vuln = await api.cyVuln(id); }),
+    closeVulnView: () => run(async () => { cy.vuln = null; clearForms(); await refresh(); }),
+    startVuln: () => run(async () => { await api.cyVulnStep(cy.vuln.id, "start"); await refresh(); }, "Work started."),
+    newFix: () => { cy.acceptForm = null; cy.fixForm = { note: "", evidence_ids: [] }; render(); },
+    fixChange: (k, v) => { cy.fixForm = { ...cy.fixForm, [k]: v }; },
+    fixEvidence: (id) => { const l = cy.fixForm.evidence_ids || []; cy.fixForm = { ...cy.fixForm, evidence_ids: l.includes(id) ? l.filter((x) => x !== id) : [...l, id] }; },
+    cancelFix: () => { cy.fixForm = null; render(); },
+    saveFix: () => { const p = CY.noteProblem(cy.fixForm.note, "what was done", 3); if (p) return fail(p); return run(async () => { await api.cyVulnStep(cy.vuln.id, "fixed", { note: cy.fixForm.note.trim(), evidence_ids: cy.fixForm.evidence_ids || [] }); cy.fixForm = null; await refresh(); }, "Marked as fixed. A different person must verify it."); },
+    newAccept: () => { cy.fixForm = null; cy.acceptForm = { reason: "", until: "" }; render(); },
+    acceptChange: (k, v) => { cy.acceptForm = { ...cy.acceptForm, [k]: v }; },
+    cancelAccept: () => { cy.acceptForm = null; render(); },
+    saveAccept: () => { const p = CY.acceptProblem(cy.acceptForm); if (p) return fail(p); return run(async () => { await api.cyVulnStep(cy.vuln.id, "acceptance", { reason: cy.acceptForm.reason.trim(), until: cy.acceptForm.until.trim() }); cy.acceptForm = null; await refresh(); }, "Asked to accept the risk. A different person must decide."); },
+    reopenVuln: () => { const p = need("v", "a reason", 3); if (p) return fail(p); return run(async () => { await api.cyVulnStep(cy.vuln.id, "reopen", { note: note("v") }); clearNote("v"); await refresh(); }, "Reopened."); },
+    verifyVuln: (ok) => { if (!ok) { const p = need("v", "a note saying what is still wrong", 3); if (p) return fail(p); } return run(async () => { await api.cyVulnStep(cy.vuln.id, ok ? "verify" : "reject-fix", { note: note("v") }); clearNote("v"); await refresh(); }, ok ? "Fix verified." : "Sent back to open."); },
+    decideAccept: (ok) => { if (!ok) { const p = need("v", "a note saying why you are refusing", 3); if (p) return fail(p); } return run(async () => { await api.cyVulnStep(cy.vuln.id, ok ? "acceptance/approve" : "acceptance/reject", { note: note("v") }); clearNote("v"); await refresh(); }, ok ? "Risk accepted until the date given." : "Acceptance refused."); },
+    // incidents
+    newIncident: () => { clearForms(); closeViews(); cy.tab = "incidents"; cy.incidentForm = CY.emptyIncident(); render(); },
+    incidentChange: set("incidentForm"),
+    incidentAsset: (id) => { const l = cy.incidentForm.asset_ids || []; cy.incidentForm = { ...cy.incidentForm, asset_ids: l.includes(id) ? l.filter((x) => x !== id) : [...l, id] }; },
+    cancelIncident: () => { cy.incidentForm = null; render(); },
+    saveIncident: () => { const p = CY.incidentProblem(cy.incidentForm); if (p) return fail(p); return run(async () => { const r = await api.createCyIncident(CY.incidentBody(cy.incidentForm)); cy.incidentForm = null; cy.incident = r; cy.closeForm = { lessons_learned: "", notification_decision: "" }; await refresh(); cy.notice = `Incident ${r.ref} recorded.`; }); },
+    openIncident: (id) => run(async () => { clearForms(); closeViews(); cy.tab = "incidents"; cy.incident = await api.cyIncident(id); cy.closeForm = { lessons_learned: "", notification_decision: "" }; }),
+    closeIncidentView: () => run(async () => { cy.incident = null; clearForms(); await refresh(); }),
+    incidentStep: (step) => { if (step === "resolve" || step === "contain") { const p = step === "resolve" ? need("i", "the root cause", 10) : need("i", "how it was contained", 5); if (p) return fail(p); } return run(async () => { await api.cyIncidentStep(cy.incident.id, step, { note: note("i") }); clearNote("i"); await refresh(); }, { investigate: "Investigation started.", contain: "Marked as contained.", resolve: "Marked as resolved. A different person must close it." }[step]); },
+    closeChange: (k, v) => { cy.closeForm = { ...cy.closeForm, [k]: v }; },
+    closeIncident: () => { const p = CY.closeProblem(cy.closeForm || {}, cy.incident); if (p) return fail(p); return run(async () => { await api.cyIncidentStep(cy.incident.id, "close", { lessons_learned: cy.closeForm.lessons_learned.trim(), notification_decision: (cy.closeForm.notification_decision || "").trim() }); cy.closeForm = { lessons_learned: "", notification_decision: "" }; await refresh(); }, "Incident closed."); },
+    reopenIncident: () => { const p = need("iback", "a reason", 3); if (p) return fail(p); return run(async () => { await api.cyIncidentStep(cy.incident.id, "reopen", { note: note("iback") }); clearNote("iback"); await refresh(); }, "Sent back to investigation."); },
+    addTimeline: () => { const p = need("tl", "the note", 3); if (p) return fail(p); return run(async () => { await api.cyIncidentStep(cy.incident.id, "timeline", { note: note("tl") }); clearNote("tl"); await refresh(); }, "Added to the timeline."); },
+    // access reviews
+    newReview: () => { clearForms(); closeViews(); cy.tab = "reviews"; cy.reviewForm = CY.emptyReview(); render(); },
+    reviewChange: set("reviewForm"),
+    cancelReview: () => { cy.reviewForm = null; render(); },
+    saveReview: () => { const p = CY.reviewProblem(cy.reviewForm); if (p) return fail(p); return run(async () => { const f = cy.reviewForm; const r = await api.createCyReview({ name: f.name.trim(), scope: f.scope.trim(), due_date: f.due_date.trim() }); cy.reviewForm = null; cy.review = r; cy.entryForm = CY.emptyEntry(); await refresh(); cy.notice = `Review ${r.ref} created. Add the people and accounts to review.`; }); },
+    openReview: (id) => run(async () => { clearForms(); closeViews(); cy.tab = "reviews"; cy.review = await api.cyReview(id); cy.entryForm = CY.emptyEntry(); }),
+    closeReviewView: () => run(async () => { cy.review = null; clearForms(); await refresh(); }),
+    entryChange: set("entryForm"),
+    addEntry: () => { const p = CY.entryProblem(cy.entryForm); if (p) return fail(p); return run(async () => { const f = cy.entryForm; await api.addCyEntry(cy.review.id, { subject: f.subject.trim(), system: f.system.trim(), access: f.access.trim() }); cy.entryForm = CY.emptyEntry(); await refresh(); }, "Entry added."); },
+    decideEntry: (id, decision) => { if (decision === "REMOVE") { const p = need("entry", "why the access should be removed", 3); if (p) return fail(p); } return run(async () => { await api.decideCyEntry(cy.review.id, id, decision, note("entry")); clearNote("entry"); await refresh(); }); },
+    confirmRemoved: (id) => run(async () => { await api.confirmCyRemoved(cy.review.id, id); await refresh(); }, "Removal confirmed."),
+    submitReview: () => run(async () => { await api.cyReviewStep(cy.review.id, "submit"); await refresh(); }, "Submitted. A different person must approve it."),
+    decideReview: (ok) => { if (!ok) { const p = need("rv", "a note saying why you are sending it back", 3); if (p) return fail(p); } return run(async () => { await api.cyReviewStep(cy.review.id, ok ? "approve" : "reject", note("rv")); clearNote("rv"); await refresh(); }, ok ? "Review approved." : "Sent back."); },
+    // reports
+    newReport: () => { clearForms(); closeViews(); cy.tab = "reports"; cy.reportForm = { title: "" }; render(); },
+    reportChange: set("reportForm"),
+    cancelReport: () => { cy.reportForm = null; render(); },
+    saveReport: () => { const p = CY.reportProblem(cy.reportForm); if (p) return fail(p); return run(async () => { const r = await api.createCyReport({ title: cy.reportForm.title.trim() }); cy.reportForm = null; cy.report = r; await refresh(); cy.notice = `Report ${r.ref} created.`; }); },
+    openReport: (id) => run(async () => { clearForms(); closeViews(); cy.tab = "reports"; cy.report = await api.cyReport(id); }),
+    closeReportView: () => run(async () => { cy.report = null; clearForms(); await refresh(); }),
+    submitReport: () => run(async () => { await api.submitCyReport(cy.report.id); await refresh(); }, "Frozen and submitted. A different person must now approve it."),
+    decideReport: (ok) => { if (!ok) { const p = need("report", "a note saying why you are sending it back", 3); if (p) return fail(p); } return run(async () => { await (ok ? api.approveCyReport(cy.report.id, note("report")) : api.rejectCyReport(cy.report.id, note("report"))); clearNote("report"); await refresh(); }, ok ? "Report approved." : "Sent back."); },
+    exportReport: () => run(async () => { const { blob, filename } = await api.exportCyReport(cy.report.id); saveBlob(blob, filename); }, "Downloaded."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Health Centre Administration
+// ----------------------------------------------------------------------
+function newHealth() {
+  return { options: null, facilityId: "", tab: "dashboard", data: {}, ref: {}, vault: [], dashboard: null, form: null, detail: null, noteText: "", busy: false, error: null, notice: null };
+}
+
+function renderHealthPage(authState) {
+  if (!uiState.hc) uiState.hc = newHealth();
+  once("hcLoading", () => loadHealth(authState.role));
+  return Health({ hc: uiState.hc, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.hcLoading, onRetry: () => { loadedOnce.delete("hcLoading"); render(); }, actions: healthActions(authState) });
+}
+
+/** Reload what the current tab shows. Reference lists feed the drop-downs in forms. */
+async function healthRefresh(hc, role, withOptions) {
+  if (withOptions || !hc.options) hc.options = await api.hcOptions();
+  const fs = hc.options.facilities || [];
+  if (!fs.some((f) => f.id === hc.facilityId)) hc.facilityId = fs.length ? fs[0].id : "";
+  const fid = hc.facilityId, c = HC.caps(role);
+  hc.data = {}; hc.dashboard = null;
+  if (!fid) { hc.ref = {}; if (c.admin) hc.data.facilities = await api.hcGet("/facilities"); return; }
+  const soft = (p) => p.catch(() => []);
+  const [depts, suppliers, items, payers, fees] = await Promise.all([
+    api.hcGet(`/facilities/${encodeURIComponent(fid)}`).then((f) => f.departments).catch(() => []), soft(api.hcGet(`/facilities/${encodeURIComponent(fid)}/suppliers`)), soft(api.hcGet(`/facilities/${encodeURIComponent(fid)}/items`)),
+    soft(api.hcGet(`/facilities/${encodeURIComponent(fid)}/payers`)), soft(api.hcGet(`/facilities/${encodeURIComponent(fid)}/fees`))]);
+  hc.ref = { depts, suppliers, items, payers, fees };
+  if (hc.tab === "dashboard") { hc.dashboard = await api.hcGet(`/facilities/${encodeURIComponent(fid)}/dashboard`); return; }
+  const tabSecs = HC.visibleSections(hc.tab, c);
+  await Promise.all(tabSecs.map(async ([id, s]) => { try { hc.data[id] = await s.load(api, fid); } catch (err) { hc.data[id] = null; hc.error = err.message || `${s.title} could not be loaded.`; } }));
+}
+
+async function loadHealth(role) {
+  const hc = uiState.hc || (uiState.hc = newHealth());
+  hc.error = null;
+  try {
+    await healthRefresh(hc, role, true);
+    hc.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { hc.error = err.message || "Health Centre could not be loaded."; }
+}
+
+function healthActions(authState) {
+  const hc = uiState.hc, role = authState.role, userId = authState.user && authState.user.id;
+  const run = async (fn, ok, withOptions, refresh) => { hc.error = null; hc.notice = null; hc.busy = true; render(); try { await fn(); if (ok) hc.notice = ok; if (refresh !== false) await healthRefresh(hc, role, withOptions); } catch (err) { hc.error = err.message || "That did not work."; } hc.busy = false; render(); };
+  const fail = (m) => { hc.error = m; hc.notice = null; render(); };
+  const rowOf = (secId, rowId) => (hc.data[secId] || []).find((r) => r.id === rowId);
+  const close = () => { hc.form = null; hc.detail = null; hc.noteText = ""; };
+  const setVal = (k, v) => { hc.form.values = { ...hc.form.values, [k]: v }; };
+  return {
+    setTab: (t) => { hc.tab = t; close(); return run(async () => {}); },
+    setFacility: (id) => { hc.facilityId = id; close(); return run(async () => {}); },
+    noteChange: (v) => { hc.noteText = v; },
+    closeDetail: () => { hc.detail = null; render(); },
+    newForm: (secId) => { close(); const name = SECTIONS_CREATE(secId); hc.form = { name, secId, row: null, values: HC.emptyForm(HC.FORMS[name], null) }; hc.error = null; render(); },
+    formChange: (k, v) => setVal(k, v),
+    lineChange: (k, i, sub, v) => { const rows = (hc.form.values[k] || []).map((r, j) => (j === i ? { ...r, [sub]: v } : r)); setVal(k, rows); },
+    addLine: (k) => { const fd = HC.FORMS[hc.form.name].fields.find((f) => f.k === k); setVal(k, [...(hc.form.values[k] || []), HC.blankLine(fd)]); render(); },
+    removeLine: (k, i) => { setVal(k, (hc.form.values[k] || []).filter((_, j) => j !== i)); render(); },
+    toggleEvidence: (id) => { const l = hc.form.values.evidence_ids || []; setVal("evidence_ids", l.includes(id) ? l.filter((x) => x !== id) : [...l, id]); },
+    toggleFacility: (id) => { const l = hc.form.values.facility_ids || []; setVal("facility_ids", l.includes(id) ? l.filter((x) => x !== id) : [...l, id]); },
+    cancelForm: () => { hc.form = null; hc.error = null; render(); },
+    saveForm: () => {
+      const f = hc.form, def = HC.FORMS[f.name], p = HC.formProblem(def, f.values); if (p) return fail(p);
+      return run(async () => { await def.submit(api, hc.facilityId, HC.formBody(def, f.values), f.row); hc.form = null; }, def.done, true);
+    },
+    runAction: async (secId, actId, rowId) => {
+      const sec = HC.SECTIONS[secId], act = sec.actions.find((x) => x.id === actId), row = rowOf(secId, rowId);
+      if (!act || !row) return;
+      hc.error = null; hc.notice = null;
+      if (act.form) { close(); hc.form = { name: act.form, secId, row, values: HC.emptyForm(HC.FORMS[act.form], row) }; render(); return; }
+      if (act.detail) return run(async () => { hc.detail = { title: `${sec.title}: ${row.ref || row.name || row.sku || ""}`.trim(), lines: await act.detail(api, hc.facilityId, row) }; }, null, false, false);
+      if (act.export) return run(async () => { const { blob, filename } = await api.exportHcReport(row.id); saveBlob(blob, filename); }, "Downloaded. The file is marked confidential.");
+      const min = HC.needsNote(act, row);
+      if (min > 0) { const p = HC.noteProblem(hc.noteText, `${act.note.label || "a reason"}`, min); if (p) return fail(p); }
+      return run(async () => { await act.call(api, row, (hc.noteText || "").trim(), hc.facilityId, true, userId); hc.noteText = ""; hc.detail = null; }, act.done);
+    },
+  };
+}
+const SECTIONS_CREATE = (secId) => HC.SECTIONS[secId].create.form;
+
+// ----------------------------------------------------------------------
+// ASAVEXA AI, docked on every signed-in page (the Proof Lens)
+// ----------------------------------------------------------------------
+const BRIEF_STALE_MS = 2 * 60 * 1000;
+
+function dockState() { return uiState.dock || (uiState.dock = DK.newDock()); }
+
+function renderDock(authState, path) {
+  if (!DK.dockAvailable(authState.role)) return null;
+  const dock = dockState(), ws = DK.workspaceForPath(path);
+  const key = `${authState.organisationId}|${authState.role}|${ws}`;
+  // Another organisation or workspace must never show the previous one's brief or answer, even for a moment.
+  if (dock.org !== authState.organisationId) { Object.assign(dock, DK.newDock(), { org: authState.organisationId, ws }); }
+  if (dock.ws !== ws) { dock.ws = ws; dock.tab = "brief"; dock.brief = null; dock.answer = null; dock.askError = null; }
+  if (dock.briefFor !== key) loadDockBrief(authState, ws, key);
+  const urgent = dock.brief && dock.brief.ok ? dock.brief.items.filter((i) => i.tone !== "clear").length : 0;
+  return AiDock({ dock, role: authState.role, workspace: ws, urgent, a: dockActions(authState, ws, key) });
+}
+
+async function loadDockBrief(authState, ws, key) {
+  const dock = dockState();
+  dock.briefFor = key; dock.briefLoading = true;
+  const hint = { facilityId: uiState.hc && uiState.hc.facilityId };
+  let out;
+  try { out = await DK.fetchBrief(api, ws, authState.role, hint); } catch (err) { out = { ok: false, reason: "error", message: err.message || "The brief could not be loaded." }; }
+  if (dock.briefFor !== key) return;            // the person moved on; never show another page's brief
+  dock.brief = out; dock.briefLoading = false; render();
+}
+
+function dockActions(authState, ws, key) {
+  const dock = dockState();
+  const refresh = () => { dock.brief = dock.brief && dock.brief.ok ? dock.brief : null; loadDockBrief(authState, ws, key); render(); };
+  const ask = async (q) => {
+    const text = String(q == null ? dock.question : q).trim();
+    if (!text) { dock.askError = "Type a question first."; render(); return; }
+    dock.question = text; dock.askError = null; dock.answer = null; dock.asking = true; render();
+    try { dock.answer = DK.summariseAnswer(await api.aiAsk(text)); }
+    catch (err) { dock.askError = err.status === 403 ? "Your role cannot ask ASAVEXA AI." : (err.message || "ASAVEXA AI could not answer."); }
+    dock.asking = false; render();
+  };
+  return {
+    onToggle: () => {
+      dock.open = !dock.open;
+      if (dock.open) {
+        const fresh = dock.brief && dock.brief.asOf && Date.now() - Date.parse(dock.brief.asOf) < BRIEF_STALE_MS;
+        if (!fresh && !dock.briefLoading) loadDockBrief(authState, ws, key);
+      }
+      render();
+      const el = document.getElementById(dock.open ? "lens-close" : "lens-launch"); if (el) el.focus();
+    },
+    onTab: (t) => { dock.tab = t; render(); if (t === "ask") { const q = document.getElementById("lens-q"); if (q) q.focus(); } },
+    onQuestion: (v) => { dock.question = v; },
+    onAsk: () => ask(),
+    onStarter: (q) => { dock.tab = "ask"; return ask(q); },
+    onRefresh: refresh,
+    onNavigate: () => { dock.open = false; },
+  };
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && uiState.dock && uiState.dock.open) { uiState.dock.open = false; render(); const el = document.getElementById("lens-launch"); if (el) el.focus(); }
+});
 
 function newNet() {
   return { tab: "connections", guide: null, me: null, invites: null, form: null, created: null, code: "", preview: null, accept: { scopes: [], detail: false }, view: null, log: null, logFor: null,

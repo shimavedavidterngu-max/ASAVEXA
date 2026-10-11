@@ -5,8 +5,13 @@
 |---|---|
 | Shared foundation: workspace selector, two new permissions, shared report/approval pattern | VERIFIED IN TEST ENVIRONMENT (approval is built for analysis reports only; a general workflow engine is the next shared slice) |
 | Financial Analysis workspace | VERIFIED IN TEST ENVIRONMENT (synthetic data) |
-| Forensic Accounting, GRC, Health Centre Administration, Cybersecurity, Business Development, Public Finance | NOT STARTED |
-| Tax Compliance | BLOCKED until you choose the jurisdiction(s) and who supplies the current rules |
+| Forensic Accounting and Investigation | VERIFIED IN TEST ENVIRONMENT (see forensic-investigation.md). Synthetic data only. |
+| Governance, Risk and Compliance | VERIFIED IN TEST ENVIRONMENT (see grc.md). Synthetic data only; ships no legal text. |
+| Public Finance | VERIFIED IN TEST ENVIRONMENT (see pubfin.md). Synthetic data only; policy defaults are placeholders, not law. |
+| Business Development | VERIFIED IN TEST ENVIRONMENT (see bizdev.md). Synthetic data only; probabilities and discount limit are placeholders. |
+| Cybersecurity and Digital Risk | VERIFIED IN TEST ENVIRONMENT (see cyber.md). Record-keeping only, never scans; synthetic data; deadlines are placeholders. |
+| Health Centre Administration | VERIFIED IN TEST ENVIRONMENT (see health.md). Financial and administrative only; holds no patient data; never posts to the ledger; synthetic data. |
+| Tax Compliance | VERIFIED IN TEST ENVIRONMENT as a framework for ~200 countries (see tax-compliance.md). It ships with NO tax rates: each country's rules must be entered from an official source and approved by a second person. Tested with invented rates only. |
 | Anything in staging or production | Not yet verified. Run Connection & Self-Test on the deployed site. |
 
 Nothing here has been independently reviewed by an accountant, auditor, tax adviser or lawyer.
@@ -25,15 +30,16 @@ Accounting engine (journals, periods, posting), Evidence Vault, reporting, perio
 ## Roadmap (one vertical slice at a time, each tested before the next)
 1. Done: foundation + Financial Analysis.
 2. Next shared slice: general approval/workflow engine, case management, policy library.
-3. Forensic Accounting (reads the ledger and evidence; flags, never accuses).
-4. GRC (risk register, controls, findings; reuses Controls & Compliance).
-5. Tax: **needs your decision on jurisdiction first.** Tax rates and deadlines change; they will be configuration with an effective date and a named source, never hard-coded.
-6. Public Finance (proper budgeting; replaces the manual comparison budget in Analysis).
-7. Health Centre Administration (needs a decision on patient-data rules before any patient data is stored).
-8. Cybersecurity, 9. Business Development.
+3. Done: Forensic Accounting (reads the ledger and evidence; flags, never accuses).
+4. Done: GRC (risk register, treatment actions, acceptance, obligations; links to existing Controls and Evidence Vault). Next for GRC: control-test scheduling, policy library, board reporting.
+5. Done: Tax framework (rates are entered data with source, effective date and two-person approval; never hard-coded). Next for Tax: returns, withholding, e-filing guidance per country once real rules are loaded.
+6. Done: Public Finance (approved budgets with ACTUAL taken from posted journals, commitments, virements, procurement with quote rules, grants, accountability reports). Next for Public Finance: multi-year budgets, appropriation hierarchy, a chosen standard (IPSAS or national).
+7. Done: Health Centre Administration (facility-isolated budgets, procurement with three-way match, stock with expiry, receipts, claims totals, equipment, staffing totals, approved reports). Next for it: privacy review before any patient data, ledger posting, insurer connections.
+8. Done: Cybersecurity (assets, vulnerabilities with second-person verification and risk acceptance, incidents with closure and notification decision, access reviews, approved posture reports). Next for it: import from scanners, ticket hand-off.
+9. Done: Business Development (accounts, pipeline, proposals with discount approval, win confirmation, targets and forecast, approved reports). Next for it: multi-contact CRM, currency conversion with approved rates, invoicing hand-off to the ledger.
 
 ## Questions only you can answer
-1. Which country/countries should Tax support first, and who will keep the rules current?
+1. Which countries should have rules loaded first, and who will enter and review them (ideally a tax professional)?
 2. Will Health Centre Administration store patient data, or only administrative and financial data?
 3. Should Public Finance follow a specific public-finance standard (for example IPSAS or a national one)?
 

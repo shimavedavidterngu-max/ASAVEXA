@@ -8,7 +8,7 @@ import { ApiError, NetworkError } from "../src/api/client.js";
 // does. It tests the SELF-TEST SCRIPT's own logic (every step reachable,
 // correct expectations) — the real system is exercised by the
 // Connection & Self-Test page in the live app.
-function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false, breakNetwork = false, breakNetworkConsent = false, breakProof = false, breakAnalysis = false } = {}) {
+function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = false, breakAiChain = false, breakImportPreviewWrites = false, breakImportDedupe = false, noKeys = false, breakChain = false, leakSessions = false, breakValidation = false, breakPilot = false, breakNetwork = false, breakNetworkConsent = false, breakProof = false, breakAnalysis = false, breakTax = false, breakForensic = false, breakGrc = false, breakPubfin = false, breakBizdev = false, breakCyber = false, breakHealth = false } = {}) {
   const db = { accounts: [], journals: [], evidence: [], recon: [], audit: {}, orgs: [{ id: "org1" }], org: "org1", profile: {} };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -69,6 +69,28 @@ function fakeApi({ breakEvidenceStatus = false, down = false, breakPassport = fa
     async analysisRatios() { return { calculated: 1, total: 2, ratios: [{ id: "a", status: "CALCULATED", value: "1.50" }, { id: "b", status: "INCOMPLETE", value: breakAnalysis ? "9.99" : null }] }; },
     async analysisBreakeven() { return { break_even_units: "50" }; },
     async workspaces() { return { workspaces: [{ id: "analysis", path: "/analysis", status: "VERIFIED IN TEST ENVIRONMENT" }, { id: "tax", path: null, status: "BLOCKED" }] }; },
+    async taxCountries() { return { total: 200, countries: Array.from({ length: breakTax ? 100 : 200 }, (_, i) => ({ code: `C${i}` })) }; },
+    async taxOptions() { return { tax_types: { A: 1, B: 2, C: 3, D: 4, E: 5 } }; },
+    async createTaxRule() { return { id: "tr1", status: breakTax ? "APPROVED" : "DRAFT" }; },
+    async taxCalculate() { if (breakTax) return { tax: "1.00" }; throw new ApiError(409, { detail: "draft" }, "/tax/calculate"); },
+    async discardTaxRule() { return {}; },
+    async forensicOptions() { return { tests: Object.fromEntries(Array.from({ length: breakForensic ? 3 : 9 }, (_, i) => [`t${i}`, "x"])), limitations: ["Flags are not proof of wrongdoing."] }; },
+    async forensicCases() { return []; },
+    async grcOptions() { return { categories: Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`c${i}`, "x"])), limitations: ["Scores are judgements entered by people."] }; },
+    async grcDashboard() { return { appetite: 9, heatmap: { cells: Array.from({ length: breakGrc ? 4 : 5 }, () => [0, 0, 0, 0, 0]) } }; },
+    async grcRisks() { return []; },
+    async pubfinOptions() { return { accounts: [], limitations: [breakPubfin ? "Figures are estimates." : "ACTUAL figures come only from posted journals."], policy: { min_quotes: 3 } }; },
+    async pubfinOverview() { return { counts: { budgets: 0, grants_active: 0 } }; },
+    async createPubfinBudget() { if (breakPubfin) return { id: "b1" }; throw new ApiError(400, { detail: "Enter at least one budget line." }, "/pubfin/budgets"); },
+    async bdOptions() { return { accounts: [], stages: ["LEAD"], policy: { probabilities: { LEAD: 10 }, discount_limit_pct: "10.00" } }; },
+    async bdOverview() { return { counts: { opportunities: 0, accounts: 0 }, limitations: [breakBizdev ? "Figures are exact." : "Amounts in different currencies are never converted or added together."] }; },
+    async cyOptions() { return { assets: [], severities: ["CRITICAL"], policy: { sla_days: { CRITICAL: 7 }, acceptance_max_days: 90 } }; },
+    async hcOptions() { return { categories: ["STAFFING"], facilities: [], limitations: breakHealth ? ["Everything is automatic."] : ["The workspace holds no patient information.", "It does not post to the ledger."] }; },
+    async hcPost() { if (breakHealth) return { id: "f1" }; throw new ApiError(400, { detail: "Type is required." }, "/health/facilities"); },
+    async cyOverview() { return { counts: { assets: 0, vulnerabilities_open: 0 }, limitations: [breakCyber ? "Everything is checked automatically." : "ASAVEXA does not scan, test or connect to any system."] }; },
+    async createCyVuln() { if (breakCyber) return { id: "v1" }; throw new ApiError(404, { detail: "Asset not found." }, "/cyber/vulnerabilities"); },
+    async createBdOpportunity() { if (breakBizdev) return { id: "o1" }; throw new ApiError(404, { detail: "Account not found." }, "/bizdev/opportunities"); },
+    async createGrcRisk() { if (breakGrc) return { id: "r1" }; throw new ApiError(400, { detail: "must be 1 to 5" }, "/grc/risks"); },
     async seedStandardControls() { return []; },
     async listControls() { return ["ACC-001", "ACC-002", "ACC-003", "REC-001", "EVI-001", "EVI-002", "REP-001", "CLS-001", "CLS-002"].map((code) => ({ id: id(), code })); },
     async executeControl(cid) { const e = { id: id(), result: cid.endsWith("1") ? "FAIL" : "PASS", explanation: "e", finding_id: cid.endsWith("1") ? "f1" : null }; ex[e.id] = e; return e; },
@@ -470,4 +492,54 @@ test("self-test: analysis totals that do not tie, or a ratio that shows a number
   assert.ok(r.some((x) => x.status === "fail" && x.group === "Financial Analysis" && /agrees with the ledger/.test(x.name)), "the analysis mismatch was not caught");
   const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
   assert.deepEqual(ok.filter((x) => x.group === "Financial Analysis" && x.status !== "pass"), []);
+});
+
+test("self-test: a draft tax rule that can be used, or a missing country list, is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakTax: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Tax Compliance" && /draft tax rule/.test(x.name)), "the usable draft rule was not caught");
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Tax Compliance" && /countries are listed/.test(x.name)), "the short country list was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Tax Compliance" && x.status !== "pass"), []);
+});
+
+test("self-test: a missing set of forensic tests is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakForensic: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Forensic Investigation"), "the missing tests were not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Forensic Investigation" && x.status !== "pass"), []);
+});
+
+test("self-test: a broken heat map or an accepted impossible score is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakGrc: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Governance, Risk and Compliance"), "the broken GRC behaviour was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Governance, Risk and Compliance" && x.status !== "pass"), []);
+});
+
+test("self-test: a ledger-free actuals claim or an accepted empty budget is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakPubfin: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Public Finance"), "the broken public-finance behaviour was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Public Finance" && x.status !== "pass"), []);
+});
+
+test("self-test: mixed-currency claims or an accepted bad opportunity is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakBizdev: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Business Development"), "the broken business-development behaviour was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Business Development" && x.status !== "pass"), []);
+});
+
+test("self-test: claiming to scan or accepting a vulnerability on a missing asset is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakCyber: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Cybersecurity"), "the broken cybersecurity behaviour was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Cybersecurity" && x.status !== "pass"), []);
+});
+
+test("self-test: claiming no patient data is held while accepting an incomplete facility is caught", async () => {
+  const r = await runSelfTest(fakeApi({ breakHealth: true }), { orgId: "org1" });
+  assert.ok(r.some((x) => x.status === "fail" && x.group === "Health Centre"), "the broken health behaviour was not caught");
+  const ok = await runSelfTest(fakeApi(), { orgId: "org1" });
+  assert.deepEqual(ok.filter((x) => x.group === "Health Centre" && x.status !== "pass"), []);
 });
