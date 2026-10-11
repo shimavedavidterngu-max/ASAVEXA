@@ -68,6 +68,8 @@ import { inviteBody, inviteProblem, acceptGrant, emptyInviteForm } from "./lib/n
 import { pilotBody, clientBody, clientFormProblem, timeBody, issueBody, passportUseBody, surveyBody, surveyProblem, emptyPilotForm, emptyClientForm, today, download } from "./lib/pilot.js";
 import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, emptyObservation, actingMode } from "./lib/validation.js";
 import { makeBinding, parseOidcReturn, interpretLogin, parseRegions } from "./lib/signin.js";
+import { Landing } from "./pages/Landing.js";
+import { signedOutScreen } from "./lib/landing.js";
 
 const API_BASE_URL = "https://asavexa.onrender.com";
 const authStore = new AuthStore();
@@ -75,8 +77,11 @@ const api = new ApiClient({
   baseUrl: API_BASE_URL,
   getToken: () => authStore.getToken(),
   onUnauthenticated: () => {
+    const hadSession = !!authStore.getToken();
     authStore.clear();
     resetSecurityState();
+    // An expired session goes to sign-in. A 401 with no session at all (a public lookup) must not skip the front page.
+    if (hadSession) uiState.enteredAuth = true;
     render();
   },
 });
@@ -150,6 +155,7 @@ const routes = [
   { path: "/passport/sharing", name: "passport-sharing" },
   { path: "/passport", name: "passport" },
   { path: "/shared/:token", name: "shared" },
+  { path: "/welcome", name: "welcome" },
   { path: "/standards", name: "standards" },
   { path: "/validation", name: "validation" },
   { path: "/network", name: "network" },
@@ -160,6 +166,7 @@ const routes = [
 
 let uiState = {
   loginMode: "login", loginError: null, loginPending: false,
+  enteredAuth: false, landingMenu: false, landingSeen: false,
   mfaChallenge: null, ssoConfig: null, secNoOrg: false, sec: null,
   auditQuery: "", auditJournal: null, auditChain: null, auditError: null,
 
@@ -264,6 +271,27 @@ const router = new Router(routes, {
   },
 });
 
+/** From the landing page into the sign-in screen, either on Sign in or on Create account. */
+function openAuth(mode) {
+  uiState.enteredAuth = true; uiState.loginMode = mode; uiState.loginError = null; uiState.landingMenu = false;
+  render();
+  window.scrollTo(0, 0);
+}
+
+/** Scroll to a section of the landing page. The menu is closed without a re-render so the scroll is not interrupted. */
+function landingJump(id) {
+  const calm = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const behavior = calm ? "auto" : "smooth";
+  if (id === "top") window.scrollTo({ top: 0, behavior });
+  else { const el = document.getElementById(`ld-${id}`); if (el) el.scrollIntoView({ behavior, block: "start" }); }
+  if (uiState.landingMenu) {
+    uiState.landingMenu = false;
+    const nav = document.getElementById("ld-nav"), burger = document.getElementById("ld-burger");
+    if (nav) nav.classList.remove("is-open");
+    if (burger) { burger.setAttribute("aria-expanded", "false"); burger.setAttribute("aria-label", "Open the menu"); }
+  }
+}
+
 function render() {
   const authState = authStore.getState();
 
@@ -274,10 +302,24 @@ function render() {
     return;
   }
 
+  // Someone who is already signed in has no use for the front page.
+  if (authState.token && router.currentPath() === "/welcome") { router.navigate("/"); return; }
+
+  if (!authState.token && signedOutScreen({ path: router.currentPath(), enteredAuth: uiState.enteredAuth }) === "landing") {
+    const animate = !uiState.landingSeen; uiState.landingSeen = true;
+    mount(Landing({
+      animate, menuOpen: uiState.landingMenu,
+      onSignIn: () => openAuth("login"), onGetStarted: () => openAuth("register"),
+      onJump: landingJump, onToggleMenu: () => { uiState.landingMenu = !uiState.landingMenu; render(); },
+    }), root);
+    return;
+  }
+
   if (!authState.token) {
     mount(
       h("div", { id: "screen" },
         Login({
+          onHome: () => { uiState.enteredAuth = false; uiState.loginError = null; uiState.mfaChallenge = null; if (router.currentPath() !== "/") router.navigate("/"); else render(); window.scrollTo(0, 0); },
           mode: uiState.loginMode, pending: uiState.loginPending, error: uiState.loginError,
           onSubmit: handleAuthSubmit, onSwitchMode: (m) => { uiState.loginMode = m; uiState.loginError = null; render(); },
           mfaStep: !!uiState.mfaChallenge, onMfaSubmit: handleMfaSubmit,
@@ -573,6 +615,7 @@ async function handleSsoStart() {
 async function handleSsoReturn() {
   const ret = parseOidcReturn(window.location.search);
   if (!ret) return;
+  uiState.enteredAuth = true;   // coming back from single sign-on: show the sign-in screen (with any error), not the front page
   const binding = sessionStorage.getItem(SSO_BINDING_KEY);
   sessionStorage.removeItem(SSO_BINDING_KEY);
   window.history.replaceState({}, "", window.location.pathname + window.location.hash);   // never leave the one-time code in the address bar
@@ -614,6 +657,7 @@ function handleLogout() {
   api.logout().finally(() => {
     authStore.clear();
     resetSecurityState();
+    uiState.enteredAuth = false; uiState.landingMenu = false;
     render();
   });
 }

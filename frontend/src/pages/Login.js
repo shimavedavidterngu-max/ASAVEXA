@@ -7,7 +7,7 @@ import { h } from "../lib/vdom.js";
  * system."): email + password -> POST /auth/login -> bearer token.
  * No client-side "remember me" cookie, no second auth path.
  */
-export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, mfaStep = false, onMfaSubmit, onMfaCancel, sso = null, onSso }) {
+export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, mfaStep = false, onMfaSubmit, onMfaCancel, sso = null, onSso, onHome }) {
   const isRegister = mode === "register";
   if (mfaStep) return MfaStep({ pending, error, onMfaSubmit, onMfaCancel });
   return h(
@@ -16,6 +16,7 @@ export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, 
     h(
       "div",
       { className: "card", style: "width: 360px;" },
+      onHome ? h("a", { href: "#/", id: "login-home", style: "display:inline-block; font-size:12.5px; margin-bottom:12px;", onClick: (e) => { e.preventDefault(); onHome(); } }, "\u2190 Back to the home page") : null,
       h("div", { style: "font-family: var(--font-display); font-size:22px; color: var(--navy-900); margin-bottom:4px;" }, "ASAVEXA"),
       h("div", { style: "color: var(--ink-500); font-size:12.5px; margin-bottom:24px;" }, "Don't just report the number. Prove it."),
       error ? h("div", { className: "alert alert-error", style: "margin-bottom:16px;" }, error) : null,

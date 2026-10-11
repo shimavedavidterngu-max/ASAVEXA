@@ -19,3 +19,4 @@ node_modules/
 
 # Local Postgres data if ever run outside Docker
 *.sqlite3
+docs/images/landing/
