@@ -298,7 +298,7 @@ describe("what needs attention", () => {
 describe("loading the home page", () => {
   const fakeApi = (over = {}) => ({
     workspaces: async () => CATALOG, listAccounts: async () => [{ id: 1 }], listPeriods: async () => [{ id: "p", name: "P1", end_date: "2026-01-31" }],
-    listEvidence: async () => [], listMembers: async () => [{ id: "u1" }], myOrganisations: async () => [{ id: "o1", name: "Meridian" }],
+    listEvidence: async () => [], getOrganisationProfile: async () => ({ country: "Nigeria", base_currency: "NGN", fiscal_year_start_month: 1, organisation_type: "Business or SME" }), listMembers: async () => [{ id: "u1" }], myOrganisations: async () => [{ id: "o1", name: "Meridian" }],
     cyOverview: async () => ({ counts: {}, vulnerabilities: { overdue: 2 }, attention: {} }),
     ...over,
   });
@@ -307,6 +307,7 @@ describe("loading the home page", () => {
     assert.equal(d.catalog.workspaces.length, 3);
     assert.equal(d.orgs[0].name, "Meridian");
     assert.equal(d.facts.accounts, true);
+    assert.equal(d.facts.profile, true);
     assert.equal(d.facts.evidence, false);
     assert.equal(d.facts.team, false, "one member is not a second person");
   });

@@ -1,0 +1,53 @@
+/* ---- Sign-up journey: before an organisation is open, and the guided set-up inside the app ---- */
+.ob { min-height: 100vh; background: var(--navy-950); color: var(--ink-900); display: flex; flex-direction: column; }
+.ob-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px clamp(16px, 4vw, 40px); color: #cdd6e2; }
+.ob-brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 20px; color: #fff; }
+.ob-who { display: flex; align-items: center; gap: 14px; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
+.ob-who .linklike { color: #8fe0d0; }
+.ob-main { width: 100%; max-width: 760px; margin: 0 auto; padding: 8px 16px 48px; box-sizing: border-box; }
+.ob .ob-progress { --on: #fff; }
+.ob-progress { display: flex; flex-wrap: wrap; gap: 6px 14px; list-style: none; margin: 0 0 20px; padding: 0; }
+.ob-step { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-500); }
+.ob .ob-step { color: #9fb0c3; }
+.ob-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid currentColor; font-size: 12px; flex: none; }
+.ob-step.is-done .ob-num { background: var(--teal-700); border-color: var(--teal-700); color: #fff; }
+.ob-step.is-current { color: var(--ink-900); font-weight: 700; }
+.ob .ob-step.is-current { color: #fff; }
+.ob-step.is-current .ob-num { background: var(--gold-500); border-color: var(--gold-500); color: var(--navy-950); }
+.ob-card { margin: 0 0 16px; }
+.ob-card h2, .ob-final h2 { margin-top: 0; }
+.ob-choose h2 { color: #fff; margin: 0 0 6px; }
+.ob-choose > p { color: #b8c5d4; margin: 0 0 16px; }
+.ob-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ob-option { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 20px; cursor: pointer; background: var(--paper-0); border: 1px solid var(--line); border-radius: 10px; color: var(--ink-900); }
+.ob-option span { color: var(--ink-500); font-size: 13.5px; }
+.ob-option:hover { border-color: var(--teal-600); }
+.ob-option:focus-visible { outline: 2px solid var(--teal-500); outline-offset: 2px; }
+.ob-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.ob-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ob-err { color: var(--status-fail); font-size: 12.5px; margin-top: 4px; }
+.ob-fine { font-size: 12px; color: var(--ink-500); margin-top: 4px; }
+.ob [aria-invalid="true"], .su [aria-invalid="true"] { border-color: var(--status-fail); }
+.ob-details { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 12px 0; }
+.ob-details dt { color: var(--ink-500); font-size: 13px; }
+.ob-details dd { margin: 0; word-break: break-all; }
+.ob-orgs { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ob-org { all: unset; box-sizing: border-box; display: flex; justify-content: space-between; gap: 10px; align-items: center; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--paper-0); color: var(--ink-900); }
+.ob-org span { color: var(--ink-500); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+.ob-org:hover { border-color: var(--teal-600); }
+.ob-org:focus-visible { outline: 2px solid var(--teal-500); outline-offset: 2px; }
+.ob-org[disabled] { opacity: .6; cursor: wait; }
+.ob .field input, .ob .field select, .su .field input, .su .field select { width: 100%; box-sizing: border-box; }
+.ob-main .card, .su .card { max-width: none; }
+.su { max-width: 760px; }
+.su .ob-progress { margin-top: 4px; }
+.su .hm-sub { color: var(--ink-500); margin: 0 0 16px; }
+.su .ob-step { color: var(--ink-500); }
+.su .ob-card { margin-bottom: 16px; }
+.su .alert { margin-bottom: 12px; }
+@media (max-width: 620px) { .ob-two, .ob-row { grid-template-columns: 1fr; } .ob-details { grid-template-columns: 1fr; } .ob-head { flex-direction: column; align-items: flex-start; } }
+:root:not([data-theme="light"]) .ob-who .linklike { color: #8fe0d0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ob-main a { color: #5fd3bf; } }
+/* cards side by side must start at the same height (the stacked-card margin must not apply in a row) */
+.ob-two > .card, .ob-two > .ob-option { margin: 0; }
+.ob-two { align-items: stretch; }

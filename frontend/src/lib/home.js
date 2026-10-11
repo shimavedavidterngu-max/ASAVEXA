@@ -1,4 +1,5 @@
 import { PERMISSIONS, ROLE_PERMISSIONS } from "./permissions.js";
+import { settingsComplete } from "./onboarding.js";
 import { WORKSPACES as DOCK_WORKSPACES, fetchBrief, workspaceForPath, briefAllowed } from "./aidock.js";
 
 /**
@@ -21,7 +22,7 @@ export const NAV_GROUPS = [
   { id: "books", label: "Books and evidence", paths: ["/accounting", "/evidence", "/reconciliation", "/period-close", "/reporting", "/proof", "/audit", "/compliance"] },
   { id: "workspaces", label: "Professional workspaces", paths: ["/workspaces", "/analysis", "/tax", "/forensic", "/grc", "/pubfin", "/bizdev", "/cyber", "/health"] },
   { id: "trust", label: "Passport and network", paths: ["/passport", "/passport/sharing", "/network", "/validation", "/standards"] },
-  { id: "data", label: "Data and administration", paths: ["/import", "/admin", "/ai"] },
+  { id: "data", label: "Data and administration", paths: ["/import", "/admin", "/setup", "/ai"] },
   { id: "account", label: "Account and help", paths: ["/security", "/pilot", "/diagnostics"] },
 ];
 
@@ -80,7 +81,7 @@ const KEYWORDS = {
   "/reporting": "reports trial balance statements", "/proof": "proof graph trace", "/period-close": "close month year lock", "/compliance": "controls findings",
   "/audit": "audit trail search journal", "/analysis": "ratios variance budget forecast break-even", "/tax": "vat gst filing rates", "/forensic": "fraud investigation case",
   "/grc": "risk register governance obligations", "/pubfin": "budget procurement grants public sector", "/bizdev": "pipeline proposals accounts clients sales",
-  "/cyber": "security vulnerabilities incidents assets", "/health": "clinic stock claims facility", "/import": "csv upload data", "/admin": "users members roles team invite",
+  "/cyber": "security vulnerabilities incidents assets", "/health": "clinic stock claims facility", "/import": "csv upload data", "/admin": "users members roles team invite", "/setup": "onboarding organisation details currency country financial year period getting started",
   "/ai": "ask assistant question", "/passport": "financial passport share", "/passport/sharing": "share links", "/security": "password two-step mfa sign in",
   "/network": "network", "/validation": "professional review", "/standards": "ifrs gaap jurisdiction policies", "/diagnostics": "self-test connection", "/pilot": "pilot",
 };
@@ -159,8 +160,9 @@ export function quickActions(role) {
  */
 export function setupSteps(facts, role) {
   const steps = [
+    ...(facts.profile === undefined ? [] : [{ id: "profile", label: "Complete the organisation details", path: "/setup", done: facts.profile, perm: PERMISSIONS.ORG_MANAGE_SETTINGS }]),
     { id: "accounts", label: "Add your chart of accounts", path: "/accounting", done: facts.accounts, perm: PERMISSIONS.LEDGER_READ },
-    { id: "period", label: "Open an accounting period", path: "/accounting", done: facts.periods, perm: PERMISSIONS.LEDGER_READ },
+    { id: "period", label: "Open an accounting period", path: facts.profile === undefined ? "/accounting" : "/setup", done: facts.periods, perm: PERMISSIONS.LEDGER_READ },
     { id: "evidence", label: "Store your first piece of evidence", path: "/evidence", done: facts.evidence, perm: PERMISSIONS.EVIDENCE_READ },
     { id: "team", label: "Invite a second person to review and approve", path: "/admin", done: facts.team, perm: PERMISSIONS.ORG_MANAGE_USERS },
   ].filter((s) => has(role, s.perm));
@@ -215,16 +217,17 @@ export const attentionSummary = (a) => {
  */
 export async function loadHome(api, role, orgId) {
   const safe = async (p) => { try { return { ok: true, value: await p }; } catch (err) { return { ok: false, error: err }; } };
-  const [catalog, accounts, periods, evidence, members, orgs] = await Promise.all([
+  const [catalog, accounts, periods, evidence, members, orgs, profile] = await Promise.all([
     safe(api.workspaces()),
     has(role, PERMISSIONS.LEDGER_READ) ? safe(api.listAccounts()) : Promise.resolve(null),
     has(role, PERMISSIONS.LEDGER_READ) ? safe(api.listPeriods()) : Promise.resolve(null),
     has(role, PERMISSIONS.EVIDENCE_READ) ? safe(api.listEvidence()) : Promise.resolve(null),
     has(role, PERMISSIONS.ORG_MANAGE_USERS) && orgId ? safe(api.listMembers(orgId)) : Promise.resolve(null),
     safe(api.myOrganisations()),
+    has(role, PERMISSIONS.ORG_MANAGE_SETTINGS) ? safe(api.getOrganisationProfile()) : Promise.resolve(null),
   ]);
   const count = (r) => (r === null ? null : r.ok && Array.isArray(r.value) ? r.value.length > 0 : null);
-  const facts = { accounts: count(accounts), periods: count(periods), evidence: count(evidence), team: members === null ? null : members.ok && Array.isArray(members.value) ? members.value.filter((m) => m.status !== "REVOKED" && m.is_active !== false).length > 1 : null };
+  const facts = { profile: profile === null ? undefined : profile.ok && profile.value && typeof profile.value === "object" ? settingsComplete(profile.value) : null, accounts: count(accounts), periods: count(periods), evidence: count(evidence), team: members === null ? null : members.ok && Array.isArray(members.value) ? members.value.filter((m) => m.status !== "REVOKED" && m.is_active !== false).length > 1 : null };
   const sources = attentionSources(role);
   const results = await Promise.all(sources.map(async (ws) => ({ ws, brief: await fetchBrief(api, ws, role) })));
   return {

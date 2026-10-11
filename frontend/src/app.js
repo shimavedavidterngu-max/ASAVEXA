@@ -21,7 +21,7 @@ import { Router, matchRoute } from "./lib/router.js";
 import { h, mount } from "./lib/vdom.js";
 import { allowed } from "./components/PermissionGate.js";
 import { PERMISSIONS } from "./lib/permissions.js";
-import { Login, OrganisationPicker } from "./pages/Login.js";
+import { Login } from "./pages/Login.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { AuditWorkspace, buildChainLinks } from "./pages/AuditWorkspace.js";
 import { DrilldownPanel } from "./components/DrilldownPanel.js";
@@ -70,6 +70,9 @@ import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, 
 import { makeBinding, parseOidcReturn, interpretLogin, parseRegions } from "./lib/signin.js";
 import { Landing } from "./pages/Landing.js";
 import { Home } from "./pages/Home.js";
+import { Onboarding } from "./components/Onboarding.js";
+import { Setup } from "./pages/Setup.js";
+import { validateCreate, validateSettings, validatePeriod, mergeProfile, fiscalYear, currencyForCountry, resumeStep, canSetUp } from "./lib/onboarding.js";
 import { SideNav, TopBar } from "./components/Shell.js";
 import { groupNav, activeGroupId, breadcrumbs, searchPages, orgName, loadHome } from "./lib/home.js";
 import { signedOutScreen } from "./lib/landing.js";
@@ -124,6 +127,7 @@ const NAV_ITEMS = [
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
+  { path: "/setup", label: "Organisation setup", permission: PERMISSIONS.ORG_MANAGE_SETTINGS },
   { path: "/import", label: "Data Import", permission: null, anyOf: [PERMISSIONS.RECONCILIATION_IMPORT, PERMISSIONS.EVIDENCE_UPLOAD, PERMISSIONS.ACCOUNT_MANAGE, PERMISSIONS.JOURNAL_CREATE] },
   { path: "/ai", label: "ASAVEXA AI", permission: PERMISSIONS.LEDGER_READ },
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
@@ -141,6 +145,7 @@ const NAV_ITEMS = [
 // otherwise also match.
 const routes = [
   { path: "/", name: "dashboard" },
+  { path: "/setup", name: "setup" },
   { path: "/audit", name: "audit" },
   { path: "/accounting/journals/new", name: "accounting-journal-new" },
   { path: "/accounting/journals/:id", name: "accounting-journal-detail" },
@@ -184,7 +189,8 @@ let uiState = {
   loginMode: "login", loginError: null, loginPending: false,
   enteredAuth: false, landingMenu: false, landingSeen: false,
   navOpen: {}, mobileNav: false, search: { q: "", open: false, idx: 0 }, menu: null, lastPath: null,
-  home: { key: "", data: null, loading: false, error: null }, showLocked: false, orgList: null, switching: false, switchError: null,
+  home: { key: "", data: null, loading: false, error: null }, showLocked: false, orgLoading: false,
+  onb: { mode: "auto", form: { name: "", category: "" }, errors: {}, pending: false, error: null, copied: false, checking: false, checkMessage: null, orgs: null, loading: false }, setup: null, orgList: null, switching: false, switchError: null,
   mfaChallenge: null, ssoConfig: null, secNoOrg: false, sec: null,
   auditQuery: "", auditJournal: null, auditChain: null, auditError: null,
 
@@ -359,36 +365,7 @@ function render() {
     return;
   }
 
-  if (!authState.organisationId) {
-    api.myOrganisations().then((orgs) => {
-      mount(
-        OrganisationPicker({
-          organisations: orgs,
-          onSelect: async (orgId) => {
-            try {
-              const { role } = await api.selectOrganisation(orgId);
-              authStore.setOrganisation(orgId, role);
-            } catch (err) {
-              // e.g. this organisation requires two-step sign-in and this session has not used it
-              window.alert(err.message || "Could not open this organisation.");
-            }
-            render();
-          },
-          onSecurity: () => { uiState.secNoOrg = true; render(); },
-          onCreateNew: async () => {
-            const name = window.prompt("Organisation name:");
-            if (!name) return;
-            const org = await api.createOrganisation(name);
-            const { role } = await api.selectOrganisation(org.id);
-            authStore.setOrganisation(org.id, role);
-            render();
-          },
-        }),
-        root
-      );
-    });
-    return;
-  }
+  if (!authState.organisationId) { renderOnboarding(authState); return; }
 
   renderShell(authState);
 }
@@ -403,6 +380,8 @@ function renderShell(authState) {
   const results = searchPages(uiState.search.q, visible);
   const orgs = uiState.orgList || (uiState.home.data && uiState.home.data.orgs) || null;
   const closeMenus = () => { uiState.menu = null; uiState.search.open = false; };
+  // The top bar shows the organisation's name, so make sure the list is known on every page, not only the home page.
+  if (uiState.orgList === null && !(uiState.home.data && uiState.home.data.orgs)) ensureOrgs();
 
   mount(
     h(
@@ -458,10 +437,164 @@ function renderShell(authState) {
   );
 }
 
+// ----------------------------------------------------------------------
+// Sign-up journey. Before an organisation is open: choose, create or join. After: guided set-up at #/setup.
+// The server decides every role; nothing chosen here can raise anyone's permissions.
+// ----------------------------------------------------------------------
+function focusHeading(sel) {
+  setTimeout(() => { const el = document.querySelector(sel); if (el) { el.setAttribute("tabindex", "-1"); el.focus(); window.scrollTo(0, 0); } }, 0);
+}
+
+function renderOnboarding(authState) {
+  const o = uiState.onb;
+  if (o.orgs === null && !o.loading) {
+    o.loading = true;
+    api.myOrganisations().then((list) => { o.orgs = Array.isArray(list) ? list : false; }).catch(() => { o.orgs = false; }).finally(() => { o.loading = false; render(); });
+  }
+  mount(Onboarding({
+    user: authState.user, orgs: o.orgs, mode: o.mode, form: o.form, errors: o.errors, pending: o.pending, error: o.error,
+    copied: o.copied, checking: o.checking, checkMessage: o.checkMessage,
+    onMode: (m) => { o.mode = m; o.errors = {}; o.error = null; o.checkMessage = null; render(); focusHeading(".ob-card h2, .ob-choose h2"); },
+    onField: (k, v) => { o.form[k] = v; },
+    onCreate: handleCreateOrganisation,
+    onSelect: async (orgId) => {
+      if (o.pending) return;
+      o.pending = true; o.error = null; render();
+      try { const { role } = await api.selectOrganisation(orgId); authStore.setOrganisation(orgId, role); o.orgs = null; o.mode = "auto"; }
+      catch (err) { o.error = (err && err.message) || "Could not open this organisation."; }
+      o.pending = false; render();
+    },
+    onCopy: async () => {
+      const id = (authState.user && authState.user.id) || "";
+      try { await navigator.clipboard.writeText(id); o.copied = true; } catch { o.copied = false; o.checkMessage = "Copying is not available in this browser. Select the ID and copy it by hand."; }
+      render();
+    },
+    onRecheck: () => {
+      o.checking = true; o.checkMessage = null; render();
+      api.myOrganisations().then((list) => {
+        const l = Array.isArray(list) ? list : [];
+        o.orgs = l; o.checkMessage = l.length ? null : "You are not a member of any organisation yet. Once an administrator has added you, check again.";
+        if (l.length) o.mode = "auto";
+      }).catch((err) => { o.checkMessage = (err && err.message) || "Could not check right now."; }).finally(() => { o.checking = false; render(); });
+    },
+    onRetry: () => { o.orgs = null; render(); },
+    onSecurity: () => { uiState.secNoOrg = true; render(); },
+    onSignOut: () => handleLogout(),
+  }), root);
+}
+
+async function handleCreateOrganisation() {
+  const o = uiState.onb;
+  if (o.pending) return;
+  const v = validateCreate(o.form);
+  o.errors = v.errors; o.error = null;
+  if (!v.ok) { render(); focusHeading(".ob-err"); return; }
+  o.pending = true; render();
+  let created = null;
+  try {
+    created = await api.createOrganisation(v.name);
+    const { role } = await api.selectOrganisation(created.id);
+    authStore.setOrganisation(created.id, role);
+    // Save what is already known. If this fails the organisation still exists and the set-up page asks again.
+    try { await api.updateOrganisationProfile({ legal_name: v.name, organisation_type: o.form.category }); } catch { /* shown as an empty field in set-up */ }
+    uiState.setup = null; uiState.home = { key: "", data: null, loading: false, error: null }; uiState.dashboardData = null;
+    o.form = { name: "", category: "" }; o.orgs = null; o.mode = "auto"; o.pending = false;
+    router.navigate("/setup"); render();
+  } catch (err) {
+    o.pending = false; o.orgs = null;
+    o.error = created
+      ? `The organisation “${v.name}” was created, but it could not be opened: ${(err && err.message) || "unknown problem"}. It is in your list now.`
+      : (err && err.message) || "The organisation could not be created.";
+    if (created) o.mode = "auto";
+    render();
+  }
+}
+
+function newSetup() {
+  return { loading: false, loadError: null, loadedFor: "", profile: null, periods: [], countries: null, workspaces: null, step: "settings",
+    form: { legal_name: "", organisation_type: "", country: "", base_currency: "", fiscal_year_start_month: "" }, currencyTouched: false,
+    period: { name: "", start: "", end: "" }, periodTouched: false, errors: {}, saving: false, error: null, notice: null };
+}
+
+function renderSetupPage(authState) {
+  const key = `${authState.organisationId}|${authState.role}`;
+  if (!uiState.setup || uiState.setup.loadedFor !== key) { uiState.setup = newSetup(); uiState.setup.loadedFor = key; loadSetup(authState, uiState.setup, key); }
+  const st = uiState.setup;
+  const touchPeriod = () => { if (!st.periodTouched) { const m = (st.profile && st.profile.fiscal_year_start_month) || st.form.fiscal_year_start_month; const fy = fiscalYear(m); st.period = { name: fy.name, start: fy.start, end: fy.end }; } };
+  const fail = (err, fallback) => { st.saving = false; st.error = (err && err.message) || fallback; render(); focusHeading("#su-error"); };
+  return Setup({
+    st, role: authState.role,
+    onField: (k, v, currency) => { st.form[k] = v; if (currency) st.currencyTouched = true; },
+    onCountry: (v) => {
+      st.form.country = v;
+      if (st.countries && st.countries.length) {
+        if (!st.currencyTouched) { const cur = currencyForCountry(st.countries, v); if (cur) st.form.base_currency = cur; }
+        render();
+      }
+    },
+    onSaveSettings: async () => {
+      if (st.saving) return;
+      const v = validateSettings(st.form);
+      st.errors = v.errors; st.error = null; st.notice = null;
+      if (!v.ok) { render(); focusHeading(".ob-err"); return; }
+      st.saving = true; render();
+      try {
+        const hit = (st.countries || []).find((c) => c.code === st.form.country);
+        const saved = await api.updateOrganisationProfile(mergeProfile(st.profile, { ...st.form, country: hit ? hit.name : st.form.country }));
+        st.profile = saved; st.saving = false; st.notice = "Organisation details saved."; st.step = "period"; touchPeriod();
+        render(); focusHeading("#setup h2");
+      } catch (err) { fail(err, "The details could not be saved."); }
+    },
+    onPeriodField: (k, v) => { st.period[k] = v; st.periodTouched = true; },
+    onSavePeriod: async () => {
+      if (st.saving) return;
+      const v = validatePeriod(st.period);
+      st.errors = v.errors; st.error = null; st.notice = null;
+      if (!v.ok) { render(); focusHeading(".ob-err"); return; }
+      st.saving = true; render();
+      try {
+        await api.openPeriod({ name: st.period.name.trim(), start_date: st.period.start, end_date: st.period.end });
+        st.periods = await api.listPeriods().catch(() => [{ name: st.period.name }]);
+        uiState.dashboardData = null; uiState.periods = null;
+        st.saving = false; st.notice = "Accounting period opened."; st.step = "workspaces"; render(); focusHeading("#setup h2");
+      } catch (err) { fail(err, "The period could not be opened."); }
+    },
+    onStep: (id) => { st.step = id; st.errors = {}; st.error = null; st.notice = null; if (id === "period") touchPeriod(); render(); focusHeading("#setup h2"); },
+    onGo: (p) => router.navigate(p),
+    onFinish: () => { uiState.home = { key: "", data: null, loading: false, error: null }; uiState.dashboardData = null; router.navigate("/"); render(); },
+    onRetry: () => { uiState.setup = null; render(); },
+  });
+}
+
+async function loadSetup(authState, st, key) {
+  if (!canSetUp(authState.role)) return;
+  st.loading = true;
+  try {
+    const [profile, periods] = await Promise.all([api.getOrganisationProfile(), api.listPeriods()]);
+    const [countries, workspaces] = await Promise.all([
+      api.taxCountries().then((r) => (r && r.countries) || null).catch(() => null),
+      api.workspaces().then((r) => (r && r.workspaces) || null).catch(() => null),
+    ]);
+    if (uiState.setup !== st || st.loadedFor !== key) return;
+    st.profile = profile || {}; st.periods = Array.isArray(periods) ? periods : []; st.countries = countries; st.workspaces = workspaces;
+    const hit = countries && countries.find((c) => c.name === st.profile.country || c.code === st.profile.country);
+    st.form = {
+      legal_name: st.profile.legal_name || "", organisation_type: st.profile.organisation_type || "",
+      country: hit ? hit.code : (st.profile.country || ""), base_currency: st.profile.base_currency || "",
+      fiscal_year_start_month: st.profile.fiscal_year_start_month ? String(st.profile.fiscal_year_start_month) : "",
+    };
+    st.currencyTouched = !!st.profile.base_currency;
+    st.step = resumeStep({ profile: st.profile, periods: st.periods });
+    if (st.step === "period") { const fy = fiscalYear(st.profile.fiscal_year_start_month); st.period = { name: fy.name, start: fy.start, end: fy.end }; }
+  } catch (err) { if (uiState.setup === st) st.loadError = (err && err.message) || "The set-up details could not be loaded."; }
+  finally { if (uiState.setup === st) { st.loading = false; render(); } }
+}
+
 /** Load the organisation list the first time the switcher opens. `false` means it failed (the menu says so). */
 function ensureOrgs() {
-  if (uiState.orgList) return;
-  api.myOrganisations().then((o) => { uiState.orgList = Array.isArray(o) ? o : false; }).catch(() => { uiState.orgList = false; }).finally(() => render());
+  if (uiState.orgList || uiState.orgLoading) return;
+  uiState.orgLoading = true;
+  api.myOrganisations().then((o) => { uiState.orgList = Array.isArray(o) ? o : false; }).catch(() => { uiState.orgList = false; }).finally(() => { uiState.orgLoading = false; render(); });
 }
 
 /**
@@ -550,6 +683,7 @@ function renderPage(matched, authState) {
   if (name === "period-close") return renderPeriodClose(authState, nav);
   if (name.startsWith("compliance")) return renderCompliance(name, params, authState, nav);
   if (name === "admin") return renderAdmin(authState, nav);
+  if (name === "setup") return renderSetupPage(authState);
   if (name === "import") return renderImport(authState, nav);
   if (name === "ai") return renderAi(authState);
   if (name === "passport-sharing") return renderPassportSharing(authState, nav);
