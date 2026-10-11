@@ -69,6 +69,9 @@ import { pilotBody, clientBody, clientFormProblem, timeBody, issueBody, passport
 import { reviewForm, reviewBody, declarationBody, engagementBody, reviewerBody, emptyObservation, actingMode } from "./lib/validation.js";
 import { makeBinding, parseOidcReturn, interpretLogin, parseRegions } from "./lib/signin.js";
 import { Landing } from "./pages/Landing.js";
+import { Home } from "./pages/Home.js";
+import { SideNav, TopBar } from "./components/Shell.js";
+import { groupNav, activeGroupId, breadcrumbs, searchPages, orgName, loadHome } from "./lib/home.js";
 import { signedOutScreen } from "./lib/landing.js";
 
 const API_BASE_URL = "https://asavexa.onrender.com";
@@ -87,6 +90,19 @@ const api = new ApiClient({
 });
 
 const root = document.getElementById("app-root");
+
+// Escape closes any open menu, the search list and the phone menu; a click anywhere else closes the menus.
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (uiState.menu || uiState.search.open || uiState.mobileNav) { uiState.menu = null; uiState.mobileNav = false; uiState.search = { q: "", open: false, idx: 0 }; render(); }
+  });
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    const inside = t && t.closest ? t.closest(".menu-wrap, .gsearch") : null;
+    if (!inside && (uiState.menu || uiState.search.open)) { uiState.menu = null; uiState.search.open = false; render(); }
+  });
+}
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard", permission: null },
@@ -167,6 +183,8 @@ const routes = [
 let uiState = {
   loginMode: "login", loginError: null, loginPending: false,
   enteredAuth: false, landingMenu: false, landingSeen: false,
+  navOpen: {}, mobileNav: false, search: { q: "", open: false, idx: 0 }, menu: null, lastPath: null,
+  home: { key: "", data: null, loading: false, error: null }, showLocked: false, orgList: null, switching: false, switchError: null,
   mfaChallenge: null, ssoConfig: null, secNoOrg: false, sec: null,
   auditQuery: "", auditJournal: null, auditChain: null, auditError: null,
 
@@ -378,35 +396,52 @@ function render() {
 function renderShell(authState) {
   const path = router.currentPath();
   const matched = matchRoute(routes, path);
+  // Moving to another page closes every open menu, the search list and the phone menu.
+  if (uiState.lastPath !== path) { uiState.lastPath = path; uiState.menu = null; uiState.mobileNav = false; uiState.search = { q: "", open: false, idx: 0 }; }
+  const visible = visibleNav(authState, path);
+  const groups = groupNav(visible);
+  const results = searchPages(uiState.search.q, visible);
+  const orgs = uiState.orgList || (uiState.home.data && uiState.home.data.orgs) || null;
+  const closeMenus = () => { uiState.menu = null; uiState.search.open = false; };
 
   mount(
     h(
       "div",
       { className: "app-shell" },
-      h(
-        "nav",
-        { className: "app-sidebar" },
-        h("div", { className: "brand" }, "ASAVEXA", h("small", {}, "Don't just report it. Prove it.")),
-        visibleNav(authState, path).map(({ item, active }) =>
-          h(
-            "a",
-            {
-              className: `nav-link${active ? " active" : ""}`,
-              href: `#${item.path}`,
-            },
-            item.label
-          )
-        )
-      ),
+      SideNav({
+        groups, navOpen: uiState.navOpen, activeId: activeGroupId(groups), mobileOpen: uiState.mobileNav,
+        onToggleGroup: (id, wasOpen) => { uiState.navOpen = { ...uiState.navOpen, [id]: !wasOpen }; render(); },
+        onGo: () => { uiState.mobileNav = false; render(); },
+      }),
+      uiState.mobileNav ? h("div", { className: "nav-scrim", id: "nav-scrim", onClick: () => { uiState.mobileNav = false; render(); } }) : null,
       h(
         "main",
-        { className: "app-main" },
-        h(
-          "div",
-          { className: "app-topbar" },
-          h("div", { className: "org-switcher" }, `Organisation: ${authState.organisationId}  ·  Role: ${authState.role}`),
-          h("button", { className: "btn btn-secondary", onClick: handleLogout }, "Sign out")
-        ),
+        { className: "app-main", id: "app-main" },
+        TopBar({
+          crumbs: breadcrumbs(path, visible), user: authState.user, role: authState.role,
+          orgs: uiState.orgList === false ? false : (uiState.orgList || (uiState.home.data && uiState.home.data.orgs) || null),
+          orgId: authState.organisationId, orgLabel: orgName(orgs, authState.organisationId),
+          menu: uiState.menu, switching: uiState.switching, switchError: uiState.switchError, mobileOpen: uiState.mobileNav,
+          search: uiState.search, results,
+          onToggleNav: () => { uiState.mobileNav = !uiState.mobileNav; render(); },
+          onToggle: (m) => { uiState.menu = uiState.menu === m || !m ? null : m; uiState.search.open = false; uiState.switchError = null; if (uiState.menu === "org") ensureOrgs(); render(); },
+          onSwitch: (id) => switchOrganisation(id),
+          onAll: () => { authStore.setOrganisation(null, null); window.location.hash = "#/"; window.location.reload(); },
+          onGo: (p) => { closeMenus(); router.navigate(p); render(); },
+          onSignOut: () => { closeMenus(); handleLogout(); },
+          onInput: (value, focusOnly) => {
+            // Focusing the box re-opens the list, but only once: a render restores focus, which must not trigger another render.
+            if (focusOnly && (uiState.search.open || !uiState.search.q.trim())) return;
+            uiState.menu = null; uiState.search = { q: value, open: true, idx: focusOnly ? uiState.search.idx : 0 }; render(); },
+          onKey: (e, list) => {
+            const st = uiState.search;
+            if (e.key === "ArrowDown") { e.preventDefault(); st.idx = list.length ? (st.idx + 1) % list.length : 0; st.open = true; render(); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); st.idx = list.length ? (st.idx - 1 + list.length) % list.length : 0; render(); }
+            else if (e.key === "Enter") { e.preventDefault(); const r = list[st.idx]; if (r) { uiState.search = { q: "", open: false, idx: 0 }; router.navigate(r.path); render(); } }
+            else if (e.key === "Escape") { uiState.search = { q: "", open: false, idx: 0 }; render(); }
+          },
+          onPick: () => { uiState.search = { q: "", open: false, idx: 0 }; },
+        }),
         renderPage(matched, authState)
       ),
       renderDock(authState, path),
@@ -421,6 +456,40 @@ function renderShell(authState) {
     ),
     root
   );
+}
+
+/** Load the organisation list the first time the switcher opens. `false` means it failed (the menu says so). */
+function ensureOrgs() {
+  if (uiState.orgList) return;
+  api.myOrganisations().then((o) => { uiState.orgList = Array.isArray(o) ? o : false; }).catch(() => { uiState.orgList = false; }).finally(() => render());
+}
+
+/**
+ * Switch organisation. The server decides (it may demand two-step sign-in). On success the page is reloaded so that nothing from
+ * the previous organisation can remain in memory: the session keeps its sign-in and now points at the new organisation.
+ */
+async function switchOrganisation(orgId) {
+  uiState.switching = true; uiState.switchError = null; render();
+  try {
+    const { role } = await api.selectOrganisation(orgId);
+    authStore.setOrganisation(orgId, role);
+    window.location.hash = "#/";
+    window.location.reload();
+  } catch (err) {
+    uiState.switching = false; uiState.switchError = (err && err.message) || "Could not open this organisation."; render();
+  }
+}
+
+/** Read everything the home page shows, once per organisation and role. */
+function loadHomeData(authState) {
+  const key = `${authState.organisationId}|${authState.role}`;
+  const home = uiState.home;
+  if (home.key === key) return;
+  home.key = key; home.loading = true; home.error = null; home.data = null;
+  loadHome(api, authState.role, authState.organisationId)
+    .then((data) => { if (uiState.home.key === key) uiState.home.data = data; })
+    .catch((err) => { if (uiState.home.key === key) uiState.home.error = (err && err.message) || "The home page could not be loaded."; })
+    .finally(() => { if (uiState.home.key === key) { uiState.home.loading = false; render(); } });
 }
 
 /** The sidebar entries this role may see, with only the most specific match marked active
@@ -454,7 +523,16 @@ function renderPage(matched, authState) {
 
   if (name === "dashboard") {
     loadDashboardData(authState);
-    return Dashboard({ role: authState.role, data: uiState.dashboardData || {}, onNavigate: nav });
+    loadHomeData(authState);
+    const aiOn = DK.dockAvailable(authState.role);
+    return Home({
+      user: authState.user, role: authState.role, orgLabel: orgName(uiState.orgList || (uiState.home.data && uiState.home.data.orgs), authState.organisationId),
+      data: uiState.home.data, loading: uiState.home.loading, error: uiState.home.error, dashboardData: uiState.dashboardData,
+      showLocked: uiState.showLocked, aiAvailable: DK.canAsk(authState.role) && aiOn, onNavigate: nav,
+      onToggleLocked: () => { uiState.showLocked = !uiState.showLocked; render(); },
+      onOpenAi: () => { dockState().open = true; render(); },
+      onRetry: () => { uiState.home.key = ""; render(); },
+    });
   }
   if (name === "audit") {
     once("auditRecentLoading", loadRecentJournals);
@@ -659,6 +737,8 @@ function handleLogout() {
     resetSecurityState();
     uiState.enteredAuth = false; uiState.landingMenu = false;
     render();
+    // Nothing from this session may stay in memory for the next person on this tab.
+    if (typeof window !== "undefined" && window.location && typeof window.location.reload === "function") { window.location.hash = "#/"; window.location.reload(); }
   });
 }
 

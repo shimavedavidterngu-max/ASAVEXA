@@ -20,12 +20,12 @@ import { PERMISSIONS } from "../lib/permissions.js";
  * yet) is passed as null/undefined and rendered as an explicit empty
  * state — never a fabricated zero.
  */
-export function Dashboard({ role, data, onNavigate }) {
+export function Dashboard({ role, data, onNavigate, bare = false }) {
   return h(
     "div",
     {},
-    h("h1", {}, "Dashboard"),
-    h("p", { style: "color: var(--ink-500); margin-top: -8px; margin-bottom: 24px;" },
+    bare ? null : h("h1", {}, "Dashboard"),
+    bare ? null : h("p", { style: "color: var(--ink-500); margin-top: -8px; margin-bottom: 24px;" },
       "Don't just report the number. Prove it."),
     h("div", { className: "card-grid" },
       financialPositionCard(data.trialBalance, onNavigate),
