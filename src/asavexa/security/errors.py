@@ -70,3 +70,21 @@ class RecoveryRateLimitError(RecoveryError):
 
 class RecoveryUnavailableError(RecoveryError):
     status = 503
+
+
+class VerificationError(SecurityError):
+    """Email verification refused. Messages are the same whether or not an account exists for the email."""
+    status = 400
+
+
+class VerificationRateLimitError(VerificationError):
+    status = 429
+
+
+class VerificationUnavailableError(VerificationError):
+    status = 503
+
+
+class WebhookError(SecurityError):
+    """A delivery webhook that is not genuine (bad or missing signature) or not configured."""
+    status = 401

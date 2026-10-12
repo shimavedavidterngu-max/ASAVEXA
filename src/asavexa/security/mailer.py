@@ -1,10 +1,11 @@
 """Transactional email for ASAVEXA. No provider existed before this, so this is the one place email leaves the platform.
 
-Providers (chosen by ASAVEXA_EMAIL_PROVIDER):
-  resend   HTTPS API (https://resend.com). Needs RESEND_API_KEY and ASAVEXA_EMAIL_FROM (a sender address on a domain you verified
-           with the provider). Recommended on Render's free plan, which blocks outbound SMTP.
-  smtp     ASAVEXA_SMTP_HOST, ASAVEXA_SMTP_PORT (587 = STARTTLS, 465 = SSL), ASAVEXA_SMTP_USER, ASAVEXA_SMTP_PASSWORD, ASAVEXA_EMAIL_FROM.
-  (unset)  email is NOT configured: recovery is switched off and says so. Nothing is pretended.
+Providers (chosen by EMAIL_PROVIDER, or the older name ASAVEXA_EMAIL_PROVIDER):
+  resend   HTTPS API (https://resend.com). Needs EMAIL_API_KEY (or RESEND_API_KEY) and a sender: EMAIL_FROM_ADDRESS (+ optional EMAIL_FROM_NAME),
+           or the older ASAVEXA_EMAIL_FROM. The address must be on a domain you verified with the provider.
+           Recommended on Render's free plan, which blocks outbound SMTP.
+  smtp     ASAVEXA_SMTP_HOST, ASAVEXA_SMTP_PORT (587 = STARTTLS, 465 = SSL), ASAVEXA_SMTP_USER, ASAVEXA_SMTP_PASSWORD, and the sender as above.
+  (unset)  email is NOT configured: recovery and verification are switched off and say so. Nothing is pretended.
 Tests use OutboxMailer, which keeps messages in memory. It is never selected from the environment.
 
 Credentials only ever come from environment variables. A mailer raises EmailDeliveryError when the provider reports failure,
@@ -15,6 +16,7 @@ import json
 import logging
 import os
 import smtplib
+import re
 import ssl
 import urllib.error
 import urllib.request
@@ -32,7 +34,9 @@ class EmailDeliveryError(Exception):
 class Mailer(Protocol):
     name: str
 
-    def send(self, to: str, subject: str, text: str, html: Optional[str] = None) -> None: ...
+    def send(self, to: str, subject: str, text: str, html: Optional[str] = None) -> Optional[str]:
+        """Hands the message to the provider. Returns the provider's message id when it gives one. Raises EmailDeliveryError otherwise."""
+        ...
 
 
 @dataclass
@@ -46,6 +50,7 @@ class OutboxMailer:
         if self.fail:
             raise EmailDeliveryError("test mailer is set to fail")
         self.sent.append({"to": to, "subject": subject, "text": text, "html": html})
+        return f"outbox-{len(self.sent)}"
 
 
 class ResendMailer:
@@ -65,6 +70,10 @@ class ResendMailer:
             with self._open(req, timeout=self.timeout) as r:
                 if not 200 <= getattr(r, "status", 200) < 300:
                     raise EmailDeliveryError(f"provider answered {r.status}")
+                try:
+                    return (json.loads(r.read() or b"{}") or {}).get("id")
+                except Exception:       # the message was accepted; a missing id only means no webhook correlation
+                    return None
         except urllib.error.HTTPError as e:
             raise EmailDeliveryError(f"provider answered {e.code}") from None
         except (urllib.error.URLError, OSError, TimeoutError) as e:
@@ -98,23 +107,44 @@ class SmtpMailer:
                 if self.user:
                     s.login(self.user, self.password)
                 s.send_message(msg)
+            return None
         except (smtplib.SMTPException, OSError, TimeoutError) as e:
             raise EmailDeliveryError(f"smtp failed ({type(e).__name__})") from None
+
+
+def _env(env, *names) -> str:
+    for n in names:
+        v = (env.get(n) or "").strip()
+        if v:
+            return v
+    return ""
+
+
+def sender_from_env(env=None) -> str:
+    """'ASAVEXA <no-reply@your-domain>' from EMAIL_FROM_ADDRESS + EMAIL_FROM_NAME, or the older all-in-one ASAVEXA_EMAIL_FROM."""
+    env = os.environ if env is None else env
+    address = _env(env, "EMAIL_FROM_ADDRESS")
+    if address:
+        name = _env(env, "EMAIL_FROM_NAME") or "ASAVEXA"
+        if "<" in address:           # already 'Name <address>'
+            return address
+        return f"{name} <{address}>"
+    return _env(env, "ASAVEXA_EMAIL_FROM")
 
 
 def mailer_from_env(env=None) -> Optional[Mailer]:
     """The configured provider, or None when email is not set up (or set up incompletely: that is logged, without secrets)."""
     env = os.environ if env is None else env
-    which = (env.get("ASAVEXA_EMAIL_PROVIDER") or "").strip().lower()
-    sender = (env.get("ASAVEXA_EMAIL_FROM") or "").strip()
+    which = _env(env, "EMAIL_PROVIDER", "ASAVEXA_EMAIL_PROVIDER").lower()
+    sender = sender_from_env(env)
     if not which:
         return None
     if which == "resend":
-        key = (env.get("RESEND_API_KEY") or "").strip()
+        key = _env(env, "EMAIL_API_KEY", "RESEND_API_KEY")
         if key and sender:
             return ResendMailer(key, sender)
     elif which == "smtp":
-        host = (env.get("ASAVEXA_SMTP_HOST") or "").strip()
+        host = _env(env, "ASAVEXA_SMTP_HOST")
         if host and sender:
             try:
                 port = int(env.get("ASAVEXA_SMTP_PORT") or 587)
@@ -122,5 +152,35 @@ def mailer_from_env(env=None) -> Optional[Mailer]:
                 port = 0
             if port:
                 return SmtpMailer(host, port, env.get("ASAVEXA_SMTP_USER") or "", env.get("ASAVEXA_SMTP_PASSWORD") or "", sender)
+    else:
+        logger.error("email_misconfigured provider=%s (unknown provider; use resend or smtp)", which)
+        return None
     logger.error("email_misconfigured provider=%s (missing settings)", which)
     return None
+
+
+@dataclass(frozen=True)
+class EmailSettings:
+    """Non-secret settings that shape the emails and the codes."""
+    app_base_url: Optional[str] = None
+    support_email: Optional[str] = None
+    verification_ttl_minutes: int = 10
+    reset_ttl_minutes: int = 10
+
+
+def _minutes(env, name: str, default: int) -> int:
+    try:
+        return min(60, max(1, int(env.get(name) or default)))
+    except ValueError:
+        return default
+
+
+def email_settings_from_env(env=None) -> EmailSettings:
+    env = os.environ if env is None else env
+    url = (env.get("APP_BASE_URL") or "").strip().rstrip("/")
+    if url and not re.match(r"^https?://[^\s/]+", url):
+        logger.error("APP_BASE_URL ignored: it must start with https:// (or http:// for local testing)")
+        url = ""
+    return EmailSettings(app_base_url=url or None, support_email=(env.get("SUPPORT_EMAIL") or "").strip() or None,
+                         verification_ttl_minutes=_minutes(env, "EMAIL_VERIFICATION_CODE_TTL_MINUTES", 10),
+                         reset_ttl_minutes=_minutes(env, "PASSWORD_RESET_CODE_TTL_MINUTES", 10))

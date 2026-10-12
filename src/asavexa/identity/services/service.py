@@ -95,6 +95,7 @@ class IdentityService:
     # Users
     # ------------------------------------------------------------------
     def register_user(self, email: str, password: str, actor: Optional[str] = None) -> User:
+        email = (email or "").strip().lower()          # one account per address, whatever the capitalisation typed
         if self.users.get_by_email(email) is not None:
             raise DuplicateEmailError(f"An account already exists for {email}.")
         user = User(

@@ -24,6 +24,7 @@ from typing import Callable, Optional
 
 from ..identity.domain import password_policy
 from .errors import RecoveryError, RecoveryRateLimitError, RecoveryUnavailableError
+from . import emailtemplates as T
 from .mailer import EmailDeliveryError, Mailer
 
 logger = logging.getLogger("asavexa.recovery")
@@ -60,41 +61,15 @@ def _threaded(fn: Callable[[], None]) -> None:
     threading.Thread(target=fn, daemon=True).start()
 
 
-def _code_email(code: str, minutes: int):
-    subject = "Your ASAVEXA verification code"
-    text = (f"Your ASAVEXA verification code is {code}\n\nIt expires in {minutes} minutes and can be used once.\n\n"
-            "You are receiving this because someone asked to reset the password for the ASAVEXA account that uses this email address. "
-            "If that was you, enter the code on the password reset page. If it was not, you can ignore this email: your password has not changed.\n\n"
-            "ASAVEXA will never ask you for your password by email.")
-    html = ("<div style='font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#0b1b2b'>"
-            "<h2 style='font-family:Georgia,serif;margin:0 0 4px'>ASAVEXA</h2><p style='color:#5b6b7b;margin:0 0 20px'>Don't just report it. Prove it.</p>"
-            "<p>Your verification code is</p>"
-            f"<p style='font-size:32px;letter-spacing:8px;font-weight:bold;margin:8px 0'>{code}</p>"
-            f"<p>It expires in {minutes} minutes and can be used once.</p>"
-            "<p style='color:#5b6b7b'>You are receiving this because someone asked to reset the password for the ASAVEXA account that uses this email address. "
-            "If that was you, enter the code on the password reset page. If not, ignore this email: your password has not changed.</p>"
-            "<p style='color:#5b6b7b'>ASAVEXA will never ask you for your password by email.</p></div>")
-    return subject, text, html
-
-
-def _changed_email():
-    subject = "Your ASAVEXA password was changed"
-    text = ("The password for your ASAVEXA account was just changed, and you were signed out everywhere.\n\n"
-            "If you did this, no action is needed. If you did not, reset your password again straight away and tell your organisation's administrator.")
-    html = ("<div style='font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#0b1b2b'><h2 style='font-family:Georgia,serif'>ASAVEXA</h2>"
-            "<p>The password for your ASAVEXA account was just changed, and you were signed out everywhere.</p>"
-            "<p>If you did this, no action is needed. If you did not, reset your password again straight away and tell your organisation's administrator.</p></div>")
-    return subject, text, html
-
-
 class RecoveryService:
     def __init__(self, store, identity, mailer: Optional[Mailer], log: Callable[..., None], revoke_sessions: Callable[[str], None],
                  now: Callable[[], datetime] = _utc, dispatch: Callable[[Callable[[], None]], None] = _threaded,
-                 commit: Callable[[], None] = lambda: None):
+                 commit: Callable[[], None] = lambda: None, code_ttl: timedelta = CODE_TTL, support_email: Optional[str] = None):
         """log(action, actor, entity_id, **kw) writes an audit event. revoke_sessions(user_id) signs the person out everywhere.
         dispatch runs the email send: a background thread in production (so a real account and an unknown one take the same
         time), a direct call in tests."""
         self.store, self.identity, self.mailer, self.log, self.revoke_sessions, self.now, self.dispatch, self.commit = store, identity, mailer, log, revoke_sessions, now, dispatch, commit
+        self.code_ttl, self.support_email = code_ttl, support_email
 
     @property
     def available(self) -> bool:
@@ -145,16 +120,16 @@ class RecoveryService:
         code = f"{secrets.randbelow(10 ** 6):06d}"
         salt = secrets.token_hex(8)
         if user is not None and user.is_active:
-            self.store.put("pwreset_code", user.id, {"salt": salt, "hash": self._code_hash(salt, user.id, code), "expires_at": (now + CODE_TTL).isoformat(),
+            self.store.put("pwreset_code", user.id, {"salt": salt, "hash": self._code_hash(salt, user.id, code), "expires_at": (now + self.code_ttl).isoformat(),
                                                      "created_at": now.isoformat(), "state": "pending"})      # replaces any earlier code
             self.store.delete("pwreset_auth", user.id)                                                        # an older reset authorisation dies too
             self.log("PASSWORD_RECOVERY_REQUESTED", user.id, user.id, reason="verification code issued")
-            subject, text, html = _code_email(code, int(CODE_TTL.total_seconds() // 60))
-            self._send(user.email, subject, text, html, "code", user.id)
+            m = T.recovery_code(code, int(self.code_ttl.total_seconds() // 60))
+            self._send(user.email, m.subject, m.text, m.html, "code", user.id)
         else:
             self._dummy(salt, code)
             self.log("PASSWORD_RECOVERY_REQUESTED", e, _h("unknown", e)[:36], reason="no recoverable account")
-        return {"message": GENERIC_REQUEST_MESSAGE, "cooldown_seconds": RESEND_COOLDOWN_SECONDS, "expires_in_minutes": int(CODE_TTL.total_seconds() // 60)}
+        return {"message": GENERIC_REQUEST_MESSAGE, "cooldown_seconds": RESEND_COOLDOWN_SECONDS, "expires_in_minutes": int(self.code_ttl.total_seconds() // 60)}
 
     def _dummy(self, salt: str, code: str) -> None:
         self._code_hash(salt, "none", code)
@@ -222,6 +197,6 @@ class RecoveryService:
         self.revoke_sessions(user.id)
         self.log("PASSWORD_RESET_COMPLETED", user.id, user.id, reason="password reset; other sessions signed out")
         if self.available:
-            subject, text, html = _changed_email()
-            self._send(user.email, subject, text, html, "changed", user.id)
+            m = T.password_changed(self.support_email)
+            self._send(user.email, m.subject, m.text, m.html, "changed", user.id)
         return {"message": "Your password has been reset successfully. You can now sign in with your new password."}

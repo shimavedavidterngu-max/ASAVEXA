@@ -127,7 +127,7 @@ class SqliteUserRepository:
         return self._row_to_user(row) if row else None
 
     def get_by_email(self, email: str) -> Optional[User]:
-        row = self.conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        row = self.conn.execute("SELECT * FROM users WHERE lower(email)=lower(?)", (email,)).fetchone()
         return self._row_to_user(row) if row else None
 
     def update(self, user: User) -> User:

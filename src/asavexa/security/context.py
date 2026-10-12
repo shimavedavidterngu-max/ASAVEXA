@@ -30,7 +30,7 @@ def _utc():
 class SecurityContext:
     def __init__(self, identity, audit, store: DocStore, keys=None, objects=None, oidc_cfg=None, now: Callable[[], datetime] = _utc,
                  commit: Callable[[], None] = lambda: None, policy: Optional[SessionPolicy] = None, database_region: str = "unspecified",
-                 notifier=None, oidc_http=None, mailer=None, mail_dispatch=None):
+                 notifier=None, oidc_http=None, mailer=None, mail_dispatch=None, email_settings=None, webhook_secret=None):
         self.identity, self.audit, self.store, self.keys, self.objects, self.oidc_cfg = identity, audit, store, keys, objects, oidc_cfg
         self.now, self.commit, self.database_region, self.notifier, self.oidc_http = now, commit, database_region, notifier, oidc_http or {}
         self.guard = SessionGuard(store, identity.sessions, now=now, policy=policy)
@@ -41,9 +41,17 @@ class SecurityContext:
         self.blobs = BlobService(store, objects, keys, residency=self.residency, now=now) if (keys is not None and objects is not None) else None
         self.retention = RetentionService(store, self.blobs, now)
         self._mfa = MfaService(store, keys, now=lambda: now()) if keys is not None else None
+        from .mailer import EmailSettings
+        from .mailevents import MailEvents
         from .recovery import RecoveryService, _threaded
+        from .verification import EmailVerificationService
+        self.email_settings = email_settings or EmailSettings()
         self.recovery = RecoveryService(store, identity, mailer, log=self._recovery_log, revoke_sessions=self._revoke_everywhere, now=now,
-                                        dispatch=mail_dispatch or _threaded, commit=commit)
+                                        dispatch=mail_dispatch or _threaded, commit=commit,
+                                        code_ttl=timedelta(minutes=self.email_settings.reset_ttl_minutes), support_email=self.email_settings.support_email)
+        self.verification = EmailVerificationService(store, identity, mailer, log=self._recovery_log, now=now, commit=commit,
+                                                     settings=self.email_settings, dispatch=mail_dispatch or _threaded)
+        self.mail_events = MailEvents(store, webhook_secret, now)
         self.privacy = PrivacyService(identity, self._mfa, self.guard, audit, store, now)
 
     # ----------------------------------------------------------------- helpers

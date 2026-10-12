@@ -28,6 +28,15 @@ class RecoveryResetIn(BaseModel):
     confirm_password: Optional[str] = None
 
 
+class VerificationRequestIn(BaseModel):
+    email: str
+
+
+class VerificationConfirmIn(BaseModel):
+    email: str
+    code: str
+
+
 class UserOut(BaseModel):
     id: str
     email: str
@@ -35,6 +44,11 @@ class UserOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RegisterResponse(UserOut):
+    """The new account plus the truthful result of the email step: `email.sent` is true only when the provider accepted the message."""
+    email_delivery: Optional[dict] = None
 
 
 class LoginRequest(BaseModel):

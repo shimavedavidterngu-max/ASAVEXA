@@ -121,7 +121,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, ai, analysis, audit, auth, compliance, evidence, ingestion, journals, forensic, grc, pubfin, bizdev, cyber, health, organisation_profile, network, passport, period_close, pilot, periods, proof, reconciliation, reporting, security, shared_passport, standards, tax, validation, workspaces
+from .routers import accounts, ai, analysis, audit, auth, webhooks, compliance, evidence, ingestion, journals, forensic, grc, pubfin, bizdev, cyber, health, organisation_profile, network, passport, period_close, pilot, periods, proof, reconciliation, reporting, security, shared_passport, standards, tax, validation, workspaces
 
 app = FastAPI(
     title="Asavexa",
@@ -217,6 +217,7 @@ async def request_id_and_logging_middleware(request: Request, call_next):
 
 app.include_router(auth.router)
 app.include_router(auth.org_router)
+app.include_router(webhooks.router)
 app.include_router(accounts.router)
 app.include_router(periods.router)
 app.include_router(journals.router)

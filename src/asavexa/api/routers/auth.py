@@ -20,6 +20,9 @@ from ..schemas.auth import (
     OrganisationCreate,
     OrganisationOut,
     RegisterRequest,
+    RegisterResponse,
+    VerificationConfirmIn,
+    VerificationRequestIn,
     SelectOrganisationRequest,
     UserOut,
 )
@@ -35,11 +38,44 @@ def password_policy_info():
     return {"min_length": pp.MIN_LENGTH, "max_length": pp.MAX_LENGTH, "requirements": pp.REQUIREMENTS}
 
 
-@router.post("/register", response_model=UserOut, status_code=201)
-def register(body: RegisterRequest, identity: IdentityService = Depends(get_identity_service)):
+@router.post("/register", response_model=RegisterResponse, status_code=201)
+def register(body: RegisterRequest, identity: IdentityService = Depends(get_identity_service), security: SecurityContext = Depends(get_security),
+             request: Request = None):
+    """Creates the account, then sends the welcome email and the 6-digit verification code. The account is kept even if the email
+    cannot be sent; `email_delivery.sent` says truthfully whether the provider accepted it. A second sign-up with the same address
+    fails with 409 before any email is sent, so a double click can never send two."""
+    if request is not None:
+        ratelimit.throttle(ratelimit.REGISTER, request)
     if body.confirm_password is not None and body.confirm_password != body.password:
         raise HTTPException(status_code=422, detail="The two passwords do not match.")
-    return identity.register_user(body.email, body.password)
+    user = identity.register_user(body.email, body.password)
+    delivery = security.verification.on_registered(user)
+    return RegisterResponse(id=user.id, email=user.email, is_active=user.is_active, created_at=user.created_at, email_delivery=delivery)
+
+
+# ---- email verification: confirm the address with a 6-digit code (same generic answers for real and unknown emails)
+@router.get("/verification/status")
+def verification_status(security: SecurityContext = Depends(get_security)):
+    """Lets the sign-up screen say honestly when email is not set up, instead of promising a code that will never come."""
+    return {"available": security.verification.available}
+
+
+@router.post("/verification/request")
+def verification_request(request: Request, body: VerificationRequestIn, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.VERIFY_REQUEST, request)
+    return security.verification.request(body.email)
+
+
+@router.post("/verification/confirm")
+def verification_confirm(request: Request, body: VerificationConfirmIn, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.VERIFY_CONFIRM, request)
+    return security.verification.confirm(body.email, body.code)
+
+
+@router.get("/email-status")
+def email_status(actor: str = Depends(get_current_actor), security: SecurityContext = Depends(get_security)):
+    """Whether the signed-in person's email address has been verified."""
+    return {"email_verified": security.verification.is_verified(actor)}
 
 
 # ---- password recovery: request a code, verify it, set a new password. Every answer is the same for real and unknown emails.

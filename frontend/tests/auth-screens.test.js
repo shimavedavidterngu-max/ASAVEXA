@@ -195,7 +195,7 @@ describe("app.js wiring contracts", () => {
     const done = src.slice(src.indexOf("async function handleRecoveryReset"), src.indexOf("async function handleMfaSubmit"));
     assert.ok(!/setSession/.test(done)); assert.match(src, /Your password was reset\. Sign in with your new password\./);
   });
-  test("sign-out clears the form drafts", () => { assert.match(src, /clearAuthDraft\(\); uiState\.rc = null; uiState\.loginMode = "login";/); });
+  test("sign-out clears the form drafts", () => { assert.match(src, /clearAuthDraft\(\); uiState\.rc = null; uiState\.vf = null; stopVerifyTimer\(\); uiState\.loginMode = "login";/); });
   test("the api client has the four recovery calls and sends the confirmation on sign-up", () => {
     const c = readFileSync(new URL("../src/api/client.js", import.meta.url), "utf8");
     for (const m of ["recoveryStatus", "recoveryRequest", "recoveryVerify", "recoveryReset"]) assert.ok(c.includes(m + "("));

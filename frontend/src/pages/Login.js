@@ -56,7 +56,7 @@ export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, 
         isRegister ? PasswordField({ id: "confirm", label: "Confirm password", value: draft.confirm || "", autocomplete: "new-password", error: fe.confirm, describedBy: "confirm-live", onInput: keep("confirm") }) : null,
         isRegister ? h("div", { className: "pw-live", id: "confirm-live", "aria-live": "polite" }) : null,
         h("button", { type: "submit", id: "auth-submit", className: "btn btn-primary", style: "width:100%; margin-top:8px;", disabled: pending, "aria-busy": pending ? "true" : undefined },
-          pending ? "Please wait…" : isRegister ? "Create account" : "Sign in")
+          pending ? (isRegister ? "Creating your account..." : "Please wait…") : isRegister ? "Create Account" : "Sign in")
       ),
       sso && sso.enabled && !isRegister
         ? h("button", { type: "button", className: "btn btn-secondary", style: "width:100%; margin-top:8px;", disabled: pending, onClick: () => onSso && onSso() },

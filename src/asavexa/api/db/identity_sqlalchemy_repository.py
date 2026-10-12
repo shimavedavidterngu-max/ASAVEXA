@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session as OrmSession
 
 from ...identity.domain.enums import MembershipStatus, Role
@@ -92,7 +92,7 @@ class SqlAlchemyUserRepository:
         return _user_to_domain(row) if row else None
 
     def get_by_email(self, email: str) -> Optional[User]:
-        row = self.session.scalar(select(UserORM).where(UserORM.email == email))
+        row = self.session.scalar(select(UserORM).where(func.lower(UserORM.email) == (email or "").strip().lower()))
         return _user_to_domain(row) if row else None
 
     def update(self, user: User) -> User:

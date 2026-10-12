@@ -268,6 +268,10 @@ export class ApiClient {
   recoveryRequest(email) { return this.post("/auth/recovery/request", { email }); }
   recoveryVerify(email, code) { return this.post("/auth/recovery/verify", { email, code }); }
   recoveryReset(email, resetToken, newPassword, confirm) { return this.post("/auth/recovery/reset", { email, reset_token: resetToken, new_password: newPassword, confirm_password: confirm }); }
+  // Email verification at sign-up. The server answers the same way whether or not an account exists for the email.
+  verificationStatus() { return this.get("/auth/verification/status"); }
+  verificationRequest(email) { return this.post("/auth/verification/request", { email }); }
+  verificationConfirm(email, code) { return this.post("/auth/verification/confirm", { email, code }); }
   login(email, password) {
     return this.post("/auth/login", { email, password });
   }

@@ -10,7 +10,7 @@ import { normaliseCode } from "../lib/passwords.js";
  */
 export const RECOVERY_STEPS = ["request", "verify", "reset", "done"];
 
-function frame(children, { onBack }) {
+export function frame(children, { onBack } = {}) {
   return h("div", { className: "login-screen", id: "recovery-screen", style: "min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--navy-950);" },
     h("div", { className: "card auth-card", style: "width: 380px;" },
       h("div", { className: "auth-brand", style: "font-family: var(--font-display); font-size:22px; margin-bottom:4px;" }, "ASAVEXA"),
@@ -18,7 +18,7 @@ function frame(children, { onBack }) {
       children));
 }
 
-const alertError = (error) => (error ? h("div", { className: "alert alert-error", id: "rc-error", role: "alert", style: "margin-bottom:16px;" }, error) : null);
+export const alertError = (error) => (error ? h("div", { className: "alert alert-error", id: "rc-error", role: "alert", style: "margin-bottom:16px;" }, error) : null);
 const backLink = (onBack, text = "Back to sign in") => h("div", { style: "margin-top:16px; text-align:center; font-size:12.5px;" }, h("a", { href: "#", id: "rc-back", onClick: (e) => { e.preventDefault(); onBack(); } }, text));
 
 function requestStep(p) {

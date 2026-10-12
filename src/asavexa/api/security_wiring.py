@@ -71,7 +71,7 @@ def _webhook_notifier():
     return send
 
 
-from ..security.mailer import mailer_from_env  # noqa: E402
+from ..security.mailer import email_settings_from_env, mailer_from_env  # noqa: E402
 
 
 def build_security(session, identity) -> SecurityContext:
@@ -89,4 +89,4 @@ def build_security(session, identity) -> SecurityContext:
         logger.exception("oidc_misconfigured")
         oidc = None
     return SecurityContext(identity, SqlAlchemyAuditRepository(session), store, keys=keys, objects=objects, oidc_cfg=oidc, commit=session.commit,
-                           policy=session_policy(), mailer=mailer_from_env(), database_region=os.environ.get("ASAVEXA_DATA_REGION", "unspecified"), notifier=_webhook_notifier())
+                           policy=session_policy(), mailer=mailer_from_env(), email_settings=email_settings_from_env(), webhook_secret=os.environ.get("RESEND_WEBHOOK_SECRET"), database_region=os.environ.get("ASAVEXA_DATA_REGION", "unspecified"), notifier=_webhook_notifier())

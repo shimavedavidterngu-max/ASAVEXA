@@ -239,6 +239,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "proof.router": "/proof",
         "analysis.router": "/analysis",
         "workspaces.router": "/workspaces",
+        "webhooks.router": "/webhooks",
         "tax.router": "/tax",
         "forensic.router": "/forensic",
         "grc.router": "/grc",

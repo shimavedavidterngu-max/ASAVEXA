@@ -22,6 +22,7 @@ import { h, mount } from "./lib/vdom.js";
 import { allowed } from "./components/PermissionGate.js";
 import { PERMISSIONS } from "./lib/permissions.js";
 import { Login } from "./pages/Login.js";
+import { VerifyEmail } from "./pages/VerifyEmail.js";
 import { Recovery } from "./pages/Recovery.js";
 import { validateSignup, validateLogin, validateNewPassword, emailProblem, codeProblem, normaliseCode, secondsLeft } from "./lib/passwords.js";
 import { Dashboard } from "./pages/Dashboard.js";
@@ -188,7 +189,7 @@ const routes = [
 ];
 
 let uiState = {
-  loginMode: "login", loginError: null, loginPending: false,
+  loginMode: "login", loginError: null, loginPending: false, vf: null,
   auth: { draft: { email: "", password: "", confirm: "" }, fieldErrors: {}, notice: null }, rc: null,
   enteredAuth: false, landingMenu: false, landingSeen: false,
   navOpen: {}, mobileNav: false, search: { q: "", open: false, idx: 0 }, menu: null, lastPath: null,
@@ -339,6 +340,16 @@ function render() {
       onSignIn: () => openAuth("login"), onGetStarted: () => openAuth("register"),
       onJump: landingJump, onToggleMenu: () => { uiState.landingMenu = !uiState.landingMenu; render(); },
     }), root);
+    return;
+  }
+
+  if (!authState.token && uiState.loginMode === "verify" && uiState.vf) {
+    const v = uiState.vf;
+    mount(h("div", { id: "screen" }, VerifyEmail({
+      email: v.email, sent: v.sent, resent: v.resent, code: v.code, pending: v.pending, error: v.error, notice: v.notice, fieldErrors: v.fieldErrors, verified: v.verified,
+      available: v.available, cooldown: secondsLeft(v.cooldownUntil || 0), expiresMinutes: v.expiresMinutes,
+      onDraft: (k, val) => { v[k] = val; }, onVerify: handleVerifyConfirm, onResend: handleVerifyResend, onContinue: handleVerifyContinue,
+    })), root);
     return;
   }
 
@@ -796,7 +807,13 @@ async function handleAuthSubmit({ email, password, confirm }) {
   render();
   try {
     if (registering) {
-      await api.register(cleanEmail, password, confirm);
+      const created = await api.register(cleanEmail, password, confirm);
+      // The account exists now. The server says truthfully whether the provider accepted the welcome email and the code.
+      uiState.vf = newVerify(cleanEmail, (created && created.email_delivery) || {});
+      uiState.loginMode = "verify"; uiState.auth.fieldErrors = {};
+      if (uiState.vf.cooldownUntil > Date.now()) startVerifyTimer();
+      setTimeout(() => { const el = document.getElementById("vf-code"); if (el) el.focus(); }, 0);
+      return;
     }
     const result = interpretLogin(await api.login(cleanEmail, password));
     if (result.kind === "mfa") uiState.mfaChallenge = result.challenge;
@@ -809,6 +826,81 @@ async function handleAuthSubmit({ email, password, confirm }) {
     uiState.loginPending = false;
     render();
     if (uiState.loginError) setTimeout(() => { const el = document.getElementById(registering ? "email" : "password"); if (el && !registering) el.focus(); }, 0);
+  }
+}
+
+// ---- email verification right after sign-up: confirm the address with the 6-digit code (real backend) ----
+let vfTimer = null;
+const newVerify = (email, d) => ({
+  email, sent: !!d.sent, resent: false, code: "", pending: false, error: null, notice: null, fieldErrors: {}, verified: false, available: d.reason === "not_configured" ? false : null,
+  cooldownUntil: Date.now() + (Number(d.cooldown_seconds) || 0) * 1000, expiresMinutes: Number(d.expires_in_minutes) || 10,
+});
+
+function stopVerifyTimer() { if (vfTimer) { clearInterval(vfTimer); vfTimer = null; } }
+function startVerifyTimer() {
+  stopVerifyTimer();
+  vfTimer = setInterval(() => {
+    const v = uiState.vf, btn = document.getElementById("vf-resend");
+    if (!v || v.verified || !btn) { stopVerifyTimer(); return; }
+    const left = secondsLeft(v.cooldownUntil);
+    btn.textContent = left > 0 ? `Resend verification code (${left}s)` : "Resend verification code";
+    btn.disabled = left > 0 || v.pending || v.available === false;
+    if (left <= 0) stopVerifyTimer();
+  }, 1000);
+}
+
+async function handleVerifyConfirm(code) {
+  const v = uiState.vf;
+  if (!v || v.pending) return;
+  v.code = normaliseCode(code);
+  const problem = codeProblem(v.code);
+  if (problem) { v.fieldErrors = { code: problem }; v.error = null; render(); focusFirstError(); return; }
+  v.fieldErrors = {}; v.error = null; v.notice = null; v.pending = true; render();
+  try {
+    await api.verificationConfirm(v.email, v.code);
+    v.verified = true; v.code = ""; stopVerifyTimer();
+  } catch (err) {
+    v.error = rcMessage(err); v.code = "";
+  } finally {
+    v.pending = false; render();
+    if (v.verified) focusHeading("#rc-title"); else setTimeout(() => { const el = document.getElementById("vf-code"); if (el) el.focus(); }, 0);
+  }
+}
+
+async function handleVerifyResend() {
+  const v = uiState.vf;
+  if (!v || v.pending) return;
+  v.error = null; v.notice = null; v.fieldErrors = {}; v.pending = true; render();
+  try {
+    const res = await api.verificationRequest(v.email);
+    v.cooldownUntil = Date.now() + (Number(res && res.cooldown_seconds) || 60) * 1000;
+    v.expiresMinutes = Number(res && res.expires_in_minutes) || v.expiresMinutes;
+    v.notice = (res && res.message) || "If this email address can be verified, a new code is on its way.";
+    v.code = ""; v.resent = true; startVerifyTimer();     // the server's own words (below) replace the first banner
+  } catch (err) {
+    v.error = rcMessage(err);
+    if (err && err.status === 503) { v.available = false; v.error = null; v.sent = false; }
+    if (err && err.status === 429 && /wait (\d+) seconds/i.test(err.message || "")) { v.cooldownUntil = Date.now() + Number(/wait (\d+) seconds/i.exec(err.message)[1]) * 1000; startVerifyTimer(); }
+  } finally {
+    v.pending = false; render();
+  }
+}
+
+/** Signs the new person in with the password they just chose (held in memory only), whether or not they verified yet. */
+async function handleVerifyContinue() {
+  const v = uiState.vf;
+  if (!v || v.pending) return;
+  v.error = null; v.pending = true; render();
+  try {
+    const result = interpretLogin(await api.login(v.email, uiState.auth.draft.password));
+    if (result.kind === "mfa") { uiState.mfaChallenge = result.challenge; uiState.loginMode = "login"; stopVerifyTimer(); uiState.vf = null; }
+    else if (result.kind === "done") { stopVerifyTimer(); uiState.vf = null; uiState.loginMode = "login"; authStore.setSession(result.token, result.user); clearAuthDraft(); }
+    else v.error = result.message;
+  } catch (err) {
+    v.error = err.message;
+  } finally {
+    if (uiState.vf) uiState.vf.pending = false;
+    render();
   }
 }
 
@@ -1009,7 +1101,7 @@ function handleLogout() {
   api.logout().finally(() => {
     authStore.clear();
     resetSecurityState();
-    clearAuthDraft(); uiState.rc = null; uiState.loginMode = "login";
+    clearAuthDraft(); uiState.rc = null; uiState.vf = null; stopVerifyTimer(); uiState.loginMode = "login";
     uiState.enteredAuth = false; uiState.landingMenu = false;
     render();
     // Nothing from this session may stay in memory for the next person on this tab.

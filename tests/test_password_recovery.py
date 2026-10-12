@@ -93,16 +93,16 @@ class SignupPolicyTests(Base):
 
     def test_5_confirmation_mismatch_is_rejected_by_the_server(self):
         with self.assertRaises(HTTPException) as cm:
-            auth.register(auth.RegisterRequest(email="m@x.test", password="stone42river", confirm_password="stone42rivers"), self.w.identity)
+            auth.register(auth.RegisterRequest(email="m@x.test", password="stone42river", confirm_password="stone42rivers"), self.w.identity, self.ctx)
         self.assertEqual(cm.exception.status_code, 422)
         self.assertIsNone(self.w.identity.users.get_by_email("m@x.test"), "no account was created")
-        ok = auth.register(auth.RegisterRequest(email="m@x.test", password="stone42river", confirm_password="stone42river"), self.w.identity)
+        ok = auth.register(auth.RegisterRequest(email="m@x.test", password="stone42river", confirm_password="stone42river"), self.w.identity, self.ctx)
         self.assertEqual(ok.email, "m@x.test")
 
     def test_register_endpoint_enforces_the_policy_itself(self):
         for bad in ("short1", "alllettersnodigits", "12345678901"):
             with self.assertRaises(WeakPasswordError):
-                auth.register(auth.RegisterRequest(email="b@x.test", password=bad), self.w.identity)
+                auth.register(auth.RegisterRequest(email="b@x.test", password=bad), self.w.identity, self.ctx)
 
     def test_policy_endpoint_reports_the_server_numbers(self):
         p = auth.password_policy_info()

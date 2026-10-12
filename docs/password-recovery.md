@@ -1,5 +1,7 @@
 # Passwords and password recovery
 
+See also `docs/email-setup.md` for the shared email provider, templates, sign-up verification and step-by-step setup.
+
 Status: **IMPLEMENTED, TESTED WITH TEST DATA.** Not yet verified on the live site. Real emails will only be sent once an email provider is configured (below).
 
 ## Password policy (sign-up, reset, everywhere a password is created)
