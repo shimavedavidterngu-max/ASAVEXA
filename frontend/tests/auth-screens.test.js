@@ -141,6 +141,11 @@ describe("recovery screens (3)", () => {
     assert.equal(byId(v, "rc-send").props.disabled, true); assert.ok(text(byId(v, "rc-unavailable")).includes("not set up"));
     assert.ok(!byId(Recovery({ ...p, step: "request", available: true }), "rc-unavailable"));
   });
+  test("the 'not set up' message is shown once, even if a stale error is also passed in", () => {
+    const v = Recovery({ ...p, step: "request", available: false, error: "Password recovery by email is not set up on this platform yet." });
+    assert.ok(byId(v, "rc-unavailable")); assert.ok(!byId(v, "rc-error"));
+    assert.ok(byId(Recovery({ ...p, step: "request", available: true, error: "Too many attempts." }), "rc-error"));
+  });
   test("step 2: one numeric input that takes a pasted code, a clear button, verify, and a resend that waits", () => {
     const v = Recovery({ ...p, step: "verify", email: "a@b.co", cooldown: 42 });
     const c = byId(v, "rc-code");

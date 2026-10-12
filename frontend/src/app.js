@@ -868,8 +868,8 @@ async function handleRecoveryRequest(email, isResend = false) {
     if (isResend) r.notice = "If this email can be recovered, a new code is on its way. Any earlier code no longer works.";
     startRecoveryTimer();
   } catch (err) {
-    r.error = rcMessage(err);
-    if (err && err.status === 503) r.available = false;
+    if (err && err.status === 503) { r.available = false; r.error = null; } // the "not set up" box already says it; never show it twice
+    else r.error = rcMessage(err);
     if (err && err.status === 429 && /wait (\d+) seconds/i.test(err.message || "")) { r.cooldownUntil = Date.now() + Number(/wait (\d+) seconds/i.exec(err.message)[1]) * 1000; if (r.step === "verify") startRecoveryTimer(); }
   } finally {
     r.pending = false; render(); focusHeading("#rc-title");

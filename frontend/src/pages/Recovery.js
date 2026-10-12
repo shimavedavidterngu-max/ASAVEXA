@@ -29,7 +29,7 @@ function requestStep(p) {
     h("p", { className: "rc-lead" }, "Enter the email address associated with your ASAVEXA account. We'll send you a verification code if the account is eligible for recovery."),
     off ? h("div", { className: "alert alert-error", id: "rc-unavailable", role: "alert", style: "margin-bottom:16px;" },
       "Password recovery by email is not set up on this platform yet, so no code can be sent. Ask your organisation's administrator, or the person who runs ASAVEXA, to reset your password.") : null,
-    alertError(p.error),
+    off ? null : alertError(p.error),
     h("div", { className: "field" },
       h("label", { for: "rc-email" }, "Email address"),
       h("input", { id: "rc-email", name: "email", type: "email", required: true, autocomplete: "email", value: p.email || "", autofocus: true, "aria-invalid": fe.email ? "true" : undefined, "aria-describedby": fe.email ? "rc-email-err" : undefined,
