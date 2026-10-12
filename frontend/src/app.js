@@ -22,6 +22,8 @@ import { h, mount } from "./lib/vdom.js";
 import { allowed } from "./components/PermissionGate.js";
 import { PERMISSIONS } from "./lib/permissions.js";
 import { Login } from "./pages/Login.js";
+import { Recovery } from "./pages/Recovery.js";
+import { validateSignup, validateLogin, validateNewPassword, emailProblem, codeProblem, normaliseCode, secondsLeft } from "./lib/passwords.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { AuditWorkspace, buildChainLinks } from "./pages/AuditWorkspace.js";
 import { DrilldownPanel } from "./components/DrilldownPanel.js";
@@ -187,6 +189,7 @@ const routes = [
 
 let uiState = {
   loginMode: "login", loginError: null, loginPending: false,
+  auth: { draft: { email: "", password: "", confirm: "" }, fieldErrors: {}, notice: null }, rc: null,
   enteredAuth: false, landingMenu: false, landingSeen: false,
   navOpen: {}, mobileNav: false, search: { q: "", open: false, idx: 0 }, menu: null, lastPath: null,
   home: { key: "", data: null, loading: false, error: null }, showLocked: false, orgLoading: false,
@@ -297,7 +300,7 @@ const router = new Router(routes, {
 
 /** From the landing page into the sign-in screen, either on Sign in or on Create account. */
 function openAuth(mode) {
-  uiState.enteredAuth = true; uiState.loginMode = mode; uiState.loginError = null; uiState.landingMenu = false;
+  uiState.enteredAuth = true; uiState.loginMode = mode; uiState.loginError = null; uiState.landingMenu = false; uiState.auth.fieldErrors = {};
   render();
   window.scrollTo(0, 0);
 }
@@ -339,13 +342,28 @@ function render() {
     return;
   }
 
+  if (!authState.token && uiState.loginMode === "recover" && uiState.rc) {
+    const r = uiState.rc;
+    mount(h("div", { id: "screen" }, Recovery({
+      step: r.step, email: r.email, code: r.code, pending: r.pending, error: r.error, notice: r.notice, fieldErrors: r.fieldErrors, available: r.available,
+      cooldown: secondsLeft(r.cooldownUntil || 0), expiresMinutes: r.expiresMinutes, draft: r.draft,
+      onDraft: (k, v) => { if (k === "email" || k === "code") r[k] = v; else r.draft[k] = v; },
+      onRequest: handleRecoveryRequest, onResend: () => handleRecoveryRequest(r.email, true), onVerify: handleRecoveryVerify, onReset: handleRecoveryReset,
+      onChangeEmail: () => { stopRecoveryTimer(); Object.assign(r, { step: "request", code: "", error: null, notice: null, fieldErrors: {} }); render(); focusHeading("#rc-title"); },
+      onBack: leaveRecovery,
+    })), root);
+    return;
+  }
+
   if (!authState.token) {
     mount(
       h("div", { id: "screen" },
         Login({
-          onHome: () => { uiState.enteredAuth = false; uiState.loginError = null; uiState.mfaChallenge = null; if (router.currentPath() !== "/") router.navigate("/"); else render(); window.scrollTo(0, 0); },
+          draft: uiState.auth.draft, fieldErrors: uiState.auth.fieldErrors, notice: uiState.auth.notice,
+          onDraft: (k, v) => { uiState.auth.draft[k] = v; }, onForgot: openRecovery,
+          onHome: () => { uiState.enteredAuth = false; uiState.loginError = null; uiState.mfaChallenge = null; clearAuthDraft(); if (router.currentPath() !== "/") router.navigate("/"); else render(); window.scrollTo(0, 0); },
           mode: uiState.loginMode, pending: uiState.loginPending, error: uiState.loginError,
-          onSubmit: handleAuthSubmit, onSwitchMode: (m) => { uiState.loginMode = m; uiState.loginError = null; render(); },
+          onSubmit: handleAuthSubmit, onSwitchMode: (m) => { uiState.loginMode = m; uiState.loginError = null; uiState.auth.fieldErrors = {}; uiState.auth.notice = null; uiState.auth.draft.password = ""; uiState.auth.draft.confirm = ""; render(); },
           mfaStep: !!uiState.mfaChallenge, onMfaSubmit: handleMfaSubmit,
           onMfaCancel: () => { uiState.mfaChallenge = null; uiState.loginError = null; render(); },
           sso: uiState.ssoConfig, onSso: handleSsoStart,
@@ -755,23 +773,145 @@ async function loadDashboardData(authState) {
   }
 }
 
-async function handleAuthSubmit({ email, password }) {
+function clearAuthDraft() {
+  uiState.auth = { draft: { email: "", password: "", confirm: "" }, fieldErrors: {}, notice: null };
+}
+
+function focusFirstError() {
+  setTimeout(() => { const el = document.querySelector('#auth-screen [aria-invalid="true"], #recovery-screen [aria-invalid="true"]'); if (el) el.focus(); }, 0);
+}
+
+async function handleAuthSubmit({ email, password, confirm }) {
+  if (uiState.loginPending) return;                       // a double click must not submit twice
+  const registering = uiState.loginMode === "register";
+  const cleanEmail = String(email || "").trim();
+  Object.assign(uiState.auth.draft, { email: cleanEmail, password, confirm: confirm || "" });
+  // Checked here first so the person gets field-level help at once; the server checks the same rules again.
+  const v = registering ? validateSignup({ email: cleanEmail, password, confirm }) : validateLogin({ email: cleanEmail, password });
+  uiState.auth.fieldErrors = v.errors;
+  if (!v.ok) { uiState.loginError = null; render(); focusFirstError(); return; }
+  uiState.auth.notice = null;
   uiState.loginPending = true;
   uiState.loginError = null;
   render();
   try {
-    if (uiState.loginMode === "register") {
-      await api.register(email, password);
+    if (registering) {
+      await api.register(cleanEmail, password, confirm);
     }
-    const result = interpretLogin(await api.login(email, password));
+    const result = interpretLogin(await api.login(cleanEmail, password));
     if (result.kind === "mfa") uiState.mfaChallenge = result.challenge;
-    else if (result.kind === "done") authStore.setSession(result.token, result.user);
+    else if (result.kind === "done") { authStore.setSession(result.token, result.user); clearAuthDraft(); }
     else uiState.loginError = result.message;
   } catch (err) {
     uiState.loginError = err.message;
+    if (!registering) uiState.auth.draft.password = "";   // a wrong password is not worth keeping; the email stays
   } finally {
     uiState.loginPending = false;
     render();
+    if (uiState.loginError) setTimeout(() => { const el = document.getElementById(registering ? "email" : "password"); if (el && !registering) el.focus(); }, 0);
+  }
+}
+
+// ---- password recovery: request a code, verify it, choose a new password (real backend, one step at a time) ----
+let rcTimer = null;
+const newRecovery = (email) => ({ step: "request", email: email || "", code: "", resetToken: null, error: null, notice: null, fieldErrors: {}, pending: false, available: null, cooldownUntil: 0, expiresMinutes: 10, draft: { password: "", confirm: "" } });
+
+function stopRecoveryTimer() { if (rcTimer) { clearInterval(rcTimer); rcTimer = null; } }
+function startRecoveryTimer() {
+  stopRecoveryTimer();
+  rcTimer = setInterval(() => {
+    const r = uiState.rc, btn = document.getElementById("rc-resend");
+    if (!r || r.step !== "verify" || !btn) { stopRecoveryTimer(); return; }
+    const left = secondsLeft(r.cooldownUntil);
+    btn.textContent = left > 0 ? `Resend code (${left}s)` : "Resend code";
+    btn.disabled = left > 0 || r.pending;
+    if (left <= 0) stopRecoveryTimer();
+  }, 1000);
+}
+
+function openRecovery() {
+  uiState.loginMode = "recover"; uiState.loginError = null;
+  uiState.rc = newRecovery(uiState.auth.draft.email);
+  const r = uiState.rc;
+  render(); focusHeading("#rc-title");
+  api.recoveryStatus().then((s) => { r.available = !!(s && s.available); }).catch(() => { r.available = null; }).finally(() => { if (uiState.rc === r) render(); });
+}
+
+function leaveRecovery() {
+  stopRecoveryTimer();
+  const r = uiState.rc;
+  const done = r && r.step === "done";
+  uiState.loginMode = "login"; uiState.loginError = null; uiState.rc = null;
+  uiState.auth.draft.password = ""; uiState.auth.draft.confirm = ""; uiState.auth.fieldErrors = {};
+  uiState.auth.notice = done ? "Your password was reset. Sign in with your new password." : null;
+  if (r && r.email) uiState.auth.draft.email = r.email;
+  render();
+  setTimeout(() => { const el = document.getElementById(done ? "password" : "email"); if (el) el.focus(); }, 0);
+}
+
+/** The server's own words for a refusal, including a 503 (which the generic client message would hide). */
+const rcMessage = (err) => (err && err.status === 503 && err.body && (err.body.detail || err.body.message) ? (err.body.detail || err.body.message) : (err && err.message) || "Something went wrong. Please try again.");
+
+async function handleRecoveryRequest(email, isResend = false) {
+  const r = uiState.rc;
+  if (!r || r.pending) return;
+  const e = String(email || "").trim();
+  r.email = e;
+  const problem = emailProblem(e);
+  if (problem) { r.fieldErrors = { email: problem }; r.error = null; render(); focusFirstError(); return; }
+  r.fieldErrors = {}; r.error = null; r.notice = null; r.pending = true; render();
+  try {
+    const res = await api.recoveryRequest(e);
+    r.cooldownUntil = Date.now() + (Number(res && res.cooldown_seconds) || 60) * 1000;
+    r.expiresMinutes = Number(res && res.expires_in_minutes) || 10;
+    r.step = "verify"; r.code = "";
+    if (isResend) r.notice = "If this email can be recovered, a new code is on its way. Any earlier code no longer works.";
+    startRecoveryTimer();
+  } catch (err) {
+    r.error = rcMessage(err);
+    if (err && err.status === 503) r.available = false;
+    if (err && err.status === 429 && /wait (\d+) seconds/i.test(err.message || "")) { r.cooldownUntil = Date.now() + Number(/wait (\d+) seconds/i.exec(err.message)[1]) * 1000; if (r.step === "verify") startRecoveryTimer(); }
+  } finally {
+    r.pending = false; render(); focusHeading("#rc-title");
+  }
+}
+
+async function handleRecoveryVerify(code) {
+  const r = uiState.rc;
+  if (!r || r.pending) return;
+  r.code = normaliseCode(code);
+  const problem = codeProblem(r.code);
+  if (problem) { r.fieldErrors = { code: problem }; r.error = null; render(); focusFirstError(); return; }
+  r.fieldErrors = {}; r.error = null; r.notice = null; r.pending = true; render();
+  try {
+    const res = await api.recoveryVerify(r.email, r.code);
+    r.resetToken = res.reset_token; r.step = "reset"; r.code = "";   // the token stays in memory only: never in the URL, storage or logs
+    stopRecoveryTimer();
+  } catch (err) {
+    r.error = rcMessage(err); r.code = "";
+  } finally {
+    r.pending = false; render();
+    if (r.step === "reset") focusHeading("#rc-title"); else setTimeout(() => { const el = document.getElementById("rc-code"); if (el) el.focus(); }, 0);
+  }
+}
+
+async function handleRecoveryReset({ password, confirm }) {
+  const r = uiState.rc;
+  if (!r || r.pending) return;
+  Object.assign(r.draft, { password, confirm });
+  const v = validateNewPassword({ password, confirm });
+  r.fieldErrors = v.errors; r.error = null;
+  if (!v.ok) { render(); focusFirstError(); return; }
+  r.pending = true; render();
+  try {
+    await api.recoveryReset(r.email, r.resetToken, password, confirm);
+    r.step = "done"; r.resetToken = null; r.draft = { password: "", confirm: "" };   // nothing of the new password is kept
+  } catch (err) {
+    r.error = rcMessage(err);
+    if (/expired|already used|start again/i.test(err.message || "")) { r.step = "request"; r.resetToken = null; r.draft = { password: "", confirm: "" }; }
+  } finally {
+    r.pending = false; render();
+    if (r.step !== "reset") focusHeading("#rc-title");
   }
 }
 
@@ -869,6 +1009,7 @@ function handleLogout() {
   api.logout().finally(() => {
     authStore.clear();
     resetSecurityState();
+    clearAuthDraft(); uiState.rc = null; uiState.loginMode = "login";
     uiState.enteredAuth = false; uiState.landingMenu = false;
     render();
     // Nothing from this session may stay in memory for the next person on this tab.

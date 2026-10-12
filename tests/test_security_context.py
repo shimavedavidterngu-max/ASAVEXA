@@ -14,7 +14,7 @@ from test_security_platform import FakeIdp, ISS, CID, REDIR, Clock
 from asavexa.security.oidc import OidcConfig
 import urllib.parse
 
-PW = "correct horse battery staple"
+PW = "correct horse battery staple1"
 
 
 class Ctx(unittest.TestCase):

@@ -31,7 +31,7 @@ from asavexa.pilot.service import PilotService
 from asavexa.pilot.wiring import make_log
 from asavexa.security.store import SqliteDocStore
 
-PW = "correct horse battery staple"
+PW = "correct horse battery staple1"
 
 
 class Run(Ctx):

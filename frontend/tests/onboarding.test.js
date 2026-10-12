@@ -367,11 +367,13 @@ describe("source contracts in app.js", () => {
     assert.match(appSource, /if \(uiState\.orgList === null && !\(uiState\.home\.data && uiState\.home\.data\.orgs\)\) ensureOrgs\(\);/);
     assert.match(appSource, /if \(uiState\.orgList \|\| uiState\.orgLoading\) return;/, "and never starts a second request while one is running");
   });
-  test("onboarding.css is linked, and the sign-in page is honest about recovery", () => {
+  test("onboarding.css and auth.css are linked, and the sign-in page now offers real password recovery", () => {
     assert.match(htmlSource, /styles\/onboarding\.css/);
     assert.match(cssSource, /@media \(max-width: 620px\)/);
-    const login = text(Login({ mode: "login", onSubmit() {}, onSwitchMode() {} }));
-    assert.match(login, /Password recovery and email verification are not available yet/);
-    assert.ok(!/not available yet/.test(text(Login({ mode: "register", onSubmit() {}, onSwitchMode() {} }))));
+    assert.match(htmlSource, /styles\/auth\.css/);
+    const login = text(Login({ mode: "login", onSubmit() {}, onSwitchMode() {}, onForgot() {} }));
+    assert.match(login, /Forgot password\?/);
+    assert.ok(!/not available yet/.test(login), "the interim 'not available yet' note is gone now that recovery exists");
+    assert.ok(!/Forgot password/.test(text(Login({ mode: "register", onSubmit() {}, onSwitchMode() {}, onForgot() {} }))));
   });
 });

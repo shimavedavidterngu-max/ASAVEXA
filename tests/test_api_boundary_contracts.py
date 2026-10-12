@@ -681,8 +681,8 @@ class DomainContractsBehindRouterErrorPathsTestCase(unittest.TestCase):
             memberships=SqliteMembershipRepository(conn), sessions=SqliteSessionRepository(conn),
             audit=SqliteAuditRepository(conn),
         )
-        outsider = identity.register_user("outsider@example.test", "correct horse battery staple")
-        owner = identity.register_user("owner@example.test", "another-strong-password")
+        outsider = identity.register_user("outsider@example.test", "correct horse battery staple1")
+        owner = identity.register_user("owner@example.test", "another-strong-password1")
         org = identity.create_organisation("Some Org", actor=owner.id)
         identity.add_membership(org.id, owner.id, Role.OWNER, actor_user_id=owner.id)
 

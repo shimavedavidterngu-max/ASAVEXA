@@ -21,7 +21,7 @@ from asavexa.identity.domain.permissions import (
 
 from test_identity_service import build_service
 
-PW = "correct horse battery staple"
+PW = "correct horse battery staple1"
 
 
 class OnboardingJourneyTests(unittest.TestCase):

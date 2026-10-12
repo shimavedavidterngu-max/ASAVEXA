@@ -54,12 +54,9 @@ class SelfRoleChangeError(AsavexaIdentityError):
 
 
 class WeakPasswordError(AsavexaIdentityError):
-    """Raised when a password does not meet the minimum length NIST SP
-    800-63B Revision 4 requires for a password used as the sole
-    authenticator (15 characters — see domain/password.py). Found
-    during the Phase 4 security audit: previously the only check
-    anywhere was non-empty, so a one-character password would be
-    accepted, hashed, and stored."""
+    """Raised when a password does not meet the password policy (see domain/password_policy.py): length, a letter, a number,
+    and not a very common password. Found during the Phase 4 security audit: previously the only check anywhere was
+    non-empty, so a one-character password would be accepted, hashed, and stored."""
 
 
 class SessionNotFoundError(AsavexaIdentityError):

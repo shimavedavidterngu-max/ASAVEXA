@@ -106,6 +106,16 @@ class IdentityService:
                    new_value={"email": email})
         return user
 
+    def set_password(self, user_id: str, new_password: str, reason: str = "password changed") -> User:
+        """Replaces a user's password hash. The new password must meet the password policy (hash_password enforces it).
+        Hashed with the same function as sign-up; the password itself is never logged. Callers decide about sessions."""
+        from dataclasses import replace
+        user = self._get_user(user_id)
+        updated = replace(user, password_hash=password_utils.hash_password(new_password))
+        self.users.update(updated)
+        self._log(AuditAction.PASSWORD_CHANGED, user_id, "User", user_id, reason=reason)
+        return updated
+
     def _get_user(self, user_id: str) -> User:
         user = self.users.get(user_id)
         if user is None:

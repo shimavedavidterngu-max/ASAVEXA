@@ -143,17 +143,17 @@ class FindingManageEnforcementTestCase(unittest.TestCase):
             sessions=SqliteSessionRepository(self.conn),
             audit=audit,
         )
-        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple")
+        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple1")
         self.org = self.identity.create_organisation("Meridian Textiles Ltd", actor=self.owner.id)
         self.identity.add_membership(self.org.id, self.owner.id, Role.OWNER, actor_user_id=self.owner.id)
 
-        self.administrator = self.identity.register_user("priya@meridian.test", "another-strong-password")
+        self.administrator = self.identity.register_user("priya@meridian.test", "another-strong-password1")
         self.identity.add_membership(self.org.id, self.administrator.id, Role.ADMINISTRATOR, actor_user_id=self.owner.id)
 
-        self.accountant = self.identity.register_user("aisha@meridian.test", "yet-another-password")
+        self.accountant = self.identity.register_user("aisha@meridian.test", "yet-another-password1")
         self.identity.add_membership(self.org.id, self.accountant.id, Role.ACCOUNTANT, actor_user_id=self.owner.id)
 
-        self.approver = self.identity.register_user("kwame@meridian.test", "still-another-password")
+        self.approver = self.identity.register_user("kwame@meridian.test", "still-another-password1")
         self.identity.add_membership(self.org.id, self.approver.id, Role.APPROVER, actor_user_id=self.owner.id)
 
     def test_authorized_role_can_perform_finding_management_operation(self):
@@ -201,7 +201,7 @@ class FindingManageEnforcementTestCase(unittest.TestCase):
         breadth (mirroring its role everywhere else in this codebase)
         must still hold all three — this fix must not have narrowed
         FINANCE_OFFICER by accident."""
-        finance_officer = self.identity.register_user("kenji@meridian.test", "one-more-password")
+        finance_officer = self.identity.register_user("kenji@meridian.test", "one-more-password1")
         self.identity.add_membership(self.org.id, finance_officer.id, Role.FINANCE_OFFICER, actor_user_id=self.owner.id)
         for permission in (FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY):
             self.identity.require_permission(finance_officer.id, self.org.id, permission)  # must not raise
@@ -226,7 +226,7 @@ class FindingManageEnforcementTestCase(unittest.TestCase):
     def test_tenant_isolation_still_holds_for_finding_manage(self):
         """A role in one organisation confers no finding:manage
         authority in another — unchanged by this fix, reconfirmed here."""
-        other_owner = self.identity.register_user("priya2@other.test", "unrelated-password")
+        other_owner = self.identity.register_user("priya2@other.test", "unrelated-password1")
         other_org = self.identity.create_organisation("Other Org Ltd", actor=other_owner.id)
         self.identity.add_membership(other_org.id, other_owner.id, Role.OWNER, actor_user_id=other_owner.id)
 

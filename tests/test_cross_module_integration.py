@@ -57,11 +57,11 @@ class CrossModuleIntegrationTestCase(unittest.TestCase):
         self.audit = audit
 
         # Stand up a tenant with two real, differently-permissioned users.
-        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple")
+        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple1")
         self.org = self.identity.create_organisation("Meridian Textiles Ltd", actor=self.owner.id)
         self.identity.add_membership(self.org.id, self.owner.id, Role.OWNER, actor_user_id=self.owner.id)
 
-        self.accountant = self.identity.register_user("aisha@meridian.test", "another-strong-password")
+        self.accountant = self.identity.register_user("aisha@meridian.test", "another-strong-password1")
         self.identity.add_membership(
             self.org.id, self.accountant.id, Role.ACCOUNTANT, actor_user_id=self.owner.id
         )

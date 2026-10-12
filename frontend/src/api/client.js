@@ -260,9 +260,14 @@ export class ApiClient {
   }
 
   // ---- Auth (src/asavexa/api/routers/auth.py) ----
-  register(email, password) {
-    return this.post("/auth/register", { email, password });
+  register(email, password, confirm) {
+    return this.post("/auth/register", confirm === undefined ? { email, password } : { email, password, confirm_password: confirm });
   }
+  // Password recovery. The server answers the same way whether or not an account exists for the email.
+  recoveryStatus() { return this.get("/auth/recovery/status"); }
+  recoveryRequest(email) { return this.post("/auth/recovery/request", { email }); }
+  recoveryVerify(email, code) { return this.post("/auth/recovery/verify", { email, code }); }
+  recoveryReset(email, resetToken, newPassword, confirm) { return this.post("/auth/recovery/reset", { email, reset_token: resetToken, new_password: newPassword, confirm_password: confirm }); }
   login(email, password) {
     return this.post("/auth/login", { email, password });
   }

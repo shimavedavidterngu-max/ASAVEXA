@@ -1,0 +1,39 @@
+/* Sign-in, sign-up and password recovery: the eye button, the rules list, the code row. Tokens only, light and dark. */
+.alert-success { color: var(--status-pass); background: var(--status-pass-bg); border-color: var(--status-pass); }
+.auth-brand { color: var(--navy-900); }
+.auth-card .field { margin-bottom: 14px; }
+.pw-labelrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pw-forgot { font-size: 12.5px; }
+.pw-wrap { position: relative; }
+.pw-wrap > input { width: 100%; padding-right: 40px; box-sizing: border-box; }
+.pw-eye { position: absolute; top: 50%; right: 3px; transform: translateY(-50%); width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; border-radius: var(--radius-sm); color: var(--ink-500); cursor: pointer; padding: 0; }
+.pw-eye:hover { color: var(--ink-900); background: var(--paper-100); }
+.pw-eye:focus-visible { outline: 2px solid var(--teal-500); outline-offset: 1px; }
+.pw-eye .pw-eye-off { display: none; }
+.pw-eye.is-shown .pw-eye-on { display: none; }
+.pw-eye.is-shown .pw-eye-off { display: inline; }
+.pw-hint { font-size: 11.5px; color: var(--ink-500); margin-top: 4px; }
+.pw-rules { list-style: none; margin: -6px 0 14px; padding: 0; font-size: 12.5px; color: var(--ink-500); }
+.pw-rules li { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.pw-rules li.is-ok { color: var(--status-pass); }
+.pw-tick { width: 14px; text-align: center; font-weight: 700; }
+.pw-live { font-size: 12.5px; min-height: 18px; margin: -8px 0 6px; color: var(--ink-500); }
+.pw-live.is-ok { color: var(--status-pass); }
+.rc-title { font-family: var(--font-display); font-size: 20px; color: var(--navy-900); margin: 0 0 8px; }
+.rc-title:focus { outline: none; }
+.rc-lead { color: var(--ink-700); font-size: 13.5px; line-height: 1.5; margin: 0 0 16px; }
+.rc-coderow { display: flex; gap: 8px; align-items: stretch; }
+.rc-coderow input { flex: 1; letter-spacing: 6px; font-size: 20px; text-align: center; font-variant-numeric: tabular-nums; min-width: 0; }
+.rc-secondary { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+@media (max-width: 420px) { .auth-card { width: auto !important; max-width: 92vw; } }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pw-eye:hover { color: #fff; background: #1c3050; }
+  :root:not([data-theme="light"]) .auth-brand, :root:not([data-theme="light"]) .rc-title { color: #eef2f7; }
+  :root:not([data-theme="light"]) .rc-lead { color: #c3ccd8; }
+  :root:not([data-theme="light"]) .auth-card a, :root:not([data-theme="light"]) .auth-card .linklike { color: #5fd3bf; }
+}
+:root[data-theme="dark"] .pw-eye:hover { color: #fff; background: #1c3050; }
+:root[data-theme="dark"] .auth-brand, :root[data-theme="dark"] .rc-title { color: #eef2f7; }
+:root[data-theme="dark"] .rc-lead { color: #c3ccd8; }
+:root[data-theme="dark"] .auth-card a, :root[data-theme="dark"] .auth-card .linklike { color: #5fd3bf; }

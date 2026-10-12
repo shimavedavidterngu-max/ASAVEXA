@@ -85,15 +85,15 @@ class ReportingCrossModuleIntegrationTestCase(unittest.TestCase):
         )
 
         # ---- Organisation A: owner + a read-only staffer ----
-        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple")
+        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple1")
         self.org = self.identity.create_organisation("Meridian Textiles Ltd", actor=self.owner.id)
         self.identity.add_membership(self.org.id, self.owner.id, Role.OWNER, actor_user_id=self.owner.id)
 
-        self.viewer = self.identity.register_user("viewer@meridian.test", "another-strong-password")
+        self.viewer = self.identity.register_user("viewer@meridian.test", "another-strong-password1")
         self.identity.add_membership(self.org.id, self.viewer.id, Role.READ_ONLY, actor_user_id=self.owner.id)
 
         # ---- Organisation B: a second, unrelated tenant ----
-        self.other_owner = self.identity.register_user("priya@other.test", "totally-unrelated-password")
+        self.other_owner = self.identity.register_user("priya@other.test", "totally-unrelated-password1")
         self.other_org = self.identity.create_organisation("Other Org Ltd", actor=self.other_owner.id)
         self.identity.add_membership(self.other_org.id, self.other_owner.id, Role.OWNER, actor_user_id=self.other_owner.id)
 

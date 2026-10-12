@@ -35,14 +35,17 @@ describe("Login", () => {
 
   test("the submit button is disabled while a request is pending", () => {
     const vnode = Login({ pending: true, onSubmit: () => {}, onSwitchMode: () => {} });
-    const button = findByTag(vnode, "button");
+    const button = (function find(v) { if (!v || typeof v !== "object") return null; if (v.props && v.props.id === "auth-submit") return v; for (const c of v.children || []) { const f = find(c); if (f) return f; } return null; })(vnode);
     assert.equal(button.props.disabled, true);
     assert.equal(button.children[0], "Please wait…");
   });
 
-  test("register mode shows the 15-character password hint (matches the real backend minimum)", () => {
+  test("register mode lists the password rules (match the real backend policy: 8 characters, a letter, a number)", () => {
     const vnode = Login({ mode: "register", onSubmit: () => {}, onSwitchMode: () => {} });
-    assert.ok(JSON.stringify(vnode).includes("At least 15 characters."));
+    const text = JSON.stringify(vnode);
+    assert.ok(text.includes("At least 8 characters"));
+    assert.ok(text.includes("At least one letter"));
+    assert.ok(text.includes("At least one number"));
   });
 
   test("clicking the mode switch link calls onSwitchMode with the other mode", () => {

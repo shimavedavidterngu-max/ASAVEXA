@@ -7,6 +7,9 @@ from ..security.monitoring import RateLimiter
 LOGIN = RateLimiter(limit=20, window_seconds=60)       # per client address
 MFA = RateLimiter(limit=10, window_seconds=60)
 OIDC = RateLimiter(limit=20, window_seconds=60)
+RECOVERY_REQUEST = RateLimiter(limit=10, window_seconds=600)    # per client address, on top of the per-email cooldown and hourly cap
+RECOVERY_VERIFY = RateLimiter(limit=20, window_seconds=600)
+RECOVERY_RESET = RateLimiter(limit=10, window_seconds=600)
 
 
 def client_ip(request: Request) -> str:

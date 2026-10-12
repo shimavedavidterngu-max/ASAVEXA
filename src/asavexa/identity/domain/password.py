@@ -16,7 +16,7 @@ import hashlib
 import hmac
 import secrets
 
-from .errors import WeakPasswordError
+from . import password_policy
 
 _ALGORITHM = "pbkdf2_sha256"
 # OWASP Password Storage Cheat Sheet's actual current recommendation for
@@ -48,21 +48,9 @@ _SALT_BYTES = 16
 
 
 def hash_password(password: str) -> str:
-    # NIST SP 800-63B Revision 4 (finalized 2025, current guidance):
-    # a user-chosen password used as the ONLY authenticator — which is
-    # this application's exact situation, since no MFA enforcement
-    # exists in the login flow despite `User.mfa_enabled` existing as a
-    # field — must be at least 15 characters. (NIST's 8-character floor
-    # applies only when a password is one factor alongside MFA, which
-    # doesn't apply here.) No complexity rules are imposed — length is
-    # what actually matters per current guidance, and mandatory
-    # character-class rules are known to push users toward worse,
-    # predictable passwords. Found missing entirely during the Phase 4
-    # security audit: previously the only check was non-empty.
-    if not password:
-        raise WeakPasswordError("password must not be empty")
-    if len(password) < 15:
-        raise WeakPasswordError("password must be at least 15 characters long")
+    # One policy for sign-up and reset: identity/domain/password_policy.py (8-128 characters, a letter and a number, not a
+    # very common password). The password is hashed exactly as given: never trimmed, never altered.
+    password_policy.check(password)
     salt = secrets.token_bytes(_SALT_BYTES)
     derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _ITERATIONS)
     return f"{_ALGORITHM}${_ITERATIONS}${salt.hex()}${derived.hex()}"
@@ -82,4 +70,4 @@ def verify_password(password: str, stored_hash: str) -> bool:
     return hmac.compare_digest(candidate, expected)
 
 
-DUMMY_HASH = hash_password("not-a-real-password-used-only-to-equalize-login-timing")
+DUMMY_HASH = hash_password("not-a-real-password-1-used-only-to-equalize-login-timing")

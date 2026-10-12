@@ -1,4 +1,5 @@
 import { h } from "../lib/vdom.js";
+import { PasswordField, PasswordRules, updateRulesList, clearFieldError } from "../components/PasswordField.js";
 
 /**
  * Login — pure render function. Follows the real backend auth
@@ -7,49 +8,56 @@ import { h } from "../lib/vdom.js";
  * system."): email + password -> POST /auth/login -> bearer token.
  * No client-side "remember me" cookie, no second auth path.
  */
-export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, mfaStep = false, onMfaSubmit, onMfaCancel, sso = null, onSso, onHome }) {
+export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, mfaStep = false, onMfaSubmit, onMfaCancel, sso = null, onSso, onHome,
+  draft = {}, fieldErrors = {}, onDraft, onForgot, notice = null }) {
   const isRegister = mode === "register";
   if (mfaStep) return MfaStep({ pending, error, onMfaSubmit, onMfaCancel });
+  const keep = (k) => (v) => {
+    if (onDraft) onDraft(k, v);
+    if (isRegister && k === "password" && typeof document !== "undefined") updateRulesList(document.getElementById("su-rules"), v);
+    if (isRegister && (k === "password" || k === "confirm") && typeof document !== "undefined") liveMatch();
+  };
+  const fe = fieldErrors || {};
   return h(
     "div",
-    { className: "login-screen", style: "min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--navy-950);" },
+    { className: "login-screen", id: "auth-screen", style: "min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--navy-950);" },
     h(
       "div",
-      { className: "card", style: "width: 360px;" },
+      { className: "card auth-card", style: "width: 360px;" },
       onHome ? h("a", { href: "#/", id: "login-home", style: "display:inline-block; font-size:12.5px; margin-bottom:12px;", onClick: (e) => { e.preventDefault(); onHome(); } }, "\u2190 Back to the home page") : null,
-      h("div", { style: "font-family: var(--font-display); font-size:22px; color: var(--navy-900); margin-bottom:4px;" }, "ASAVEXA"),
+      h("div", { className: "auth-brand", style: "font-family: var(--font-display); font-size:22px; margin-bottom:4px;" }, "ASAVEXA"),
       h("div", { style: "color: var(--ink-500); font-size:12.5px; margin-bottom:24px;" }, "Don't just report the number. Prove it."),
-      error ? h("div", { className: "alert alert-error", style: "margin-bottom:16px;" }, error) : null,
+      notice ? h("div", { className: "alert alert-success", id: "auth-notice", role: "status", style: "margin-bottom:16px;" }, notice) : null,
+      error ? h("div", { className: "alert alert-error", id: "auth-error", role: "alert", style: "margin-bottom:16px;" }, error) : null,
       h(
         "form",
         {
+          id: isRegister ? "signup-form" : "login-form", noValidate: true,
           onSubmit: (e) => {
             e.preventDefault();
             const form = e.target;
-            onSubmit({
-              email: form.elements.email.value,
-              password: form.elements.password.value,
-            });
+            const out = { email: form.elements.email.value, password: form.elements.password.value };
+            if (isRegister) out.confirm = form.elements.confirm ? form.elements.confirm.value : "";
+            onSubmit(out);
           },
         },
         h("div", { className: "field" },
           h("label", { for: "email" }, "Email"),
-          h("input", { id: "email", name: "email", type: "email", required: true, autocomplete: "email" })
+          h("input", { id: "email", name: "email", type: "email", required: true, autocomplete: "email", value: draft.email || "", "aria-invalid": fe.email ? "true" : undefined, "aria-describedby": fe.email ? "email-err" : undefined,
+            onInput: (e) => { clearFieldError("email"); keep("email")(e.target.value); } }),
+          fe.email ? h("div", { className: "ob-err", id: "email-err", role: "alert" }, fe.email) : null
         ),
-        h("div", { className: "field" },
-          h("label", { for: "password" }, "Password"),
-          h("input", {
-            id: "password", name: "password", type: "password", required: true, minlength: "15",
-            autocomplete: isRegister ? "new-password" : "current-password",
-          }),
-          isRegister
-            ? h("div", { style: "font-size:11.5px; color: var(--ink-500);" }, "At least 15 characters.")
-            : null
-        ),
-        h("button", { type: "submit", className: "btn btn-primary", style: "width:100%; margin-top:8px;", disabled: pending },
+        PasswordField({
+          id: "password", label: "Password", value: draft.password || "", autocomplete: isRegister ? "new-password" : "current-password", error: fe.password,
+          describedBy: isRegister ? "su-rules" : undefined, onInput: keep("password"),
+          extra: !isRegister && onForgot ? h("a", { href: "#", id: "login-forgot", className: "pw-forgot", onClick: (e) => { e.preventDefault(); onForgot(); } }, "Forgot password?") : null,
+        }),
+        isRegister ? PasswordRules({ id: "su-rules", value: draft.password || "" }) : null,
+        isRegister ? PasswordField({ id: "confirm", label: "Confirm password", value: draft.confirm || "", autocomplete: "new-password", error: fe.confirm, describedBy: "confirm-live", onInput: keep("confirm") }) : null,
+        isRegister ? h("div", { className: "pw-live", id: "confirm-live", "aria-live": "polite" }) : null,
+        h("button", { type: "submit", id: "auth-submit", className: "btn btn-primary", style: "width:100%; margin-top:8px;", disabled: pending, "aria-busy": pending ? "true" : undefined },
           pending ? "Please wait…" : isRegister ? "Create account" : "Sign in")
       ),
-      !isRegister ? h("p", { id: "login-recovery-note", style: "margin:12px 0 0; font-size:11.5px; color: var(--ink-500);" }, "Password recovery and email verification are not available yet. If you are locked out, ask your organisation's administrator.") : null,
       sso && sso.enabled && !isRegister
         ? h("button", { type: "button", className: "btn btn-secondary", style: "width:100%; margin-top:8px;", disabled: pending, onClick: () => onSso && onSso() },
             "Sign in with single sign-on")
@@ -63,6 +71,14 @@ export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, 
       )
     )
   );
+}
+
+/** Says, under the confirm field and without re-rendering, whether the two passwords match yet. */
+function liveMatch() {
+  const a = document.getElementById("password"), b = document.getElementById("confirm"), out = document.getElementById("confirm-live");
+  if (!a || !b || !out) return;
+  out.textContent = !b.value ? "" : a.value === b.value ? "Passwords match." : "Passwords do not match yet.";
+  out.className = "pw-live" + (b.value && a.value === b.value ? " is-ok" : "");
 }
 
 /** Second sign-in step for accounts with multi-factor on: the 6-digit code from the authenticator app, or a recovery code. */

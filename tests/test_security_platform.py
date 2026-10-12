@@ -27,7 +27,7 @@ from asavexa.security.sessions import SessionGuard
 from asavexa.security.store import MemoryDocStore, SqliteDocStore
 import test_passport as T
 
-PW = "correct horse battery staple"
+PW = "correct horse battery staple1"
 
 
 class Clock:

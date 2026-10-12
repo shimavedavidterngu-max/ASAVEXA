@@ -70,14 +70,14 @@ class World:
         self.close_repo = SqlitePeriodCloseRepository(self.conn)
 
         reg = self.identity.register_user
-        self.owner = reg("dara@meridian.test", "correct horse battery staple")
+        self.owner = reg("dara@meridian.test", "correct horse battery staple1")
         self.org = self.identity.create_organisation("Meridian Textiles Ltd", actor=self.owner.id)
         self.identity.add_membership(self.org.id, self.owner.id, Role.OWNER, actor_user_id=self.owner.id)
-        self.accountant = reg("aisha@meridian.test", "yet-another-password")
+        self.accountant = reg("aisha@meridian.test", "yet-another-password1")
         self.identity.add_membership(self.org.id, self.accountant.id, Role.ACCOUNTANT, actor_user_id=self.owner.id)
-        self.approver = reg("kwame@meridian.test", "still-another-password")
+        self.approver = reg("kwame@meridian.test", "still-another-password1")
         self.identity.add_membership(self.org.id, self.approver.id, Role.APPROVER, actor_user_id=self.owner.id)
-        self.other_owner = reg("other@other.test", "unrelated-password")
+        self.other_owner = reg("other@other.test", "unrelated-password1")
         self.other_org = self.identity.create_organisation("Other Ltd", actor=self.other_owner.id)
         self.identity.add_membership(self.other_org.id, self.other_owner.id, Role.OWNER, actor_user_id=self.other_owner.id)
 

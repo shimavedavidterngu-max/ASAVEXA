@@ -30,7 +30,7 @@ def _utc():
 class SecurityContext:
     def __init__(self, identity, audit, store: DocStore, keys=None, objects=None, oidc_cfg=None, now: Callable[[], datetime] = _utc,
                  commit: Callable[[], None] = lambda: None, policy: Optional[SessionPolicy] = None, database_region: str = "unspecified",
-                 notifier=None, oidc_http=None):
+                 notifier=None, oidc_http=None, mailer=None, mail_dispatch=None):
         self.identity, self.audit, self.store, self.keys, self.objects, self.oidc_cfg = identity, audit, store, keys, objects, oidc_cfg
         self.now, self.commit, self.database_region, self.notifier, self.oidc_http = now, commit, database_region, notifier, oidc_http or {}
         self.guard = SessionGuard(store, identity.sessions, now=now, policy=policy)
@@ -41,6 +41,9 @@ class SecurityContext:
         self.blobs = BlobService(store, objects, keys, residency=self.residency, now=now) if (keys is not None and objects is not None) else None
         self.retention = RetentionService(store, self.blobs, now)
         self._mfa = MfaService(store, keys, now=lambda: now()) if keys is not None else None
+        from .recovery import RecoveryService, _threaded
+        self.recovery = RecoveryService(store, identity, mailer, log=self._recovery_log, revoke_sessions=self._revoke_everywhere, now=now,
+                                        dispatch=mail_dispatch or _threaded, commit=commit)
         self.privacy = PrivacyService(identity, self._mfa, self.guard, audit, store, now)
 
     # ----------------------------------------------------------------- helpers
@@ -54,6 +57,13 @@ class SecurityContext:
     def log(self, action: str, actor: str, entity_id: str, org_id: Optional[str] = None, entity_type: str = "User", **kw) -> None:
         self.audit.record(AuditEvent(id=str(uuid.uuid4()), org_id=org_id, entity_type=entity_type, entity_id=entity_id, action=action, actor=actor,
                                      timestamp=self.now(), **kw))
+
+    def _recovery_log(self, action: str, actor: str, entity_id: str, **kw) -> None:
+        self.log(action, actor, entity_id, **kw)
+
+    def _revoke_everywhere(self, user_id: str) -> None:
+        """After a password reset: every session of that person ends (those with security facts, and any older ones by the epoch check)."""
+        self.guard.revoke_all(user_id, "password reset")
 
     def _persist_and_raise(self):
         """A refused attempt must still be recorded: commit what was logged before the error is raised (the request rolls back otherwise)."""
@@ -127,6 +137,12 @@ class SecurityContext:
 
     # ----------------------------------------------------------------- per-request checks
     def check_session(self, session) -> dict:
+        epoch = self.store.get("pwd_epoch", session.user_id)
+        if epoch is not None:
+            at = datetime.fromisoformat(epoch["at"])
+            made = session.created_at if session.created_at.tzinfo else session.created_at.replace(tzinfo=timezone.utc)
+            if made <= at:      # a session opened before the password changed is never accepted again
+                raise SessionPolicyError("Your password was changed. Please sign in again.")
         try:
             return self.guard.check(session)
         except SessionPolicyError:

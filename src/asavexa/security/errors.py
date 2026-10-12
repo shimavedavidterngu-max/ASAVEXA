@@ -57,3 +57,16 @@ class NotFoundError(SecurityError):
 
 class ValidationError(SecurityError):
     status = 400
+
+
+class RecoveryError(SecurityError):
+    """Password recovery refused. Messages are deliberately the same whether or not an account exists for the email."""
+    status = 400
+
+
+class RecoveryRateLimitError(RecoveryError):
+    status = 429
+
+
+class RecoveryUnavailableError(RecoveryError):
+    status = 503

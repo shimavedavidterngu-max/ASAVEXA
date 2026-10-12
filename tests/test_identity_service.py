@@ -50,14 +50,14 @@ def build_service(session_ttl=timedelta(hours=12)) -> IdentityService:
 class IdentityServiceTestCase(unittest.TestCase):
     def setUp(self):
         self.identity = build_service()
-        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple")
+        self.owner = self.identity.register_user("dara@meridian.test", "correct horse battery staple1")
         self.org = self.identity.create_organisation("Meridian Textiles Ltd", actor=self.owner.id)
         # Bootstrap: first membership in a fresh org needs no permission check.
         self.identity.add_membership(self.org.id, self.owner.id, Role.OWNER, actor_user_id=self.owner.id)
 
     # ------------------------------------------------------------------
     def test_bootstrap_owner_can_add_a_second_member(self):
-        accountant = self.identity.register_user("aisha@meridian.test", "another-strong-password")
+        accountant = self.identity.register_user("aisha@meridian.test", "another-strong-password1")
         membership = self.identity.add_membership(
             self.org.id, accountant.id, Role.ACCOUNTANT, actor_user_id=self.owner.id
         )
@@ -65,7 +65,7 @@ class IdentityServiceTestCase(unittest.TestCase):
         self.assertEqual(membership.status, MembershipStatus.ACTIVE)
 
     def test_non_member_cannot_add_members(self):
-        outsider = self.identity.register_user("outsider@example.com", "irrelevant-password")
+        outsider = self.identity.register_user("outsider@example.com", "irrelevant-password1")
         someone_else = self.identity.register_user("someone@example.com", "irrelevant-password-2")
         with self.assertRaises(PermissionDeniedError):
             self.identity.add_membership(self.org.id, someone_else.id, Role.READ_ONLY, actor_user_id=outsider.id)
@@ -79,18 +79,15 @@ class IdentityServiceTestCase(unittest.TestCase):
 
     def test_duplicate_email_registration_is_rejected(self):
         with self.assertRaises(DuplicateEmailError):
-            self.identity.register_user("dara@meridian.test", "some-other-password")
+            self.identity.register_user("dara@meridian.test", "some-other-password1")
 
-    def test_password_shorter_than_fifteen_characters_is_rejected(self):
-        """NIST SP 800-63B Revision 4: 15 characters minimum for a
-        password used as the sole authenticator. Found missing
-        entirely during the Phase 4 security audit — previously any
-        non-empty password was accepted."""
+    def test_password_shorter_than_eight_characters_is_rejected(self):
+        """Password policy (identity/domain/password_policy.py): 8 to 128 characters, a letter and a number."""
         with self.assertRaises(WeakPasswordError):
-            self.identity.register_user("short@meridian.test", "short14chars12")  # 14 chars
+            self.identity.register_user("short@meridian.test", "abc1234")  # 7 chars
 
-    def test_password_exactly_fifteen_characters_is_accepted(self):
-        user = self.identity.register_user("exactly15@meridian.test", "exactly15-chars")  # 15 chars
+    def test_password_exactly_eight_characters_with_letter_and_number_is_accepted(self):
+        user = self.identity.register_user("exactly8@meridian.test", "sun4moon")  # 8 chars
         self.assertIsNotNone(user.id)
 
     def test_empty_password_is_still_rejected(self):
@@ -154,7 +151,7 @@ class IdentityServiceTestCase(unittest.TestCase):
 
     # ------------------------------------------------------------------
     def test_authenticate_with_correct_password_succeeds(self):
-        user, token = self.identity.authenticate("dara@meridian.test", "correct horse battery staple")
+        user, token = self.identity.authenticate("dara@meridian.test", "correct horse battery staple1")
         self.assertEqual(user.id, self.owner.id)
         self.assertTrue(token)
 
@@ -194,7 +191,7 @@ class IdentityServiceTestCase(unittest.TestCase):
 
     # ------------------------------------------------------------------
     def test_session_lifecycle_select_org_logout(self):
-        _, token = self.identity.authenticate("dara@meridian.test", "correct horse battery staple")
+        _, token = self.identity.authenticate("dara@meridian.test", "correct horse battery staple1")
         session = self.identity.validate_session(token)
         self.assertIsNone(session.org_id)
 
@@ -207,7 +204,7 @@ class IdentityServiceTestCase(unittest.TestCase):
 
     def test_cannot_select_organisation_without_membership(self):
         other_org = self.identity.create_organisation("Other Org", actor=self.owner.id)
-        _, token = self.identity.authenticate("dara@meridian.test", "correct horse battery staple")
+        _, token = self.identity.authenticate("dara@meridian.test", "correct horse battery staple1")
         with self.assertRaises(PermissionDeniedError):
             self.identity.select_organisation(token, other_org.id)
 

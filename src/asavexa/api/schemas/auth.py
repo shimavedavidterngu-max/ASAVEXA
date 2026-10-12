@@ -9,6 +9,23 @@ from ...identity.domain.enums import MembershipStatus, Role
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
+    confirm_password: Optional[str] = None   # when sent, it must match; the password policy itself is enforced by the identity service
+
+
+class RecoveryRequestIn(BaseModel):
+    email: str
+
+
+class RecoveryVerifyIn(BaseModel):
+    email: str
+    code: str
+
+
+class RecoveryResetIn(BaseModel):
+    email: str
+    reset_token: str
+    new_password: str
+    confirm_password: Optional[str] = None
 
 
 class UserOut(BaseModel):

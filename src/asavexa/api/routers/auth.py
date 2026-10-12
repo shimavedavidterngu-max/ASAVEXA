@@ -13,6 +13,9 @@ from ..schemas.auth import (
     MfaVerifyRequest,
     OidcCallbackRequest,
     OidcStartRequest,
+    RecoveryRequestIn,
+    RecoveryResetIn,
+    RecoveryVerifyIn,
     MembershipOut,
     OrganisationCreate,
     OrganisationOut,
@@ -25,9 +28,43 @@ router = APIRouter(prefix="/auth", tags=["Authentication & Organisations"])
 org_router = APIRouter(prefix="/organisations", tags=["Authentication & Organisations"])
 
 
+@router.get("/password-policy")
+def password_policy_info():
+    """The password rules, so the sign-up and reset screens show exactly what the server enforces."""
+    from ...identity.domain import password_policy as pp
+    return {"min_length": pp.MIN_LENGTH, "max_length": pp.MAX_LENGTH, "requirements": pp.REQUIREMENTS}
+
+
 @router.post("/register", response_model=UserOut, status_code=201)
 def register(body: RegisterRequest, identity: IdentityService = Depends(get_identity_service)):
+    if body.confirm_password is not None and body.confirm_password != body.password:
+        raise HTTPException(status_code=422, detail="The two passwords do not match.")
     return identity.register_user(body.email, body.password)
+
+
+# ---- password recovery: request a code, verify it, set a new password. Every answer is the same for real and unknown emails.
+@router.get("/recovery/status")
+def recovery_status(security: SecurityContext = Depends(get_security)):
+    """Lets the screen say honestly when email is not set up, instead of promising a code that will never come."""
+    return {"available": security.recovery.available}
+
+
+@router.post("/recovery/request")
+def recovery_request(request: Request, body: RecoveryRequestIn, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.RECOVERY_REQUEST, request)
+    return security.recovery.request(body.email)
+
+
+@router.post("/recovery/verify")
+def recovery_verify(request: Request, body: RecoveryVerifyIn, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.RECOVERY_VERIFY, request)
+    return security.recovery.verify(body.email, body.code)
+
+
+@router.post("/recovery/reset")
+def recovery_reset(request: Request, body: RecoveryResetIn, security: SecurityContext = Depends(get_security)):
+    ratelimit.throttle(ratelimit.RECOVERY_RESET, request)
+    return security.recovery.reset(body.email, body.reset_token, body.new_password, body.confirm_password)
 
 
 @router.post("/login", response_model=LoginResponse)

@@ -71,6 +71,9 @@ def _webhook_notifier():
     return send
 
 
+from ..security.mailer import mailer_from_env  # noqa: E402
+
+
 def build_security(session, identity) -> SecurityContext:
     from ..audit.repository import AuditRepository  # noqa: F401
     from .db.audit_sqlalchemy_repository import SqlAlchemyAuditRepository
@@ -86,4 +89,4 @@ def build_security(session, identity) -> SecurityContext:
         logger.exception("oidc_misconfigured")
         oidc = None
     return SecurityContext(identity, SqlAlchemyAuditRepository(session), store, keys=keys, objects=objects, oidc_cfg=oidc, commit=session.commit,
-                           policy=session_policy(), database_region=os.environ.get("ASAVEXA_DATA_REGION", "unspecified"), notifier=_webhook_notifier())
+                           policy=session_policy(), mailer=mailer_from_env(), database_region=os.environ.get("ASAVEXA_DATA_REGION", "unspecified"), notifier=_webhook_notifier())
