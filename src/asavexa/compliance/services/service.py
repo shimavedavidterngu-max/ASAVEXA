@@ -74,6 +74,7 @@ CHECK_PERIOD_LOCK_STATUS = "ACCOUNTING_PERIOD_LOCK_STATUS"
 CHECK_RECONCILIATION_NO_OUTSTANDING = "RECONCILIATION_NO_OUTSTANDING_TRANSACTIONS"
 CHECK_EVIDENCE_REQUIRED_VALID = "EVIDENCE_REQUIRED_REFERENCES_VALID"
 CHECK_EVIDENCE_NOT_MISSING_FOR_JOURNAL = "EVIDENCE_NOT_MISSING_FOR_JOURNAL"
+CHECK_EVIDENCE_REVIEW_COMPLETE = "EVIDENCE_REVIEW_COMPLETE"
 CHECK_REPORTING_PROVENANCE_AVAILABLE = "REPORTING_TRIAL_BALANCE_PROVENANCE_AVAILABLE"
 CHECK_PERIOD_CLOSE_READINESS = "PERIOD_CLOSE_READINESS_CHECK"
 CHECK_PERIOD_CLOSE_PERIOD_LOCKED = "PERIOD_CLOSE_PERIOD_LOCKED"
@@ -163,6 +164,7 @@ class ComplianceService:
             CHECK_RECONCILIATION_NO_OUTSTANDING: self._check_reconciliation_no_outstanding,
             CHECK_EVIDENCE_REQUIRED_VALID: self._check_evidence_required_valid,
             CHECK_EVIDENCE_NOT_MISSING_FOR_JOURNAL: self._check_evidence_not_missing_for_journal,
+            CHECK_EVIDENCE_REVIEW_COMPLETE: self._check_evidence_review_complete,
             CHECK_REPORTING_PROVENANCE_AVAILABLE: self._check_reporting_provenance_available,
             CHECK_PERIOD_CLOSE_READINESS: self._check_period_close_readiness,
             CHECK_PERIOD_CLOSE_PERIOD_LOCKED: self._check_period_close_period_locked,
@@ -588,6 +590,25 @@ class ComplianceService:
         if status == EvidenceStatus.VERIFIED.value:
             return ControlResult.PASS, f"Verified evidence is linked to journal {journal_id}.", reference
         return ControlResult.WARNING, f"Evidence linked to journal {journal_id} is present but not verified ({status}).", reference
+
+    def _check_evidence_review_complete(self, org_id, period_id, params, executed_by):
+        """Runs the Evidence Review for a report (or one account in it) and fails when any journal behind the figure lacks complete, verified, consistent evidence."""
+        from ...evidencereview.review import build_review
+        if period_id is None:
+            return ControlResult.REQUIRES_REVIEW, "No period_id supplied for a period-scoped control.", {}
+        if self.evidence is None:
+            return ControlResult.NOT_APPLICABLE, "Evidence Vault integration not configured.", {}
+        report_type = params.get("report_type") or "income_statement"
+        review = build_review(self.reporting, org_id, period_id, report_type, executed_by, account_id=params.get("account_id"), vault=self.evidence)
+        reference = {"report_type": report_type, "account_id": params.get("account_id"), "verdict": review["verdict"],
+                     "metrics": review["metrics"], "fingerprint": review["fingerprint"]}
+        m = review["metrics"]
+        if review["verdict"] == "NOTHING_TO_REVIEW":
+            return ControlResult.NOT_APPLICABLE, "There are no journals behind this figure to review.", reference
+        if review["verdict"] == "SUPPORTED":
+            return ControlResult.PASS, f"All {m['journals']} journal(s) behind the figure have complete, verified evidence.", reference
+        return ControlResult.FAIL, (f"The evidence does not fully support the figure: {m['journals_with_gaps']} of {m['journals']} journal(s) have gaps"
+                                    f" and {m['tie_failures']} figure(s) do not tie to their journals."), reference
 
     def _check_reporting_provenance_available(self, org_id, period_id, params, executed_by):
         if period_id is None:

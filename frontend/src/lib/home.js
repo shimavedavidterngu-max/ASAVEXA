@@ -19,7 +19,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + "s"}`;
 /** Where each menu entry lives. Every path in the app's menu must appear here (a test checks it). */
 export const NAV_GROUPS = [
   { id: "home", label: "Home", paths: ["/"] },
-  { id: "books", label: "Books and evidence", paths: ["/accounting", "/evidence", "/reconciliation", "/period-close", "/reporting", "/proof", "/audit", "/compliance"] },
+  { id: "books", label: "Books and evidence", paths: ["/accounting", "/evidence", "/reconciliation", "/period-close", "/reporting", "/proof", "/evidence-review", "/audit", "/compliance"] },
   { id: "workspaces", label: "Professional workspaces", paths: ["/workspaces", "/analysis", "/tax", "/forensic", "/grc", "/pubfin", "/bizdev", "/cyber", "/health"] },
   { id: "trust", label: "Passport and network", paths: ["/passport", "/passport/sharing", "/network", "/validation", "/standards"] },
   { id: "data", label: "Data and administration", paths: ["/import", "/admin", "/setup", "/ai"] },
@@ -78,7 +78,7 @@ export function breadcrumbs(path, visible) {
 // ------------------------------------------------------------------ search
 const KEYWORDS = {
   "/accounting": "journal ledger accounts chart of accounts posting", "/evidence": "documents invoices receipts upload vault", "/reconciliation": "bank statement match",
-  "/reporting": "reports trial balance statements", "/proof": "proof graph trace", "/period-close": "close month year lock", "/compliance": "controls findings",
+  "/reporting": "reports trial balance statements", "/proof": "proof graph trace", "/evidence-review": "evidence review missing conflicting stale case verify", "/period-close": "close month year lock", "/compliance": "controls findings",
   "/audit": "audit trail search journal", "/analysis": "ratios variance budget forecast break-even", "/tax": "vat gst filing rates", "/forensic": "fraud investigation case",
   "/grc": "risk register governance obligations", "/pubfin": "budget procurement grants public sector", "/bizdev": "pipeline proposals accounts clients sales",
   "/cyber": "security vulnerabilities incidents assets", "/health": "clinic stock claims facility", "/import": "csv upload data", "/admin": "users members roles team invite", "/setup": "onboarding organisation details currency country financial year period getting started",

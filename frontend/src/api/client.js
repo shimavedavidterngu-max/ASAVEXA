@@ -350,6 +350,16 @@ export class ApiClient {
   completeEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/complete`); }
   validationStatement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}/statement`); }
 
+  // ---- Evidence Review (src/asavexa/api/routers/evidence_review.py) ----
+  evidenceReview(periodId, report, accountId) { return this.get("/evidence-review/review", accountId ? { period_id: periodId, report, account_id: accountId } : { period_id: periodId, report }); }
+  evidenceReviewCases() { return this.get("/evidence-review/cases"); }
+  evidenceReviewCase(id) { return this.get(`/evidence-review/cases/${id}`); }
+  openEvidenceReviewCase(body) { return this.post("/evidence-review/cases", body); }
+  planEvidenceReviewAction(id, body) { return this.post(`/evidence-review/cases/${id}/plan`, body); }
+  completeEvidenceReviewAction(id, body) { return this.post(`/evidence-review/cases/${id}/complete`, body); }
+  verifyEvidenceReviewOutcome(id, body) { return this.post(`/evidence-review/cases/${id}/verify`, body); }
+  recheckEvidenceReviewCase(id) { return this.post(`/evidence-review/cases/${id}/recheck`, {}); }
+
   // ---- Proof-to-Report Graph (src/asavexa/api/routers/proof.py) ----
   proofGraph(periodId, report) { return this.get("/proof/graph", { period_id: periodId, report }); }
   proofArchitecture() { return this.get("/proof/architecture"); }

@@ -243,6 +243,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "tax.router": "/tax",
         "forensic.router": "/forensic",
         "grc.router": "/grc",
+        "evidence_review.router": "/evidence-review",
         "pubfin.router": "/pubfin",
         "bizdev.router": "/bizdev",
         "cyber.router": "/cyber",

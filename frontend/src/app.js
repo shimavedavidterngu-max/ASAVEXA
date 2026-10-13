@@ -48,6 +48,7 @@ import { Validation } from "./pages/Validation.js";
 import { Pilot } from "./pages/Pilot.js";
 import { Network } from "./pages/Network.js";
 import { Proof } from "./pages/Proof.js";
+import { EvidenceReview } from "./pages/EvidenceReview.js";
 import { Analysis } from "./pages/Analysis.js";
 import { Workspaces } from "./pages/Workspaces.js";
 import { Tax } from "./pages/Tax.js";
@@ -118,6 +119,7 @@ const NAV_ITEMS = [
   { path: "/reconciliation", label: "Reconciliation", permission: PERMISSIONS.RECONCILIATION_READ },
   { path: "/reporting", label: "Reporting", permission: PERMISSIONS.REPORTING_READ },
   { path: "/proof", label: "Proof Graph", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/evidence-review", label: "Evidence Review", permission: PERMISSIONS.REPORTING_READ },
   { path: "/workspaces", label: "Professional Workspaces", permission: PERMISSIONS.REPORTING_READ },
   { path: "/analysis", label: "Financial Analysis", permission: PERMISSIONS.REPORTING_READ },
   { path: "/tax", label: "Tax Compliance", permission: PERMISSIONS.REPORTING_READ },
@@ -160,6 +162,7 @@ const routes = [
   { path: "/reconciliation", name: "reconciliation" },
   { path: "/reporting", name: "reporting" },
   { path: "/proof", name: "proof" },
+  { path: "/evidence-review", name: "evidence-review" },
   { path: "/workspaces", name: "workspaces" },
   { path: "/analysis", name: "analysis" },
   { path: "/tax", name: "tax" },
@@ -706,7 +709,7 @@ function renderPage(matched, authState) {
   }
 
   if (name.startsWith("accounting")) return renderAccounting(name, params, authState, nav);
-  if (name.startsWith("evidence")) return renderEvidence(name, params, authState, nav);
+  if (name.startsWith("evidence") && name !== "evidence-review") return renderEvidence(name, params, authState, nav);
   if (name.startsWith("reconciliation")) return renderReconciliation(name, params, authState, nav);
   if (name === "reporting") return renderReporting(authState, nav);
   if (name === "period-close") return renderPeriodClose(authState, nav);
@@ -724,6 +727,7 @@ function renderPage(matched, authState) {
   if (name === "pilot") return renderPilotPage(authState);
   if (name === "network") return renderNetworkPage(authState);
   if (name === "proof") return renderProofPage(authState);
+  if (name === "evidence-review") return renderEvidenceReviewPage(authState);
   if (name === "workspaces") return renderWorkspacesPage(authState, nav);
   if (name === "analysis") return renderAnalysisPage(authState);
   if (name === "tax") return renderTaxPage(authState);
@@ -1082,7 +1086,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -3265,6 +3269,50 @@ function proofActions() {
     checkArchitecture: () => run(async () => { proof.arch = await api.proofArchitecture(); }),
   };
 }
+
+function newEr() { return { period_id: "", report: "income_statement", review: null, cases: [], members: [], openCase: null, forms: {}, busy: false, error: null, notice: null }; }
+
+function renderEvidenceReviewPage(authState) {
+  if (!uiState.er) uiState.er = newEr();
+  once("erLoading", () => loadEr(authState));
+  return EvidenceReview({ er: uiState.er, periods: uiState.periods, me: authState.user && authState.user.id, role: authState.role, loading: uiState.erLoading,
+    onRetry: () => { loadedOnce.delete("erLoading"); render(); }, actions: erActions() });
+}
+
+async function loadEr(authState) {
+  const er = uiState.er || (uiState.er = newEr());
+  er.error = null;
+  try {
+    uiState.periods = await api.listPeriods();
+    const last = uiState.periods[uiState.periods.length - 1];
+    if (!er.period_id && last) er.period_id = last.id;
+    er.cases = (await api.evidenceReviewCases()).cases;
+    try { er.members = await api.listMembers(authState.organisationId); } catch (_) { er.members = []; }
+  } catch (err) {
+    er.error = err.message || "Evidence Review could not be loaded.";
+  }
+}
+
+function erActions() {
+  const er = uiState.er;
+  const run = async (fn, notice) => { er.error = null; er.notice = null; er.busy = true; render(); try { await fn(); if (notice) er.notice = notice; } catch (err) { er.error = err.message || "That did not work."; } er.busy = false; render(); };
+  const refresh = async () => { er.cases = (await api.evidenceReviewCases()).cases; };
+  const form = (id) => er.forms[id] || {};
+  const after = async (c) => { await refresh(); er.openCase = c.id; er.forms[c.id] = {}; };
+  return {
+    setPeriod: (id) => { er.period_id = id; er.review = null; render(); },
+    setReport: (r) => { er.report = r; er.review = null; render(); },
+    setForm: (id, k, v) => { er.forms[id] = { ...(er.forms[id] || {}), [k]: v }; },
+    toggleCase: (id) => { er.openCase = er.openCase === id ? null : id; render(); },
+    run: () => run(async () => { er.review = await api.evidenceReview(er.period_id, er.report); }),
+    openCase: () => run(async () => { const c = await api.openEvidenceReviewCase({ period_id: er.period_id, report: er.report }); await after(c); }, "Case raised."),
+    plan: (id) => run(async () => { const f = form(id); await after(await api.planEvidenceReviewAction(id, { action: f.action || "", owner: f.owner || "", due_date: f.due_date || null })); }, "Action planned."),
+    complete: (id) => run(async () => { const f = form(id); await after(await api.completeEvidenceReviewAction(id, { note: f.note || "", evidence_ref: f.evidence_ref || null })); }, "Recorded as done. Someone independent must now verify it."),
+    verify: (id) => run(async () => { const f = form(id); const c = await api.verifyEvidenceReviewOutcome(id, { residual_risk: f.residual_risk || "", reopen_criteria: f.reopen_criteria || "", note: f.vnote || "" }); await after(c); er.notice = c.status === "VERIFIED" ? "Verified: the figure was re-measured and no gaps remain." : "Not verified: gaps remain, so the action goes back to its owner."; }),
+    recheck: (id) => run(async () => { const c = await api.recheckEvidenceReviewCase(id); await after(c); er.notice = c.status === "REOPENED" ? "Gaps have returned, so the case was reopened." : "Re-checked: still fully supported."; }),
+  };
+}
+
 
 
 // ----------------------------------------------------------------------

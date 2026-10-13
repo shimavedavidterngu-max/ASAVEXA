@@ -135,6 +135,18 @@ def get_grc(security: SecurityContext = Depends(get_security), session=Depends(g
     return GrcService(SqlAlchemyDocStore(session), lambda org: compliance.list_controls(org), get_evidence_vault(session), log=make_log(security))
 
 
+def get_evidence_review(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Evidence Review cases: reads the ledger and Evidence Vault, drives the existing Compliance findings and remediations, keeps its own measurements in the shared document store; never changes the ledger; every step is audited."""
+    from ..evidencereview.service import EvidenceReviewService
+    from ..evidencereview.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    memberships = SqlAlchemyMembershipRepository(session)
+    return EvidenceReviewService(
+        SqlAlchemyDocStore(session), get_reporting_service(session), get_evidence_vault(session), get_compliance_service(session),
+        is_member=lambda org, user: memberships.get(org, user) is not None, log=make_log(security))
+
+
 def get_health(security: SecurityContext = Depends(get_security), session=Depends(get_session), identity: IdentityService = Depends(get_identity_service)):
     """Health Centre Administration service: facilities, budgets, procurement, stock, claims administration, assets and staffing costs in the shared document store; reads the ledger and Evidence Vault, never changes them; every action is audited. Holds no patient information."""
     from ..health.service import HealthService
