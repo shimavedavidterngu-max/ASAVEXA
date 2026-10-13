@@ -350,6 +350,16 @@ export class ApiClient {
   completeEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/complete`); }
   validationStatement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}/statement`); }
 
+  assuranceVocabulary() { return this.get("/assurance/vocabulary"); }
+  assuranceSummary() { return this.get("/assurance/summary"); }
+  // ---- Proof links (src/asavexa/api/routers/proof_links.py) ----
+  proofLinkVocabulary() { return this.get("/proof-links/vocabulary"); }
+  proofLinkChoices(type) { return this.get("/proof-links/choices", { type }); }
+  proofLinkGraph(type, id, depth) { return this.get("/proof-links/graph", { type, id, depth: depth || 1 }); }
+  addProofLink(body) { return this.post("/proof-links", body); }
+  proofLinkAction(id, kind, body) { return this.post(`/proof-links/${encodeURIComponent(id)}/${encodeURIComponent(kind)}`, body); }
+  addProofLinkGap(body) { return this.post("/proof-links/gaps", body); }
+  waiveProofLinkGap(id, body) { return this.post(`/proof-links/gaps/${encodeURIComponent(id)}/waive`, body); }
   // ---- Agent registry (src/asavexa/api/routers/agents.py) ----
   agentCatalog() { return this.get("/agents/catalog"); }
   agents() { return this.get("/agents"); }
@@ -374,6 +384,10 @@ export class ApiClient {
   planEvidenceReviewAction(id, body) { return this.post(`/evidence-review/cases/${id}/plan`, body); }
   completeEvidenceReviewAction(id, body) { return this.post(`/evidence-review/cases/${id}/complete`, body); }
   verifyEvidenceReviewOutcome(id, body) { return this.post(`/evidence-review/cases/${id}/verify`, body); }
+  evidenceReviewRules() { return this.get("/evidence-review/rules"); }
+  proposeEvidenceReviewRules(body) { return this.post("/evidence-review/rules", body); }
+  approveEvidenceReviewRules(version, body) { return this.post(`/evidence-review/rules/${version}/approve`, body); }
+  rejectEvidenceReviewRules(version, body) { return this.post(`/evidence-review/rules/${version}/reject`, body); }
   recheckEvidenceReviewCase(id) { return this.post(`/evidence-review/cases/${id}/recheck`, {}); }
 
   // ---- Proof-to-Report Graph (src/asavexa/api/routers/proof.py) ----

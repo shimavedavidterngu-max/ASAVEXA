@@ -36,3 +36,7 @@ Default rules (`evidencereview/rules.py`): ER-001 every posted journal has linke
 
 ## Tests
 `tests/test_evidence_review.py` (20), `frontend/tests/evidence-review.test.js` (22), the two Stage 1 static route/audit tests (pass with no new exceptions), and a real-browser journey with three people plus a second company (outside the repo; see `docs/stage2-test-report.md`).
+
+## Added in Stages 10 and 11
+- Verifying a case now also records a residual-risk **rating**, a **threshold** for how many gaps a later re-check may find before the case reopens, and when the next re-check is due.
+- The expected-record rules can be replaced by the organisation through a proposed, separately approved rule set. The baseline rule ER-001 always stays. See `docs/stage10-14.md`.

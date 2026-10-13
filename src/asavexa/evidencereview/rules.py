@@ -4,6 +4,7 @@ sensible defaults an organisation can replace by passing its own rules to the re
 A rule applies to a posted journal when it touches an account of one of `account_types` (or any journal if that is None).
 `expects_any` lists the evidence types of which at least one should be attached (None means any attached document will do).
 Every rule needs the attached evidence to be VERIFIED, by a different person from the one who uploaded it."""
+import re
 from typing import Dict, List
 
 DEFAULT_RULES: List[Dict] = [
@@ -41,4 +42,24 @@ def validate_rules(rules):
         if sev not in ("HIGH", "MEDIUM", "LOW"):
             raise ValueError(f"{rid}: severity must be HIGH, MEDIUM or LOW")
         out.append({"id": rid, "name": str(r.get("name") or rid)[:200], "account_types": types, "expects_any": exp, "severity": sev})
+    return out
+
+
+MAX_RULES = 25
+BASELINE_RULE = "ER-001"
+
+
+def validate_org_rules(rules):
+    """The stricter check for a rule set an organisation saves. Same shape rules as `validate_rules`, plus: at most 25 rules, simple ids, and the
+    baseline rule ER-001 ("every posted journal has linked evidence") must stay and must still apply to every journal. An organisation can add
+    rules and make any rule stricter, but cannot switch the baseline off, because then 'fully supported' would stop meaning anything."""
+    out = validate_rules(rules)
+    if len(out) > MAX_RULES:
+        raise ValueError(f"a rule set can have at most {MAX_RULES} rules")
+    for r in out:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,30}", r["id"]):
+            raise ValueError(f"rule id {r['id']!r} must be 1 to 30 letters, numbers, dashes or underscores")
+    base = next((r for r in out if r["id"] == BASELINE_RULE), None)
+    if base is None or base["account_types"] is not None:
+        raise ValueError(f"The baseline rule {BASELINE_RULE} (every posted journal has linked evidence) must stay, and it must apply to every journal.")
     return out

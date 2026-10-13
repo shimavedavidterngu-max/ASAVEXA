@@ -9,10 +9,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [os.path.join(ROOT, "src"), os.path.join(ROOT, "tests")]
 
 from asavexa.ai import evaluation  # noqa: E402
-from test_ai import engine, rich_world  # noqa: E402
-from test_ai_evaluation import QUESTIONS, labels  # noqa: E402
+from test_ai_evaluation import QUESTIONS, build_sample  # noqa: E402
 
-w = rich_world()
-result = evaluation.run_evaluation(engine(w), labels(w), QUESTIONS)
+w, eng, labels = build_sample()
+result = evaluation.run_evaluation(eng, labels, QUESTIONS)
 print(evaluation.format_report(result))
 sys.exit(0 if result["meets_criteria"] else 1)

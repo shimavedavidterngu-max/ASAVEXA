@@ -164,7 +164,7 @@ def build_review(reporting, org_id: str, period_id: str, report_type: str, actor
 
     metrics = {"journals": total, "journals_with_gaps": len(gap_journals), "gap_issues": sum(counts.values()), "tie_failures": len(tie_failures),
                "recorded_links": recorded, "inferred_links": inferred, **{k.lower(): v for k, v in counts.items()}}
-    canon = json.dumps({"scope": [org_id, period_id, report_type, account_id], "rules": [r["id"] for r in rule_set],
+    canon = json.dumps({"scope": [org_id, period_id, report_type, account_id], "rules": sorted(json.dumps(r, sort_keys=True) for r in rule_set),
                         "j": sorted((i["journal_id"], i["kind"], i.get("evidence_id") or "") for i in issues),
                         "s": sorted((s["journal_id"], s["evidence"]["id"], s["evidence"]["status"], s["link"]["kind"]) for s in supporting), "t": tie_failures},
                        sort_keys=True)

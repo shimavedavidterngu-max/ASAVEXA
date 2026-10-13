@@ -59,3 +59,27 @@ export function nextStep(c, me) {
 export const canVerify = (c, me, mayVerify) => !!(c && c.status === "ACTION_DONE" && mayVerify && me !== c.completed_by && me !== c.owner);
 
 export const shortId = (id) => (id ? String(id).slice(0, 8) : "—");
+
+export const RESIDUAL_LEVELS = [["LOW", "Low"], ["MEDIUM", "Medium"], ["HIGH", "High"]];
+export const residualLevelText = (l) => (RESIDUAL_LEVELS.find((x) => x[0] === l) || [null, "Not rated"])[1];
+export const RESIDUAL_TONE = { LOW: "pass", MEDIUM: "warn", HIGH: "fail" };
+
+const whole = (v) => (v === "" || v == null ? null : /^\d+$/.test(String(v).trim()) ? Number(String(v).trim()) : NaN);
+
+/** The body sent to POST /cases/{id}/verify, from the form. Returns { body } or { problem } so the page can say what to fix before any request is made. */
+export function verifyPayload(f = {}) {
+  const residual_risk = (f.residual_risk || "").trim(), reopen_criteria = (f.reopen_criteria || "").trim();
+  if (!residual_risk) return { problem: "Say what residual risk remains." };
+  if (!reopen_criteria) return { problem: "Say when this case should be reopened." };
+  if (!f.residual_level) return { problem: "Rate the residual risk: low, medium or high." };
+  const tol = whole(f.reopen_if_gaps_above), days = whole(f.recheck_after_days);
+  if (Number.isNaN(tol)) return { problem: "The reopen threshold must be a whole number (0 means reopen on any gap)." };
+  if (Number.isNaN(days) || days === 0) return { problem: "The re-check interval must be a whole number of days, or empty for no schedule." };
+  return { body: { residual_risk, reopen_criteria, note: (f.vnote || "").trim(), residual_level: f.residual_level, reopen_if_gaps_above: tol == null ? 0 : tol, recheck_after_days: days } };
+}
+
+/** A verified case whose scheduled re-check date has come. */
+export const recheckDue = (c) => !!(c && c.status === "VERIFIED" && c.recheck_due_now);
+
+export const MEASUREMENT_TEXT = { BASELINE: "Baseline", REJECTED_ATTEMPT: "Rejected attempt", VERIFIED: "Verified", RECHECK: "Re-check" };
+export const measurementText = (k) => MEASUREMENT_TEXT[k] || String(k || "—");

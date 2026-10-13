@@ -2,7 +2,8 @@ import { h } from "../lib/vdom.js";
 import { LoadingState, ErrorState, EmptyState } from "../components/DataState.js";
 import { PermissionGate } from "../components/PermissionGate.js";
 import { PERMISSIONS } from "../lib/permissions.js";
-import { REPORT_CHOICES, verdictInfo, issueText, linkText, caseStatus, problemRows, canOpenCase, nextStep, canVerify, gapCount, shortId } from "../lib/evidenceReview.js";
+import { RulesCard } from "./EvidenceRules.js";
+import { REPORT_CHOICES, verdictInfo, issueText, linkText, caseStatus, problemRows, canOpenCase, nextStep, canVerify, gapCount, shortId, RESIDUAL_LEVELS, residualLevelText, recheckDue, measurementText } from "../lib/evidenceReview.js";
 
 /**
  * Evidence Review: for one report figure, what is asserted, what supports it, what is missing, conflicting or stale, which links were made by a
@@ -18,7 +19,7 @@ export function EvidenceReview({ er, periods, me, role, loading, onRetry, action
     h("p", { style: "color: var(--ink-500); margin-top:-8px;" }, "Check whether the records really support a reported figure. If they do not, raise a case, fix it, and have someone independent confirm the fix."),
     er.error ? ErrorState({ message: er.error, onRetry }) : null,
     er.notice ? h("div", { className: "alert alert-success", id: "er-notice", role: "status", style: "margin-bottom:12px;" }, er.notice) : null,
-    loading ? LoadingState() : h("div", {}, reviewCard(er, periods || [], role, actions), casesCard(er, me, role, actions)));
+    loading ? LoadingState() : h("div", {}, reviewCard(er, periods || [], role, actions), casesCard(er, me, role, actions), RulesCard({ er, me, role, actions })));
 }
 
 function reviewCard(er, periods, role, a) {
@@ -75,7 +76,8 @@ function caseBlock(c, er, me, role, a) {
     open ? h("div", { style: "margin-top:10px;" },
       h("div", { style: "display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;" }, Stat("Gaps at the start", c.baseline.gaps), c.outcome ? Stat("Gaps after the fix", c.outcome.post_gaps) : null, c.owner ? Stat("Owner", c.owner === me ? "You" : shortId(c.owner)) : null),
       (c.attempts || []).length ? h("div", { className: "alert alert-warning", role: "status" }, `Verification was rejected ${c.attempts.length} time(s). Last result: ${c.attempts[c.attempts.length - 1].result}, ${c.attempts[c.attempts.length - 1].post_gaps} gap(s) remained.`) : null,
-      c.outcome ? h("div", { className: "alert alert-success", "data-outcome": c.outcome.result }, h("strong", {}, `${c.outcome.result}: `), `${c.outcome.baseline_gaps} gap(s) before, ${c.outcome.post_gaps} after. Residual risk: ${c.outcome.residual_risk}. Reopen if: ${c.outcome.reopen_criteria}`) : null,
+      c.outcome ? h("div", { className: "alert alert-success", "data-outcome": c.outcome.result }, h("strong", {}, `${c.outcome.result}: `), `${c.outcome.baseline_gaps} gap(s) before, ${c.outcome.post_gaps} after. Residual risk (${residualLevelText(c.outcome.residual_level)}): ${c.outcome.residual_risk}. Reopen if: ${c.outcome.reopen_criteria}${c.outcome.reopen_if_gaps_above ? ` (more than ${c.outcome.reopen_if_gaps_above} gap(s))` : ""}.${c.recheck_due ? ` Next re-check: ${c.recheck_due}.` : ""}`) : null,
+      recheckDue(c) ? h("div", { className: "alert alert-warning", role: "status", "data-recheck-due": "1" }, "A re-check is due for this case.") : null,
       (c.status === "OPEN" || c.status === "REOPENED") ? PermissionGate({ role, permission: PERMISSIONS.FINDING_MANAGE }, h("div", {},
         input("action", "What will be done", "e.g. Attach the signed lease and have it verified", true),
         h("div", { className: "field" }, h("label", { for: `er-owner-${c.id}` }, "Owner"),
@@ -89,8 +91,15 @@ function caseBlock(c, er, me, role, a) {
       c.status === "ACTION_DONE" ? h("div", {},
         h("p", {}, h("strong", {}, "Done: "), c.completion_note),
         canVerify(c, me, true) ? PermissionGate({ role, permission: PERMISSIONS.FINDING_VERIFY }, h("div", {},
-          input("residual_risk", "Residual risk that remains", "", true), input("reopen_criteria", "Reopen this case if…", "", true), input("vnote", "Note (optional)", ""),
+          input("residual_risk", "Residual risk that remains", "", true),
+          h("div", { className: "field" }, h("label", { for: `er-residual_level-${c.id}` }, "Residual risk rating"),
+            h("select", { id: `er-residual_level-${c.id}`, onChange: (e) => a.setForm(c.id, "residual_level", e.target.value) }, [h("option", { value: "" }, "Choose a rating"), ...RESIDUAL_LEVELS.map(([v, t]) => h("option", { value: v, selected: f.residual_level === v }, t))])),
+          input("reopen_criteria", "Reopen this case if…", "", true),
+          input("reopen_if_gaps_above", "Reopen only if gaps are more than (0 = any gap)", "0"), input("recheck_after_days", "Re-check after this many days (optional)", "e.g. 30"),
+          input("vnote", "Note (optional)", ""),
           h("button", { className: "btn btn-primary", "data-act": "verify", disabled: er.busy, onClick: () => a.verify(c.id) }, "Re-measure and verify"))) : h("p", { className: "alert alert-warning", "data-sod": "1" }, "Only someone who did not do or own this work can verify it."),) : null,
       c.status === "VERIFIED" ? PermissionGate({ role, permission: PERMISSIONS.FINDING_VERIFY }, h("button", { className: "btn btn-secondary", "data-act": "recheck", disabled: er.busy, onClick: () => a.recheck(c.id) }, "Re-check now")) : null,
+      (c.measurements || []).length ? h("details", {}, h("summary", {}, "Measurements"), h("table", { className: "table", "data-measurements": "1" }, h("thead", {}, h("tr", {}, h("th", {}, "When"), h("th", {}, "What"), h("th", {}, "Gaps"))),
+        h("tbody", {}, c.measurements.map((m) => h("tr", {}, h("td", {}, String(m.at || "").slice(0, 16).replace("T", " ")), h("td", {}, measurementText(m.kind)), h("td", {}, String(m.gaps))))))) : null,
       h("details", {}, h("summary", {}, "History"), h("ul", { style: "padding-left:18px;" }, (c.history || []).map((x) => h("li", {}, `${x.at.slice(0, 16).replace("T", " ")} · ${x.event}${x.note ? ": " + x.note : ""}`))))) : null);
 }

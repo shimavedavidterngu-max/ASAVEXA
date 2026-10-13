@@ -52,6 +52,8 @@ for name in ("get_evidence_review", "get_standards_registry", "get_agent_registr
 er = importlib.import_module("asavexa.api.routers.evidence_review")
 srt = importlib.import_module("asavexa.api.routers.standards_registry")
 agr = importlib.import_module("asavexa.api.routers.agents")
+asr = importlib.import_module("asavexa.api.routers.assurance")
+plr = importlib.import_module("asavexa.api.routers.proof_links")
 ratelimit.LOGIN.limit = ratelimit.MFA.limit = 10000
 
 store = SqliteDocStore(w.conn)
@@ -71,6 +73,20 @@ rep = ReportingService(accounting=w.accounting, audit=w.audit, evidence=w.vault)
 ers = EvidenceReviewService(store, rep, w.vault, w.compliance, is_member=is_member, log=log_for("EvidenceReview"))
 srg = StandardsRegistry(store, log=log_for("StandardsRegistry"))
 agrg = AgentRegistry(store, is_member=is_member, log=log_for("Agent"))
+from asavexa.assurance.service import AssuranceService  # noqa: E402
+asvc = AssuranceService({
+    "evidence": lambda org: [(r.id, r.status.value, {"uploaded_by": r.uploaded_by, "verified_by": r.verified_by}) for r in w.vault.list_for_org(org)],
+    "finding": lambda org: [(f.id, f.status.value, {}) for f in w.compliance.list_findings(org)],
+    "evidence_review_case": lambda org: [(c["id"], c["status"], {}) for c in ers.list_cases(org)],
+    "standards_source": lambda org: [(x["id"], x["status"], {}) for x in srg.list_sources(org)],
+    "agent_decision": lambda org: [(d["id"], d["state"], {}) for d in agrg.list_decisions(org)],
+})
+
+
+from asavexa.proofgraph.links import ProofLinks  # noqa: E402
+from asavexa.proofgraph.wiring import make_sources  # noqa: E402
+pls = ProofLinks(store, make_sources(store, w.vault, w.compliance), log=log_for("ProofLink"))
+ers.links = pls
 
 
 def j(o):
@@ -129,6 +145,12 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/evidence-review"):
             need(REPORTING_READ)
             if path == "/evidence-review/review": return er.review(qs["period_id"], qs.get("report", "income_statement"), qs.get("account_id"), org, a, ers)
+            if path == "/evidence-review/rules" and m == "GET": return er.rules_overview(org, ers)
+            if path == "/evidence-review/rules" and m == "POST": need(GRC_PREPARE); return (201, er.propose_rules(er.RulesBody(**b), org, a, ers))
+            mm = re.match(r"/evidence-review/rules/(\d+)/(approve|reject)$", path)
+            if mm:
+                need(GRC_APPROVE)
+                return er.approve_rules(int(mm.group(1)), er.DecisionBody(**b), org, a, ers) if mm.group(2) == "approve" else er.reject_rules(int(mm.group(1)), er.RejectBody(**b), org, a, ers)
             if path == "/evidence-review/cases" and m == "GET": return er.list_cases(None, org, ers)
             if path == "/evidence-review/cases" and m == "POST": need(FINDING_MANAGE); return (201, er.open_case(er.OpenBody(**b), org, a, ers))
             mm = re.match(r"/evidence-review/cases/([^/]+)(?:/(\w+))?$", path)
@@ -139,6 +161,29 @@ class Handler(BaseHTTPRequestHandler):
                 if act == "complete": need(FINDING_REMEDIATE); return er.complete(cid, er.DoneBody(**b), org, a, ers)
                 if act == "verify": need(FINDING_VERIFY); return er.verify(cid, er.VerifyBody(**b), org, a, ers)
                 if act == "recheck": need(FINDING_VERIFY); return er.recheck(cid, org, a, ers)
+        if path.startswith("/assurance"):
+            need(AUDIT_READ)
+            if path == "/assurance/vocabulary": return asr.vocabulary()
+            if path == "/assurance/summary": return asr.summary(org, asvc)
+        if path.startswith("/proof-links"):
+            need(AUDIT_READ)
+            if path == "/proof-links/vocabulary": return plr.vocabulary()
+            if path == "/proof-links/choices": return plr.choices(qs["type"], org, pls)
+            if path == "/proof-links/graph": return plr.graph(qs["type"], qs["id"], int(qs.get("depth", 1)), False, org, pls)
+            if path == "/proof-links" and m == "GET": return plr.list_all(qs.get("status"), org, pls)
+            if path == "/proof-links" and m == "POST": need(GRC_PREPARE); return (201, plr.add(plr.LinkBody(**b), org, a, pls))
+            if path == "/proof-links/gaps" and m == "POST": need(GRC_PREPARE); return (201, plr.expect(plr.GapBody(**b), org, a, pls))
+            mm = re.match(r"/proof-links/gaps/([^/]+)/waive$", path)
+            if mm: need(GRC_APPROVE); return plr.waive(mm.group(1), plr.ReasonBody(**b), org, a, pls)
+            mm = re.match(r"/proof-links/([^/]+)$", path)
+            if mm and m == "GET": return plr.get_one(mm.group(1), org, pls)
+            mm = re.match(r"/proof-links/([^/]+)/(retire|dispute|confirm|reinstate)$", path)
+            if mm:
+                lid, act = mm.groups()
+                if act in ("retire", "dispute"): need(GRC_PREPARE)
+                else: need(GRC_APPROVE)
+                body = plr.NoteBody(**b) if act == "confirm" else plr.ReasonBody(**b)
+                return getattr(plr, act)(lid, body, org, a, pls)
         if path.startswith("/standards-registry"):
             need(AUDIT_READ)
             if path == "/standards-registry/coverage": return srt.coverage(qs.get("jurisdiction"), org, srg)

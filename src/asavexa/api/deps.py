@@ -166,7 +166,36 @@ def get_evidence_review(security: SecurityContext = Depends(get_security), sessi
     memberships = SqlAlchemyMembershipRepository(session)
     return EvidenceReviewService(
         SqlAlchemyDocStore(session), get_reporting_service(session), get_evidence_vault(session), get_compliance_service(session),
-        is_member=lambda org, user: memberships.get(org, user) is not None, log=make_log(security))
+        is_member=lambda org, user: memberships.get(org, user) is not None, log=make_log(security), links=_build_proof_links(security, session))
+
+
+def _build_proof_links(security, session):
+    """The stored Proof-to-Action graph for this request: links between records, in the shared document store, audited. It reads record names and never changes them."""
+    from ..proofgraph.links import ProofLinks
+    from ..proofgraph.wiring import make_log, make_sources
+    from .db.security_store import SqlAlchemyDocStore
+
+    store = SqlAlchemyDocStore(session)
+    return ProofLinks(store, make_sources(store, get_evidence_vault(session), get_compliance_service(session)), log=make_log(security))
+
+
+def get_proof_links(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    return _build_proof_links(security, session)
+
+
+def get_assurance(vault=Depends(get_evidence_vault), compliance=Depends(get_compliance_service), review=Depends(get_evidence_review),
+                  registry=Depends(get_standards_registry), agents=Depends(get_agent_registry), analysis=Depends(get_analysis)):
+    """The shared status vocabulary and a read-only count across modules. It owns no data and never writes: each module supplies its own records."""
+    from ..assurance.service import AssuranceService
+
+    return AssuranceService({
+        "evidence": lambda org: [(r.id, r.status.value, {"uploaded_by": r.uploaded_by, "verified_by": r.verified_by}) for r in vault.list_for_org(org)],
+        "finding": lambda org: [(f.id, f.status.value, {}) for f in compliance.list_findings(org)],
+        "evidence_review_case": lambda org: [(c["id"], c["status"], {}) for c in review.list_cases(org)],
+        "standards_source": lambda org: [(x["id"], x["status"], {}) for x in registry.list_sources(org)],
+        "agent_decision": lambda org: [(d["id"], d["state"], {}) for d in agents.list_decisions(org)],
+        "analysis_report": lambda org: [(r["id"], r["status"], {}) for r in analysis.list_reports(org)],
+    })
 
 
 def get_health(security: SecurityContext = Depends(get_security), session=Depends(get_session), identity: IdentityService = Depends(get_identity_service)):

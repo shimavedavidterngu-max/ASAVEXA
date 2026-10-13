@@ -144,3 +144,44 @@ describe("routing", async () => {
     assert.match(readFileSync(new URL("../src/lib/home.js", import.meta.url), "utf8"), /"\/evidence-review"/);
   });
 });
+
+describe("Stage 10: outcome measurement", () => {
+  const f = (o = {}) => ({ residual_risk: "Lease may lapse", reopen_criteria: "New unsupported journal", residual_level: "LOW", ...o });
+  test("verifyPayload builds the request and fills the defaults", () => {
+    const { body } = L.verifyPayload(f({ vnote: " ok ", reopen_if_gaps_above: "2", recheck_after_days: "30" }));
+    assert.deepEqual(body, { residual_risk: "Lease may lapse", reopen_criteria: "New unsupported journal", note: "ok", residual_level: "LOW", reopen_if_gaps_above: 2, recheck_after_days: 30 });
+    const d = L.verifyPayload(f()).body;
+    assert.equal(d.reopen_if_gaps_above, 0); assert.equal(d.recheck_after_days, null);
+  });
+  test("verifyPayload says what to fix before any request is sent", () => {
+    assert.match(L.verifyPayload(f({ residual_risk: " " })).problem, /residual risk/i);
+    assert.match(L.verifyPayload(f({ reopen_criteria: "" })).problem, /reopened/i);
+    assert.match(L.verifyPayload(f({ residual_level: "" })).problem, /rate/i);
+    for (const bad of ["-1", "1.5", "abc"]) assert.match(L.verifyPayload(f({ reopen_if_gaps_above: bad })).problem, /whole number/);
+    for (const bad of ["0", "x", "2.5"]) assert.match(L.verifyPayload(f({ recheck_after_days: bad })).problem, /whole number of days/);
+  });
+  test("rating words, due flag and measurement words", () => {
+    assert.equal(L.residualLevelText("MEDIUM"), "Medium"); assert.equal(L.residualLevelText(null), "Not rated");
+    assert.equal(L.recheckDue({ status: "VERIFIED", recheck_due_now: true }), true);
+    assert.equal(L.recheckDue({ status: "OPEN", recheck_due_now: true }), false);
+    assert.equal(L.recheckDue(null), false);
+    assert.equal(L.measurementText("REJECTED_ATTEMPT"), "Rejected attempt");
+  });
+  test("an ACTION_DONE case shows the rating, threshold and interval fields to an independent verifier", () => {
+    const c = kase({ status: "ACTION_DONE", completed_by: "u2", owner: "u2", completion_note: "done" });
+    const out = text(page(er({ cases: [c], openCase: "c1" }), "OWNER", "u9"));
+    for (const id of ["er-residual_level-c1", "er-reopen_if_gaps_above-c1", "er-recheck_after_days-c1"]) assert.ok(out.includes(id), id);
+  });
+  test("a verified case shows its rating, next re-check, due notice and measurements", () => {
+    const c = kase({ status: "VERIFIED", recheck_due: "2026-11-01", recheck_due_now: true,
+      outcome: { result: "RESOLVED", baseline_gaps: 1, post_gaps: 0, residual_risk: "Lease may lapse", residual_level: "MEDIUM", reopen_criteria: "New gap", reopen_if_gaps_above: 2 },
+      measurements: [{ kind: "BASELINE", at: "2026-10-01T09:00:00", gaps: 1 }, { kind: "VERIFIED", at: "2026-10-02T09:00:00", gaps: 0 }] });
+    const out = text(page(er({ cases: [c], openCase: "c1" })));
+    assert.ok(out.includes("Medium")); assert.ok(out.includes("more than 2 gap(s)")); assert.ok(out.includes("Next re-check: 2026-11-01"));
+    assert.ok(out.includes("data-recheck-due")); assert.ok(out.includes("data-measurements"));
+  });
+  test("no due notice when it is not due", () => {
+    const c = kase({ status: "VERIFIED", outcome: { result: "RESOLVED", baseline_gaps: 1, post_gaps: 0, residual_risk: "r", reopen_criteria: "c" } });
+    assert.ok(!text(page(er({ cases: [c], openCase: "c1" }))).includes("data-recheck-due"));
+  });
+});

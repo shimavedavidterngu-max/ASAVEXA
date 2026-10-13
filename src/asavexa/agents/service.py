@@ -22,6 +22,9 @@ APPROVAL_HOURS = 24
 MAX_TEXT = 2000
 
 
+DECISION_STATES = ("NOT_NEEDED", "PENDING", "APPROVED", "REJECTED", "REFUSED", "EXPIRED", "USED")
+
+
 class AgentError(SecurityError): status = 400
 class AgentNotFoundError(AgentError): status = 404
 class AgentStateError(AgentError): status = 409

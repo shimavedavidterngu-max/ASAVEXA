@@ -18,7 +18,7 @@ LAYERS: List[dict] = [
     {"id": "reporting", "group": "Reporting", "name": "Reporting Engine", "parts": ["Trial balance", "Income statement", "Balance sheet", "General ledger"],
      "modules": ["asavexa.reporting.services.service"], "prefixes": ["/reports"]},
     {"id": "proof_graph", "group": "Reporting", "name": "Proof-to-Report Graph", "parts": ["Report", "Line", "Journal", "Evidence", "Evidence Review"],
-     "modules": ["asavexa.proofgraph.graph", "asavexa.evidencereview.review"], "prefixes": ["/proof", "/evidence-review"]},
+     "modules": ["asavexa.proofgraph.graph", "asavexa.evidencereview.review", "asavexa.assurance.service", "asavexa.proofgraph.links"], "prefixes": ["/proof", "/evidence-review", "/assurance", "/proof-links"]},
     {"id": "audit", "group": "Use", "name": "Audit", "parts": ["Audit workspace", "Professional validation", "Compliance"],
      "modules": ["asavexa.validation.catalog", "asavexa.compliance.services.service"], "prefixes": ["/audit", "/validation", "/compliance"]},
     {"id": "passport", "group": "Use", "name": "Passport", "parts": ["Financial Passport", "Permissioned sharing"],

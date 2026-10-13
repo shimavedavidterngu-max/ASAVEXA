@@ -24,11 +24,15 @@ def _ratio(num: int, den: int) -> Optional[float]:
 
 
 def fired_rules(engine):
-    """Returns (journal_id -> rule codes that fired, total flagged, number returned). detect() returns at most one page, so callers compare the last two."""
+    """Returns (record id -> rule codes that fired, total flagged, number returned). detect() returns at most one page, so callers compare the last two."""
     out: Dict[str, set] = {}
     result = engine.detect(limit=50)
     for item in result["items"]:
-        jid = (item.get("journal") or {}).get("id") or next((s["id"] for s in item["source_records"] if s["kind"] == "JOURNAL"), None)
+        if item.get("kind") == "BANK_TRANSACTION":
+            # A bank line is its own record. A matched bank line carries its journal as a source, but the line's flags are not the journal's.
+            jid = next((s["id"] for s in item["source_records"] if s["kind"] == "BANK_TRANSACTION"), None)
+        else:
+            jid = (item.get("journal") or {}).get("id") or next((s["id"] for s in item["source_records"] if s["kind"] == "JOURNAL"), None)
         if jid:
             out.setdefault(jid, set()).update(f["rule"] for f in item.get("flags", []))
     return out, result["total_flagged"], len(result["items"])
@@ -38,7 +42,7 @@ def validate_labels(labels: Iterable[dict]) -> List[dict]:
     clean = []
     for l in labels:
         if not isinstance(l, dict) or not l.get("rule") or not l.get("journal_id") or not isinstance(l.get("expected"), bool):
-            raise ValueError("each label needs rule, journal_id and expected (true or false)")
+            raise ValueError("each label needs rule, journal_id (the journal's id, or the bank line's id for the BANK_ rules) and expected (true or false)")
         clean.append({"rule": str(l["rule"]), "journal_id": str(l["journal_id"]), "expected": l["expected"], "why": str(l.get("why", ""))})
     if not clean:
         raise ValueError("there are no labels to evaluate")

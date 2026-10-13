@@ -95,6 +95,6 @@ describe("wiring", () => {
   test("route, menu and group", () => {
     const app = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
     assert.match(app, /\{ path: "\/agents", name: "agents" \}/); assert.match(app, /label: "Agents"/); assert.match(app, /name === "agents"/);
-    assert.match(readFileSync(new URL("../src/lib/home.js", import.meta.url), "utf8"), /"\/agents"\]/);
+    assert.match(readFileSync(new URL("../src/lib/home.js", import.meta.url), "utf8"), /"\/agents"/);
   });
 });

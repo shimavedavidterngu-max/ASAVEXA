@@ -49,9 +49,14 @@ import { Pilot } from "./pages/Pilot.js";
 import { Network } from "./pages/Network.js";
 import { Proof } from "./pages/Proof.js";
 import { EvidenceReview } from "./pages/EvidenceReview.js";
+import { verifyPayload } from "./lib/evidenceReview.js";
+import { draftFromRules, newRule, toggleValue, rulesPayload } from "./lib/evidenceRules.js";
 import { StandardsRegistry } from "./pages/StandardsRegistry.js";
 import { Agents } from "./pages/Agents.js";
 import { EMPTY_AGENT, agentFormProblem } from "./lib/agents.js";
+import { Assurance } from "./pages/Assurance.js";
+import { ProofLinks } from "./pages/ProofLinks.js";
+import { EMPTY_LINK, EMPTY_GAP, linkPayload, gapPayload, needsReason, ACTION_NOTICE, relationsFor } from "./lib/proofLinks.js";
 import { EMPTY_FORM, formProblem } from "./lib/standardsRegistry.js";
 import { Analysis } from "./pages/Analysis.js";
 import { Workspaces } from "./pages/Workspaces.js";
@@ -144,6 +149,8 @@ const NAV_ITEMS = [
   { path: "/standards", label: "Standards & Policies", permission: null },
   { path: "/standards-registry", label: "Standards Registry", permission: PERMISSIONS.AUDIT_READ },
   { path: "/agents", label: "Agents", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/assurance", label: "Assurance", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/proof-links", label: "Proof Links", permission: PERMISSIONS.AUDIT_READ },
   { path: "/validation", label: "Professional Validation", permission: PERMISSIONS.AUDIT_READ },
   { path: "/network", label: "ASAVEXA Network", permission: null },
   { path: "/pilot", label: "Real Pilot", permission: null },
@@ -192,6 +199,8 @@ const routes = [
   { path: "/standards", name: "standards" },
   { path: "/standards-registry", name: "standards-registry" },
   { path: "/agents", name: "agents" },
+  { path: "/assurance", name: "assurance" },
+  { path: "/proof-links", name: "proof-links" },
   { path: "/validation", name: "validation" },
   { path: "/network", name: "network" },
   { path: "/pilot", name: "pilot" },
@@ -731,6 +740,8 @@ function renderPage(matched, authState) {
   if (name === "standards") return renderStandards(authState);
   if (name === "standards-registry") return renderStandardsRegistryPage(authState);
   if (name === "agents") return renderAgentsPage(authState);
+  if (name === "assurance") return renderAssurancePage(authState);
+  if (name === "proof-links") return renderProofLinksPage(authState);
   if (name === "diagnostics") return renderDiagnostics(authState);
   if (name === "security") return renderSecurityPage(authState);
   if (name === "validation") return renderValidationPage(authState);
@@ -1096,7 +1107,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -3297,6 +3308,7 @@ async function loadEr(authState) {
     const last = uiState.periods[uiState.periods.length - 1];
     if (!er.period_id && last) er.period_id = last.id;
     er.cases = (await api.evidenceReviewCases()).cases;
+    try { er.rules = await api.evidenceReviewRules(); } catch (_) { er.rules = null; }
     try { er.members = await api.listMembers(authState.organisationId); } catch (_) { er.members = []; }
   } catch (err) {
     er.error = err.message || "Evidence Review could not be loaded.";
@@ -3306,7 +3318,7 @@ async function loadEr(authState) {
 function erActions() {
   const er = uiState.er;
   const run = async (fn, notice) => { er.error = null; er.notice = null; er.busy = true; render(); try { await fn(); if (notice) er.notice = notice; } catch (err) { er.error = err.message || "That did not work."; } er.busy = false; render(); };
-  const refresh = async () => { er.cases = (await api.evidenceReviewCases()).cases; };
+  const refresh = async () => { er.cases = (await api.evidenceReviewCases()).cases; er.rules = await api.evidenceReviewRules(); };
   const form = (id) => er.forms[id] || {};
   const after = async (c) => { await refresh(); er.openCase = c.id; er.forms[c.id] = {}; };
   return {
@@ -3314,11 +3326,25 @@ function erActions() {
     setReport: (r) => { er.report = r; er.review = null; render(); },
     setForm: (id, k, v) => { er.forms[id] = { ...(er.forms[id] || {}), [k]: v }; },
     toggleCase: (id) => { er.openCase = er.openCase === id ? null : id; render(); },
+    startRuleDraft: () => { er.ruleDraft = draftFromRules(er.rules.active.rules); er.ruleReason = ""; er.ruleError = null; render(); },
+    cancelRuleDraft: () => { er.ruleDraft = null; er.ruleError = null; render(); },
+    setRuleField: (i, k, v, rerender) => { er.ruleDraft[i] = { ...er.ruleDraft[i], [k]: v }; if (rerender) render(); },
+    toggleRuleValue: (i, field, v) => { er.ruleDraft[i] = toggleValue(er.ruleDraft[i], field, v); render(); },
+    addRule: () => { er.ruleDraft = [...er.ruleDraft, newRule(er.ruleDraft)]; render(); },
+    removeRule: (i) => { er.ruleDraft = er.ruleDraft.filter((_, j) => j !== i); render(); },
+    setRuleReason: (v) => { er.ruleReason = v; },
+    setRuleNote: (v) => { er.ruleNote = v; },
+    proposeRules: () => { const p = rulesPayload(er.ruleDraft, er.ruleReason); if (p.problem) { er.ruleError = p.problem; render(); return; }
+      return run(async () => { await api.proposeEvidenceReviewRules(p.body); er.ruleDraft = null; er.ruleError = null; await refresh(); }, "Sent for approval. A different person must approve it before it applies."); },
+    approveRules: (v) => run(async () => { await api.approveEvidenceReviewRules(v, { note: er.ruleNote || "" }); er.ruleNote = ""; await refresh(); }, "Approved. These rules now apply to new reviews."),
+    rejectRules: (v) => { if (!(er.ruleNote || "").trim()) { er.error = "Say why you are rejecting it (use the note box)."; render(); return; }
+      return run(async () => { await api.rejectEvidenceReviewRules(v, { reason: er.ruleNote }); er.ruleNote = ""; await refresh(); }, "Rejected. The rules in use did not change."); },
     run: () => run(async () => { er.review = await api.evidenceReview(er.period_id, er.report); }),
     openCase: () => run(async () => { const c = await api.openEvidenceReviewCase({ period_id: er.period_id, report: er.report }); await after(c); }, "Case raised."),
     plan: (id) => run(async () => { const f = form(id); await after(await api.planEvidenceReviewAction(id, { action: f.action || "", owner: f.owner || "", due_date: f.due_date || null })); }, "Action planned."),
     complete: (id) => run(async () => { const f = form(id); await after(await api.completeEvidenceReviewAction(id, { note: f.note || "", evidence_ref: f.evidence_ref || null })); }, "Recorded as done. Someone independent must now verify it."),
-    verify: (id) => run(async () => { const f = form(id); const c = await api.verifyEvidenceReviewOutcome(id, { residual_risk: f.residual_risk || "", reopen_criteria: f.reopen_criteria || "", note: f.vnote || "" }); await after(c); er.notice = c.status === "VERIFIED" ? "Verified: the figure was re-measured and no gaps remain." : "Not verified: gaps remain, so the action goes back to its owner."; }),
+    verify: (id) => { const v = verifyPayload(form(id)); if (v.problem) { er.error = v.problem; er.notice = null; render(); return; }
+      return run(async () => { const c = await api.verifyEvidenceReviewOutcome(id, v.body); await after(c); er.notice = c.status === "VERIFIED" ? "Verified: the figure was re-measured and no gaps remain." : "Not verified: gaps remain, so the action goes back to its owner."; }); },
     recheck: (id) => run(async () => { const c = await api.recheckEvidenceReviewCase(id); await after(c); er.notice = c.status === "REOPENED" ? "Gaps have returned, so the case was reopened." : "Re-checked: still fully supported."; }),
   };
 }
@@ -3362,6 +3388,86 @@ function srActions() {
     }, action === "approve" ? "Approved." : action === "submit" ? "Submitted for review." : action === "send-back" ? "Sent back to draft." : "Withdrawn."),
   };
 }
+
+function renderAssurancePage(authState) {
+  if (!uiState.as) uiState.as = { vocabulary: null, summary: null, error: null };
+  once("asLoading", () => loadAs());
+  return Assurance({ as: uiState.as, loading: uiState.asLoading, onRetry: () => { loadedOnce.delete("asLoading"); render(); },
+    onRefresh: () => { uiState.asLoading = false; loadedOnce.delete("asLoading"); render(); } });
+}
+
+async function loadAs() {
+  const as = uiState.as || (uiState.as = { vocabulary: null, summary: null, error: null });
+  as.error = null;
+  try {
+    const [v, s] = await Promise.all([api.assuranceVocabulary(), api.assuranceSummary()]);
+    as.vocabulary = v; as.summary = s;
+  } catch (err) {
+    as.error = err.message || "Assurance could not be loaded.";
+  }
+}
+
+// ----------------------------------------------------------------------
+// Proof Links (Stage 13): stored links between records
+// ----------------------------------------------------------------------
+function newPl() {
+  return { vocabulary: null, choices: {}, find: { type: "", id: "", depth: 1 }, graph: null, form: { ...EMPTY_LINK }, gap: { ...EMPTY_GAP }, reasons: {}, formError: null, gapError: null, busy: false, error: null, notice: null };
+}
+
+function renderProofLinksPage(authState) {
+  if (!uiState.pl) uiState.pl = newPl();
+  once("plLoading", () => loadPl());
+  return ProofLinks({ pl: uiState.pl, me: authState.user && authState.user.id, role: authState.role, loading: uiState.plLoading || !uiState.pl.vocabulary && !uiState.pl.error,
+    onRetry: () => { uiState.plLoading = false; loadedOnce.delete("plLoading"); render(); }, actions: plActions() });
+}
+
+async function loadPl() {
+  const pl = uiState.pl || (uiState.pl = newPl());
+  pl.error = null;
+  try { pl.vocabulary = await api.proofLinkVocabulary(); } catch (err) { pl.error = err.message || "Proof Links could not be loaded."; }
+}
+
+function plActions() {
+  const pl = uiState.pl;
+  const run = async (fn, notice) => { pl.error = null; pl.notice = null; pl.busy = true; render(); try { await fn(); if (notice) pl.notice = notice; } catch (err) { pl.error = err.message || "That did not work."; } pl.busy = false; render(); };
+  const choose = async (type) => { if (type && !pl.choices[type]) { try { pl.choices[type] = (await api.proofLinkChoices(type)).choices; } catch (_) { pl.choices[type] = []; } } };
+  const reload = async () => { if (pl.graph) pl.graph = await api.proofLinkGraph(pl.graph.focus.type, pl.graph.focus.id, pl.graph.depth || 1); };
+  return {
+    setFind: (k, v) => { pl.find = { ...pl.find, [k]: v }; if (k === "type") { pl.find.id = ""; choose(v).then(() => render()); } render(); },
+    look: () => run(async () => { pl.graph = await api.proofLinkGraph(pl.find.type, pl.find.id, pl.find.depth); pl.gap = { ...EMPTY_GAP }; pl.gapError = null; }),
+    setForm: (k, v) => {
+      pl.form = { ...pl.form, [k]: v }; pl.formError = null;
+      if (k === "from_type") { pl.form.from_id = ""; pl.form.to_type = ""; pl.form.to_id = ""; pl.form.relation = ""; }
+      if (k === "to_type") { pl.form.to_id = ""; if (v && !relationsFor(pl.vocabulary, pl.form.from_type, v).some((r) => r.code === pl.form.relation)) pl.form.relation = ""; }
+      if (k === "relation" && v) { const r = relationsFor(pl.vocabulary, pl.form.from_type, "").find((x) => x.code === v); if (r && pl.form.to_type && !r.to.includes(pl.form.to_type)) { pl.form.to_type = ""; pl.form.to_id = ""; } }
+      if (k === "from_type" || k === "to_type") choose(v).then(() => render());
+      if (k !== "note") render();
+    },
+    addLink: () => {
+      const r = linkPayload(pl.form);
+      if (r.problem) { pl.formError = r.problem; render(); return; }
+      return run(async () => { await api.addProofLink(r.body); pl.form = { ...EMPTY_LINK }; pl.formError = null; await reload(); }, "Link recorded. A different person can now confirm it.");
+    },
+    setReason: (id, v) => { pl.reasons[id] = v; },
+    act: (id, kind) => {
+      const reason = (pl.reasons[id] || "").trim();
+      if (needsReason(kind) && !reason) { pl.error = "Give a reason first."; render(); return; }
+      return run(async () => { await api.proofLinkAction(id, kind, kind === "confirm" ? { note: reason } : { reason }); pl.reasons[id] = ""; await reload(); }, ACTION_NOTICE[kind]);
+    },
+    setGap: (k, v) => { pl.gap = { ...pl.gap, [k]: v }; pl.gapError = null; if (k === "relation") pl.gap.expected_type = ""; if (k !== "note") render(); },
+    addGap: () => {
+      const r = gapPayload(pl.graph && pl.graph.focus, pl.gap);
+      if (r.problem) { pl.gapError = r.problem; render(); return; }
+      return run(async () => { await api.addProofLinkGap(r.body); pl.gap = { ...EMPTY_GAP }; await reload(); }, "Noted as missing. A different person can waive it.");
+    },
+    waive: (id) => {
+      const reason = (pl.reasons[id] || "").trim();
+      if (!reason) { pl.error = "Give a reason first."; render(); return; }
+      return run(async () => { await api.waiveProofLinkGap(id, { reason }); pl.reasons[id] = ""; await reload(); }, "Waived.");
+    },
+  };
+}
+
 
 function newAg() { return { agents: [], decisions: [], policy: [], catalog: [], members: [], form: { ...EMPTY_AGENT }, formError: null, request: { agent_id: "", action: "", subject: "" }, reasons: {}, busy: false, error: null, notice: null }; }
 
