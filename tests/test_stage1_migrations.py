@@ -91,8 +91,9 @@ class RevisionStructure(unittest.TestCase):
                 revs[rid] = down.group(2)
         self.assertEqual(revs["9ab0a651f090"], None)
         self.assertEqual(revs["b7c1d2e3f4a5"], "9ab0a651f090")
+        self.assertEqual(revs["c4d5e6f7a8b9"], "b7c1d2e3f4a5")
         heads = set(revs) - {d for d in revs.values() if d}
-        self.assertEqual(heads, {"b7c1d2e3f4a5"}, "exactly one head")
+        self.assertEqual(heads, {"c4d5e6f7a8b9"}, "exactly one head")
 
     def test_upgrade_runs_one_statement_per_call_and_only_creates(self):
         op = Op(); mod = load_revision(op); mod.upgrade()

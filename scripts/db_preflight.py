@@ -11,7 +11,8 @@ It runs SELECT statements only and changes nothing. Exit code 0 = safe to run `a
 import os
 import sys
 
-HEAD = "b7c1d2e3f4a5"
+HEAD = "c4d5e6f7a8b9"
+LATE = "b7c1d2e3f4a5"
 INITIAL = "9ab0a651f090"
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
@@ -26,8 +27,11 @@ def advise(version, missing_base, missing_late):
                    f"Do NOT deploy yet. After taking a backup and confirming the schema, run `alembic stamp {INITIAL}` once, then `alembic upgrade head`.")
     if version == HEAD:
         return 0, "Already at the latest revision. Nothing to migrate."
+    if version == LATE:
+        return 0, ("At revision " + LATE + ". `alembic upgrade head` will add revision " + HEAD + ": one new table, rate_limit_hits (throttle counters, no customer data). "
+                   "Nothing existing is touched. Take a backup first as usual.")
     if version == INITIAL:
-        return 0, ("At the initial revision. `alembic upgrade head` will add revision " + HEAD + " (CREATE TABLE IF NOT EXISTS only: the "
+        return 0, ("At the initial revision. `alembic upgrade head` will add revisions " + LATE + " and " + HEAD + " (CREATE TABLE IF NOT EXISTS only: the "
                    "tables that exist already are left exactly as they are). Take a backup first.")
     return 1, f"Unknown revision {version!r}. Do not deploy until this is understood."
 

@@ -135,6 +135,28 @@ def get_grc(security: SecurityContext = Depends(get_security), session=Depends(g
     return GrcService(SqlAlchemyDocStore(session), lambda org: compliance.list_controls(org), get_evidence_vault(session), log=make_log(security))
 
 
+def get_agent_registry(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Agent registry and policy decisions in the shared document store. It only decides whether an action may go ahead; it never runs one. Every step is audited."""
+    from ..agents.service import AgentRegistry
+    from .db.security_store import SqlAlchemyDocStore
+
+    memberships = SqlAlchemyMembershipRepository(session)
+
+    def log(action, actor, entity_id, org, reason=""):
+        security.log(action, actor, entity_id, org_id=org, entity_type="Agent", reason=reason)
+    return AgentRegistry(SqlAlchemyDocStore(session), is_member=lambda org, user: memberships.get(org, user) is not None, log=log)
+
+
+def get_standards_registry(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Verified Standards Registry: official sources, versions, effective and review dates, and a person's approval, in the shared document store; every action is audited."""
+    from ..standards.registry import StandardsRegistry
+    from .db.security_store import SqlAlchemyDocStore
+
+    def log(action, actor, entity_id, org, reason=""):
+        security.log(action, actor, entity_id, org_id=org, entity_type="StandardsRegistry", reason=reason)
+    return StandardsRegistry(SqlAlchemyDocStore(session), log=log)
+
+
 def get_evidence_review(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Evidence Review cases: reads the ledger and Evidence Vault, drives the existing Compliance findings and remediations, keeps its own measurements in the shared document store; never changes the ledger; every step is audited."""
     from ..evidencereview.service import EvidenceReviewService

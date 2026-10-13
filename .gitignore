@@ -22,3 +22,6 @@ node_modules/
 
 # Local screenshots from the landing-page work (large; not part of the product)
 docs/images/landing/
+
+# Local SQLite databases
+*.db

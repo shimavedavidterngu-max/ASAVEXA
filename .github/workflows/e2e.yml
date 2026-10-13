@@ -1,0 +1,29 @@
+name: Browser journeys (manual)
+
+# Manual trigger only until it has been seen to pass. It runs the real routers and services with a test server (no PostgreSQL) and drives the real frontend in Chromium.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  journeys:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test requirements and Chromium
+        run: |
+          pip install -r requirements-ci-unit.txt playwright
+          playwright install --with-deps chromium
+      - name: Run every browser journey
+        run: |
+          set +e
+          PYTHONPATH=src:tests python e2e/run_all.py > e2e.log 2>&1
+          code=$?
+          tail -n 30 e2e.log
+          exit $code

@@ -30,14 +30,17 @@ class Preflight(unittest.TestCase):
         code, msg = M.advise("9ab0a651f090", [], ["security_docs"])
         self.assertEqual(code, 0); self.assertIn("b7c1d2e3f4a5", msg); self.assertIn("backup", msg)
         code, msg = M.advise("b7c1d2e3f4a5", [], [])
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 0); self.assertIn("rate_limit_hits", msg)
+        code, msg = M.advise("c4d5e6f7a8b9", [], [])
+        self.assertEqual(code, 0); self.assertIn("latest", msg)
         code, msg = M.advise("unknown", [], [])
         self.assertEqual(code, 1)
         code, msg = M.advise("9ab0a651f090", ["accounts"], [])
         self.assertEqual(code, 1)
 
     def test_revision_ids_match_the_migrations(self):
-        self.assertTrue(os.path.exists(os.path.join(os.path.dirname(PATH), "..", "migrations", "versions", f"{M.HEAD}_late_tables.py")))
+        import glob
+        self.assertTrue(glob.glob(os.path.join(os.path.dirname(PATH), "..", "migrations", "versions", f"{M.HEAD}_*.py")))
         self.assertTrue(os.path.exists(os.path.join(os.path.dirname(PATH), "..", "migrations", "versions", f"{M.INITIAL}_initial_schema.py")))
 
 

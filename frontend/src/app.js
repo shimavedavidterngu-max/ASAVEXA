@@ -49,6 +49,10 @@ import { Pilot } from "./pages/Pilot.js";
 import { Network } from "./pages/Network.js";
 import { Proof } from "./pages/Proof.js";
 import { EvidenceReview } from "./pages/EvidenceReview.js";
+import { StandardsRegistry } from "./pages/StandardsRegistry.js";
+import { Agents } from "./pages/Agents.js";
+import { EMPTY_AGENT, agentFormProblem } from "./lib/agents.js";
+import { EMPTY_FORM, formProblem } from "./lib/standardsRegistry.js";
 import { Analysis } from "./pages/Analysis.js";
 import { Workspaces } from "./pages/Workspaces.js";
 import { Tax } from "./pages/Tax.js";
@@ -138,6 +142,8 @@ const NAV_ITEMS = [
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/passport/sharing", label: "Passport Sharing", permission: PERMISSIONS.PASSPORT_MANAGE },
   { path: "/standards", label: "Standards & Policies", permission: null },
+  { path: "/standards-registry", label: "Standards Registry", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/agents", label: "Agents", permission: PERMISSIONS.AUDIT_READ },
   { path: "/validation", label: "Professional Validation", permission: PERMISSIONS.AUDIT_READ },
   { path: "/network", label: "ASAVEXA Network", permission: null },
   { path: "/pilot", label: "Real Pilot", permission: null },
@@ -184,6 +190,8 @@ const routes = [
   { path: "/shared/:token", name: "shared" },
   { path: "/welcome", name: "welcome" },
   { path: "/standards", name: "standards" },
+  { path: "/standards-registry", name: "standards-registry" },
+  { path: "/agents", name: "agents" },
   { path: "/validation", name: "validation" },
   { path: "/network", name: "network" },
   { path: "/pilot", name: "pilot" },
@@ -721,6 +729,8 @@ function renderPage(matched, authState) {
   if (name === "passport-sharing") return renderPassportSharing(authState, nav);
   if (name === "passport") return renderPassport(authState, nav);
   if (name === "standards") return renderStandards(authState);
+  if (name === "standards-registry") return renderStandardsRegistryPage(authState);
+  if (name === "agents") return renderAgentsPage(authState);
   if (name === "diagnostics") return renderDiagnostics(authState);
   if (name === "security") return renderSecurityPage(authState);
   if (name === "validation") return renderValidationPage(authState);
@@ -1086,7 +1096,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -3312,6 +3322,89 @@ function erActions() {
     recheck: (id) => run(async () => { const c = await api.recheckEvidenceReviewCase(id); await after(c); er.notice = c.status === "REOPENED" ? "Gaps have returned, so the case was reopened." : "Re-checked: still fully supported."; }),
   };
 }
+
+function newSr() { return { coverage: null, sources: [], frameworks: [], jurisdictions: [], form: { ...EMPTY_FORM }, formError: null, reasons: {}, busy: false, error: null, notice: null }; }
+
+function renderStandardsRegistryPage(authState) {
+  if (!uiState.sr) uiState.sr = newSr();
+  once("srLoading", () => loadSr());
+  return StandardsRegistry({ sr: uiState.sr, me: authState.user && authState.user.id, role: authState.role, loading: uiState.srLoading,
+    onRetry: () => { loadedOnce.delete("srLoading"); render(); }, actions: srActions() });
+}
+
+async function loadSr() {
+  const sr = uiState.sr || (uiState.sr = newSr());
+  sr.error = null;
+  try {
+    const [cov, src, cat] = await Promise.all([api.standardsRegistryCoverage(), api.standardsRegistrySources(), api.standardsCatalog()]);
+    sr.coverage = cov; sr.sources = src.sources; sr.frameworks = cat.frameworks; sr.jurisdictions = cat.jurisdictions;
+  } catch (err) {
+    sr.error = err.message || "The Standards Registry could not be loaded.";
+  }
+}
+
+function srActions() {
+  const sr = uiState.sr;
+  const run = async (fn, notice) => { sr.error = null; sr.notice = null; sr.busy = true; render(); try { await fn(); if (notice) sr.notice = notice; } catch (err) { sr.error = err.message || "That did not work."; } sr.busy = false; render(); };
+  const reload = async () => { const [cov, src] = await Promise.all([api.standardsRegistryCoverage(), api.standardsRegistrySources()]); sr.coverage = cov; sr.sources = src.sources; };
+  return {
+    setForm: (k, v) => { sr.form = { ...sr.form, [k]: v }; sr.formError = null; },
+    setReason: (id, v) => { sr.reasons[id] = v; },
+    add: () => {
+      const problem = formProblem(sr.form);
+      if (problem) { sr.formError = problem; render(); return; }
+      return run(async () => { const body = { ...sr.form, jurisdiction: sr.form.jurisdiction || null }; await api.addStandardsSource(body); sr.form = { ...EMPTY_FORM }; await reload(); }, "Source added as a draft. Submit it so someone else can review it.");
+    },
+    act: (id, action) => run(async () => {
+      const reason = (sr.reasons[id] || "").trim();
+      const body = action === "send-back" || action === "withdraw" ? { reason } : action === "approve" ? { note: reason } : {};
+      await api.standardsSourceAction(id, action, body); sr.reasons[id] = ""; await reload();
+    }, action === "approve" ? "Approved." : action === "submit" ? "Submitted for review." : action === "send-back" ? "Sent back to draft." : "Withdrawn."),
+  };
+}
+
+function newAg() { return { agents: [], decisions: [], policy: [], catalog: [], members: [], form: { ...EMPTY_AGENT }, formError: null, request: { agent_id: "", action: "", subject: "" }, reasons: {}, busy: false, error: null, notice: null }; }
+
+function renderAgentsPage(authState) {
+  if (!uiState.ag) uiState.ag = newAg();
+  once("agLoading", () => loadAg(authState));
+  return Agents({ ag: uiState.ag, me: authState.user && authState.user.id, role: authState.role, loading: uiState.agLoading, onRetry: () => { loadedOnce.delete("agLoading"); render(); }, actions: agActions(authState) });
+}
+
+async function loadAg(authState) {
+  const ag = uiState.ag || (uiState.ag = newAg());
+  ag.error = null;
+  try {
+    const [cat, list, dec] = await Promise.all([api.agentCatalog(), api.agents(), api.agentDecisions()]);
+    ag.catalog = cat.actions; ag.policy = cat.policy; ag.agents = list.agents; ag.decisions = dec.decisions;
+    try { ag.members = await api.listMembers(authState.organisationId); } catch (_) { ag.members = []; }
+  } catch (err) {
+    ag.error = err.message || "Agents could not be loaded.";
+  }
+}
+
+function agActions() {
+  const ag = uiState.ag;
+  const run = async (fn, notice) => { ag.error = null; ag.notice = null; ag.busy = true; render(); try { await fn(); if (notice) ag.notice = notice; } catch (err) { ag.error = err.message || "That did not work."; } ag.busy = false; render(); };
+  const reload = async () => { const [cat, list, dec] = await Promise.all([api.agentCatalog(), api.agents(), api.agentDecisions()]); ag.catalog = cat.actions; ag.policy = cat.policy; ag.agents = list.agents; ag.decisions = dec.decisions; };
+  return {
+    setForm: (k, v) => { ag.form = { ...ag.form, [k]: v }; ag.formError = null; },
+    toggleAction: (a) => { const s = new Set(ag.form.actions); s.has(a) ? s.delete(a) : s.add(a); ag.form = { ...ag.form, actions: [...s] }; },
+    setReason: (id, v) => { ag.reasons[id] = v; },
+    setRequest: (k, v) => { ag.request = { ...ag.request, [k]: v }; if (k !== "subject") render(); },
+    propose: () => {
+      const problem = agentFormProblem(ag.form);
+      if (problem) { ag.formError = problem; render(); return; }
+      return run(async () => { await api.proposeAgent(ag.form); ag.form = { ...EMPTY_AGENT, actions: [] }; await reload(); }, "Agent proposed. A different person must activate it.");
+    },
+    agentAct: (id, k) => run(async () => { const reason = (ag.reasons[id] || "").trim(); await api.agentAction(id, k, k === "activate" ? { note: reason } : { reason }); ag.reasons[id] = ""; await reload(); }, k === "activate" ? "Agent activated." : k === "suspend" ? "Agent suspended." : "Agent retired."),
+    tighten: (action, decision) => run(async () => { await api.tightenAgentPolicy({ action, decision }); await reload(); }, "Rule made stricter."),
+    ask: () => run(async () => { const d = await api.requestAgentDecision(ag.request); ag.request = { agent_id: "", action: "", subject: "" }; await reload(); ag.notice = d.decision === "ALLOW" ? "Allowed: no approval needed." : d.decision === "REQUIRE_APPROVAL" ? "Needs approval: someone else must approve it." : "Refused: " + d.reason; }),
+    resolve: (id, approve) => run(async () => { await api.resolveAgentDecision(id, { approve, note: (ag.reasons[id] || "").trim() }); ag.reasons[id] = ""; await reload(); }, approve ? "Approved. It can be used once." : "Rejected."),
+  };
+}
+
+
 
 
 

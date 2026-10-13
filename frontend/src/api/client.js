@@ -350,6 +350,22 @@ export class ApiClient {
   completeEngagement(id) { return this.post(`/validation/engagements/${encodeURIComponent(id)}/complete`); }
   validationStatement(id) { return this.get(`/validation/engagements/${encodeURIComponent(id)}/statement`); }
 
+  // ---- Agent registry (src/asavexa/api/routers/agents.py) ----
+  agentCatalog() { return this.get("/agents/catalog"); }
+  agents() { return this.get("/agents"); }
+  agentDecisions() { return this.get("/agents/decisions"); }
+  proposeAgent(body) { return this.post("/agents", body); }
+  agentAction(id, action, body) { return this.post(`/agents/${id}/${action}`, body || {}); }
+  tightenAgentPolicy(body) { return this.post("/agents/policy", body); }
+  requestAgentDecision(body) { return this.post("/agents/decisions", body); }
+  resolveAgentDecision(id, body) { return this.post(`/agents/decisions/${id}/resolve`, body); }
+
+  // ---- Verified Standards Registry (src/asavexa/api/routers/standards_registry.py) ----
+  standardsRegistryCoverage() { return this.get("/standards-registry/coverage"); }
+  standardsRegistrySources() { return this.get("/standards-registry/sources"); }
+  addStandardsSource(body) { return this.post("/standards-registry/sources", body); }
+  standardsSourceAction(id, action, body) { return this.post(`/standards-registry/sources/${id}/${action}`, body || {}); }
+
   // ---- Evidence Review (src/asavexa/api/routers/evidence_review.py) ----
   evidenceReview(periodId, report, accountId) { return this.get("/evidence-review/review", accountId ? { period_id: periodId, report, account_id: accountId } : { period_id: periodId, report }); }
   evidenceReviewCases() { return this.get("/evidence-review/cases"); }

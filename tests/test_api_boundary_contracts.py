@@ -244,6 +244,8 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "forensic.router": "/forensic",
         "grc.router": "/grc",
         "evidence_review.router": "/evidence-review",
+        "standards_registry.router": "/standards-registry",
+        "agents.router": "/agents",
         "pubfin.router": "/pubfin",
         "bizdev.router": "/bizdev",
         "cyber.router": "/cyber",
