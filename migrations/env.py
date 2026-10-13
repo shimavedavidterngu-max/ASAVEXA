@@ -32,8 +32,12 @@ from asavexa.api.db import (  # noqa: E402,F401
     evidence_models,
     identity_models,
     models,
+    passport_models,
     period_close_models,
+    profile_models,
     reconciliation_models,
+    security_models,
+    standards_models,
 )
 
 config = context.config

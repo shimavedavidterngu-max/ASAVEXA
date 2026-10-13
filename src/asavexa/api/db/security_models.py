@@ -1,12 +1,12 @@
 """One table for every security feature (MFA state, session facts, audit-chain links, blobs' metadata, holds, alerts, vendors ...).
-Created at application start-up like the other late tables (see api/main.py), not through schema.sql / Alembic."""
+Created by Alembic revision b7c1d2e3f4a5 (migrations/sql/)."""
 from datetime import datetime
 
 from sqlalchemy import DateTime, Index, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, get_engine
+from .base import Base
 
 
 class SecurityDocORM(Base):
@@ -20,6 +20,3 @@ class SecurityDocORM(Base):
 
     __table_args__ = (Index("ix_security_docs_kind_org", "kind", "org_id"),)
 
-
-def ensure_security_tables() -> None:
-    SecurityDocORM.__table__.create(bind=get_engine(), checkfirst=True)

@@ -251,26 +251,12 @@ app.include_router(workspaces.router)
 
 
 @app.on_event("startup")
-def _ensure_optional_tables() -> None:
-    """Creates tables added after the initial migration (idempotent).
-    A failure here is logged, never fatal: the rest of the API must
-    still start even if this one table cannot be created."""
-    from .db.passport_models import ensure_share_tables, ensure_structure_table
-    from .db.profile_models import ensure_profile_table
-    from .db.standards_models import ensure_standards_table
-    from .db.security_models import ensure_security_tables
-
-    for name, ensure in (
-        ("organisation_profiles", ensure_profile_table),
-        ("organisation_standards", ensure_standards_table),
-        ("organisation_structures", ensure_structure_table),
-        ("passport_shares", ensure_share_tables),
-        ("security_docs", ensure_security_tables),
-    ):
-        try:
-            ensure()
-        except Exception:  # pragma: no cover - environment dependent
-            logger.exception("could not ensure table %s", name)
+def _verify_schema() -> None:
+    """The application no longer creates tables. Every table comes from schema.sql and the tracked Alembic
+    revisions (`alembic upgrade head`, run before the server starts). This only checks that they are all there and
+    fails loudly if not; see api/schema_check.py and docs/stage1-migrations.md."""
+    from .schema_check import verify_database
+    verify_database()
 
 
 # ----------------------------------------------------------------------

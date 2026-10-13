@@ -118,18 +118,23 @@ def mfa_disable(request: Request, body: CodeBody, session=Depends(get_current_se
 @router.post("/me/mfa/recovery-codes")
 def mfa_recovery(request: Request, body: CodeBody, session=Depends(get_current_session), security: SecurityContext = Depends(get_security)):
     ratelimit.throttle(ratelimit.MFA, request)
-    return {"recovery_codes": security.mfa.regenerate_recovery(session.user_id, body.code)}
+    codes = security.mfa.regenerate_recovery(session.user_id, body.code)
+    security.log("MFA_RECOVERY_CODES_REGENERATED", session.user_id, session.user_id)
+    return {"recovery_codes": codes}
 
 
 # ------------------------------------------------------------------ personal: sessions
 @router.delete("/me/sessions/{session_id}", status_code=204)
 def revoke_session(session_id: str, session=Depends(get_current_session), security: SecurityContext = Depends(get_security)):
     security.guard.revoke(session.user_id, session_id)
+    security.log("SESSION_REVOKED_BY_USER", session.user_id, session_id)
 
 
 @router.post("/me/sessions/revoke-others")
 def revoke_other_sessions(session=Depends(get_current_session), security: SecurityContext = Depends(get_security)):
-    return {"revoked": security.guard.revoke_others(session.user_id, session.id)}
+    revoked = security.guard.revoke_others(session.user_id, session.id)
+    security.log("OTHER_SESSIONS_REVOKED_BY_USER", session.user_id, session.id, reason=f"{revoked} ended")
+    return {"revoked": revoked}
 
 
 # ------------------------------------------------------------------ personal: privacy
@@ -210,7 +215,9 @@ def refresh_alerts(org_id: str = Depends(get_current_org), identity: IdentitySer
 @router.post("/alerts/{alert_id}/acknowledge", dependencies=[_manage])
 def acknowledge_alert(alert_id: str, body: AckBody, org_id: str = Depends(get_current_org), actor: str = Depends(get_current_actor),
                       security: SecurityContext = Depends(get_security)):
-    return security.alerts.acknowledge(org_id, alert_id, actor, body.note)
+    result = security.alerts.acknowledge(org_id, alert_id, actor, body.note)
+    security.log("SECURITY_ALERT_ACKNOWLEDGED", actor, alert_id, org_id=org_id, entity_type="Organisation", reason=(body.note or "")[:200])
+    return result
 
 
 # ------------------------------------------------------------------ organisation: retention
@@ -288,15 +295,21 @@ def vendors(org_id: str = Depends(get_current_org), security: SecurityContext = 
 @router.post("/vendors", dependencies=[_manage], status_code=201)
 def add_vendor(body: VendorBody, org_id: str = Depends(get_current_org), actor: str = Depends(get_current_actor),
                security: SecurityContext = Depends(get_security)):
-    return security.vendors.add(org_id, actor, body.model_dump())
+    result = security.vendors.add(org_id, actor, body.model_dump())
+    security.log("VENDOR_ADDED", actor, str(result.get("id", "")) if isinstance(result, dict) else "", org_id=org_id, entity_type="Organisation")
+    return result
 
 
 @router.put("/vendors/{vendor_id}", dependencies=[_manage])
 def update_vendor(vendor_id: str, body: VendorBody, org_id: str = Depends(get_current_org), actor: str = Depends(get_current_actor),
                   security: SecurityContext = Depends(get_security)):
-    return security.vendors.update(org_id, vendor_id, actor, body.model_dump())
+    result = security.vendors.update(org_id, vendor_id, actor, body.model_dump())
+    security.log("VENDOR_UPDATED", actor, vendor_id, org_id=org_id, entity_type="Organisation")
+    return result
 
 
 @router.post("/vendors/seed", dependencies=[_manage])
 def seed_vendors(org_id: str = Depends(get_current_org), actor: str = Depends(get_current_actor), security: SecurityContext = Depends(get_security)):
-    return security.vendors.seed_platform_vendors(org_id, actor)
+    result = security.vendors.seed_platform_vendors(org_id, actor)
+    security.log("VENDORS_SEEDED", actor, org_id, org_id=org_id, entity_type="Organisation")
+    return result

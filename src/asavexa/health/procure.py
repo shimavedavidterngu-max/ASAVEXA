@@ -51,7 +51,7 @@ class ProcureMixin(FacilityMixin):
         dept = self._dept(org, r["facility_id"], d.get("dept_id")); lines, total = self._req_lines(org, r["facility_id"], d.get("lines"))
         r.update(dept_id=dept["id"], dept=dept["name"], category=enum(d.get("category"), CATEGORIES, "Category"), lines=lines, total=s2(total), justification=txt(d.get("justification"), "Justification", 5, 1000), status="DRAFT",
                  evidence=self._evidence(org, d.get("evidence_ids")))
-        self._hist(r, actor, "EDITED"); self._put("hc_req", org, r); return r
+        self._hist(r, actor, "EDITED"); self._put("hc_req", org, r); self.log("HC_REQ_EDITED", actor, rid, org, r["ref"]); return r
 
     def submit_requisition(self, org, rid, actor) -> dict:
         r = self._rec("hc_req", org, rid, "Requisition", actor, True); self._writable(org, r, actor)
@@ -72,7 +72,7 @@ class ProcureMixin(FacilityMixin):
         if sup["facility_id"] != r["facility_id"]: raise HealthError("That supplier is not registered at this facility.")
         if any(q["supplier_id"] == sup["id"] for q in r["quotes"]): raise HealthError(f"{sup['name']} already has a quote on this requisition.")
         q = {"id": f"Q{len(r['quotes']) + 1}", "supplier_id": sup["id"], "supplier": sup["name"], "amount": s2(money(d.get("amount"), "Quoted amount")), "note": txt(d.get("note"), "Note", 0, 300, required=False), "evidence": self._evidence(org, d.get("evidence_ids")), "by": actor}
-        r["quotes"].append(q); self._hist(r, actor, "QUOTE_ADDED", f"{sup['name']} {q['amount']}"); self._put("hc_req", org, r); return q
+        r["quotes"].append(q); self._hist(r, actor, "QUOTE_ADDED", f"{sup['name']} {q['amount']}"); self._put("hc_req", org, r); self.log("HC_QUOTE_ADDED", actor, rid, org, f"{r['ref']} {sup['name']} {q['amount']}"); return q
 
     def list_requisitions(self, org, fid, actor) -> list:
         self._fac(org, fid, actor)

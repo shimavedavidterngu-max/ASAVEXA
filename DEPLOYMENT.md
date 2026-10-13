@@ -373,3 +373,13 @@ exact readiness matrix.
    for the first time, in an environment with network access — this is
    the single highest-value next action, since everything else in this
    document is downstream of it actually working.
+
+
+---
+
+## Stage 1 addition: migrations and the start-up check
+The application no longer creates any table at start-up. All 23 tables come from `schema.sql` (revision `9ab0a651f090`) and
+`migrations/versions/b7c1d2e3f4a5_late_tables.py`. Run `alembic upgrade head` before the server starts (the Docker image already does).
+At start-up the server checks that every table exists and refuses to start if one is missing (`ASAVEXA_SCHEMA_CHECK`).
+**Before deploying a release that contains a migration, follow `docs/stage1-migrations.md` section 4** (read-only preflight with
+`python scripts/db_preflight.py`, and a backup). CI is described in `docs/stage1-ci.md`.

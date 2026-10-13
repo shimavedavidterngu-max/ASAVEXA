@@ -258,8 +258,8 @@ class MigrationStructureTestCase(unittest.TestCase):
 
     def test_initial_migration_has_upgrade_and_downgrade_functions(self):
         versions_dir = os.path.join(MIGRATIONS_DIR, "versions")
-        files = [f for f in os.listdir(versions_dir) if f.endswith(".py")]
-        self.assertEqual(len(files), 1, "expected exactly one migration so far")
+        files = [f for f in os.listdir(versions_dir) if f.startswith("9ab0a651f090") and f.endswith(".py")]
+        self.assertEqual(len(files), 1, "the initial migration file must exist exactly once")
         with open(os.path.join(versions_dir, files[0])) as f:
             tree = ast.parse(f.read())
         fn_names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
@@ -268,7 +268,7 @@ class MigrationStructureTestCase(unittest.TestCase):
 
     def test_initial_migration_reads_the_real_schema_sql_not_a_frozen_copy(self):
         versions_dir = os.path.join(MIGRATIONS_DIR, "versions")
-        files = [f for f in os.listdir(versions_dir) if f.endswith(".py")]
+        files = [f for f in os.listdir(versions_dir) if f.startswith("9ab0a651f090") and f.endswith(".py")]
         with open(os.path.join(versions_dir, files[0])) as f:
             src = f.read()
         # Reads the file at runtime (open(...).read()) rather than
@@ -283,7 +283,7 @@ class MigrationStructureTestCase(unittest.TestCase):
         real_tables = set(re.findall(r"CREATE TABLE (\w+)", text))
 
         versions_dir = os.path.join(MIGRATIONS_DIR, "versions")
-        files = [f for f in os.listdir(versions_dir) if f.endswith(".py")]
+        files = [f for f in os.listdir(versions_dir) if f.startswith("9ab0a651f090") and f.endswith(".py")]
         with open(os.path.join(versions_dir, files[0])) as f:
             tree = ast.parse(f.read())
         for node in tree.body:

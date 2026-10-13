@@ -536,5 +536,47 @@ class TestDashboardAndReports(Base):
         self.assertNotIn("health:approve", P(Role.ACCOUNTANT)); self.assertNotIn("health:approve", P(Role.FINANCE_OFFICER)); self.assertEqual(P(Role.INVESTOR_REVIEWER), set())
 
 
+class TestEveryStateChangeReachesTheAuditTrail(Base):
+    """Stage 1 audit-coverage fix: these seven actions used to change data and keep only the record's own history,
+    without an entry in the organisation audit trail. Each must now log exactly one event naming the actor."""
+
+    def setUp(self):
+        super().setUp(); self.budget(lines=[dict(dept_id=self.opd["id"], category="MEDICAL_SUPPLIES", amount="9000000"), dict(dept_id=self.opd["id"], category="MAINTENANCE", amount="500000")])
+
+    def last(self, action):
+        hits = [e for e in self.events if e[0] == action]
+        self.assertEqual(len(hits), 1, f"{action}: expected exactly one audit event, got {len(hits)}")
+        self.assertEqual(hits[0][1], PRE, "the event must name the person who acted")
+        return hits[0]
+
+    def test_requisition_edit_and_quote(self):
+        line = dict(description="Examination gloves", qty="10", unit_price="500")
+        r = self.svc.create_requisition(ORG, self.fid, dict(dept_id=self.opd["id"], category="MEDICAL_SUPPLIES", lines=[line], justification="Monthly restock"), PRE)
+        self.svc.update_requisition(ORG, r["id"], dict(dept_id=self.opd["id"], category="MEDICAL_SUPPLIES", lines=[line], justification="Monthly restock, revised"), PRE)
+        self.assertEqual(self.last("HC_REQ_EDITED")[2], r["id"])
+        self.svc.add_quote(ORG, r["id"], dict(supplier_id=self.supplier()["id"], amount="4800"), PRE)
+        self.assertEqual(self.last("HC_QUOTE_ADDED")[2], r["id"])
+
+    def test_stock_issue_and_transfer(self):
+        it = self.item("AUD-1"); p = self.po(item=it, qty="20", price="100")
+        self.svc.receive_goods(ORG, p["id"], dict(lines=[dict(line_no=1, qty="20", location="STORE")], delivery_note="DN-A1"), PRE)
+        self.svc.issue_stock(ORG, it["id"], dict(qty="2", location="STORE", purpose="Ward round supplies"), PRE)
+        self.assertEqual(self.last("HC_STOCK_ISSUED")[2], it["id"])
+        self.svc.transfer_stock(ORG, it["id"], dict(qty="3", from_location="STORE", to_location="WARD"), PRE)
+        self.assertEqual(self.last("HC_STOCK_TRANSFERRED")[2], it["id"])
+
+    def test_asset_condition_evidence_and_maintenance_cancel(self):
+        a = self.svc.create_asset(ORG, self.fid, dict(tag="EQ-A1", name="Scanner", category="DIAGNOSTIC_EQUIPMENT", dept_id=self.opd["id"], location="Room 2",
+                                                       acquisition_date="2025-06-01", cost="1500000", warranty_until="2027-06-01", maintenance_interval_days="90"), PRE)
+        self.svc.set_condition(ORG, a["id"], "FAIR", "Worn probe", PRE)
+        self.assertEqual(self.last("HC_ASSET_CONDITION_SET")[2], a["id"])
+        self.svc.link_asset_evidence(ORG, a["id"], [self.evidence().id], PRE)
+        self.assertEqual(self.last("HC_ASSET_EVIDENCE_LINKED")[2], a["id"])
+        m = self.svc.request_maintenance(ORG, a["id"], dict(kind="CORRECTIVE", description="Screen fault", due_date="2026-02-16"), PRE)
+        self.svc.cancel_maintenance(ORG, m["id"], "Raised twice by mistake", PRE)
+        self.assertEqual(self.last("HC_MAINT_CANCELLED")[2], m["id"])
+
+
 if __name__ == "__main__":
+
     unittest.main()

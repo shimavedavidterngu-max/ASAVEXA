@@ -1,8 +1,7 @@
 """
 ORM model for the organisation's ownership structure (owners and
 subsidiaries), the two Passport identity facts ASAVEXA has no other
-source for. Created at application start-up like organisation_profiles
-(see api/main.py), not through schema.sql / Alembic.
+source for. Created by Alembic revision b7c1d2e3f4a5 (migrations/sql/), not at start-up.
 """
 from datetime import date, datetime
 
@@ -10,7 +9,7 @@ from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, get_engine
+from .base import Base
 
 
 class OrganisationStructureORM(Base):
@@ -21,10 +20,6 @@ class OrganisationStructureORM(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_by: Mapped[str] = mapped_column(String, nullable=False)
 
-
-def ensure_structure_table() -> None:
-    """Idempotent: creates organisation_structures if it does not exist."""
-    OrganisationStructureORM.__table__.create(bind=get_engine(), checkfirst=True)
 
 
 class PassportShareORM(Base):
@@ -72,8 +67,3 @@ class PassportShareSessionORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-
-def ensure_share_tables() -> None:
-    """Idempotent: creates the two sharing tables if they do not exist."""
-    PassportShareORM.__table__.create(bind=get_engine(), checkfirst=True)
-    PassportShareSessionORM.__table__.create(bind=get_engine(), checkfirst=True)

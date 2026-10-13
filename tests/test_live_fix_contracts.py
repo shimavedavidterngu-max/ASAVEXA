@@ -47,10 +47,9 @@ class OrganisationProfileContractTestCase(unittest.TestCase):
         src = _read(os.path.join(ROUTERS, "organisation_profile.py"))
         self.assertIn('entity_type="Organisation"', src)
 
-    def test_table_is_created_at_startup_idempotently(self):
-        self.assertIn("ensure_profile_table", _read(MAIN))
-        models = _read(os.path.join(ROOT, "src", "asavexa", "api", "db", "profile_models.py"))
-        self.assertIn("checkfirst=True", models)
+    def test_table_comes_from_a_tracked_migration_not_from_startup(self):
+        self.assertNotIn("ensure_profile_table", _read(MAIN))
+        self.assertIn("CREATE TABLE IF NOT EXISTS organisation_profiles", _read(os.path.join(ROOT, "migrations", "sql", "b7c1d2e3f4a5_late_tables.up.sql")))
 
     def test_framework_options_are_not_tied_to_one_country(self):
         src = _read(os.path.join(ROOT, "src", "asavexa", "api", "schemas", "organisation_profile.py"))
@@ -107,11 +106,11 @@ class StandardsRouterContractTestCase(unittest.TestCase):
         self.assertIn("ORG_MANAGE_SETTINGS", " ".join(ast.unparse(d) for d in fn.decorator_list))
         self.assertIn("STANDARDS_CONFIGURATION_UPDATED", src)
 
-    def test_standards_errors_map_to_http_400_and_table_is_created_at_startup(self):
+    def test_standards_errors_map_to_http_400_and_table_comes_from_a_migration(self):
         main = _read(MAIN)
         self.assertIn("@app.exception_handler(AsavexaStandardsError)", main)
-        self.assertIn("ensure_standards_table", main)
-        self.assertIn("checkfirst=True", _read(os.path.join(ROOT, "src", "asavexa", "api", "db", "standards_models.py")))
+        self.assertNotIn("ensure_standards_table", main)
+        self.assertIn("CREATE TABLE IF NOT EXISTS organisation_standards", _read(os.path.join(ROOT, "migrations", "sql", "b7c1d2e3f4a5_late_tables.up.sql")))
 
     def test_every_frontend_standards_call_has_a_matching_route(self):
         client = _read(os.path.join(ROOT, "frontend", "src", "api", "client.js"))
@@ -148,10 +147,9 @@ class PassportContractTestCase(unittest.TestCase):
         for forbidden in ("session", ".create(", ".update(", ".record(", "post_journal", "INSERT", "UPDATE "):
             self.assertNotIn(forbidden, body, f"builder must be pure and read-only: found {forbidden!r}")
 
-    def test_structure_table_is_created_at_startup_and_outside_schema_sql(self):
-        main = _read(MAIN)
-        self.assertIn("ensure_structure_table", main)
-        self.assertIn("checkfirst=True", _read(os.path.join(ROOT, "src", "asavexa", "api", "db", "passport_models.py")))
+    def test_structure_table_comes_from_a_tracked_migration(self):
+        self.assertNotIn("ensure_structure_table", _read(MAIN))
+        self.assertIn("CREATE TABLE IF NOT EXISTS organisation_structures", _read(os.path.join(ROOT, "migrations", "sql", "b7c1d2e3f4a5_late_tables.up.sql")))
 
     def test_every_frontend_passport_call_has_a_matching_route(self):
         client = _read(os.path.join(ROOT, "frontend", "src", "api", "client.js"))
@@ -190,9 +188,10 @@ class PassportSharingContractTestCase(unittest.TestCase):
         self.assertLess(text.index("session.commit()"), text.index("raise"))
         self.assertIn("ShareAccessDeniedError", text)
 
-    def test_share_tables_are_created_at_startup(self):
+    def test_share_tables_come_from_a_tracked_migration(self):
         main = _read(MAIN)
-        self.assertIn("ensure_share_tables", main)
+        self.assertNotIn("ensure_share_tables", main)
+        self.assertIn("CREATE TABLE IF NOT EXISTS passport_shares", _read(os.path.join(ROOT, "migrations", "sql", "b7c1d2e3f4a5_late_tables.up.sql")))
         self.assertIn("shared_passport.router", main)
 
     def test_frontend_paths_match_backend_routes(self):

@@ -31,9 +31,10 @@ class DocStoreParity(unittest.TestCase):
 
 
 class EverythingSecurityIsRegistered(unittest.TestCase):
-    def test_startup_creates_the_security_table_and_headers_are_applied(self):
+    def test_startup_checks_the_schema_and_headers_are_applied(self):
         main = open(os.path.join(SRC, "api/main.py")).read()
-        self.assertIn("ensure_security_tables", main)
+        self.assertNotIn("ensure_security_tables", main)
+        self.assertIn("verify_database", main)
         self.assertIn("SECURITY_HEADERS", main)
         self.assertIn("handle_security_error", main)
         self.assertNotIn('f"database unreachable: {exc}"', main)       # /ready must not leak exception text

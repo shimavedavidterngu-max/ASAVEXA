@@ -1,0 +1,128 @@
+# ASAVEXA continuous integration. Runs on every push and every pull request.
+# - No production secrets are used or needed. The only database is a throwaway PostgreSQL container created for this run
+#   (its password is a fixed test value, not a secret, and the container is destroyed when the job ends).
+# - Nothing here can reach Render or Vercel: it never deploys.
+# - To make a failing run block merging, turn on branch protection (docs/stage1-ci.md).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit, contract and security tests (with real PostgreSQL for backup and migration tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Throwaway CI database only. Never put a real database URL in this file.
+      ASAVEXA_TEST_PG_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      PYTHONPATH: src:tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-ci-unit.txt
+      - name: PostgreSQL client tools (pg_dump, pg_restore, psql)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-16 || sudo apt-get install -y --no-install-recommends postgresql-client
+          pg_dump --version
+      - name: Install test requirements
+        run: pip install -r requirements-ci-unit.txt
+      - name: Run every test
+        run: |
+          set +e
+          python -W ignore -m unittest discover -s tests -v > unit.log 2>&1
+          code=$?
+          tail -n 25 unit.log
+          exit $code
+      - name: Fail if any PostgreSQL test was skipped
+        run: |
+          if grep -E "(RealPostgres|RealPostgresMigration).*skipped" unit.log; then echo "A PostgreSQL test was skipped"; exit 1; fi
+          grep -c -E "(RealPostgres|RealPostgresMigration).* ok$" unit.log
+
+  stack:
+    name: Real stack (FastAPI + SQLAlchemy + Alembic + PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: asavexa_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/asavexa_test
+      ADMIN_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres
+      ASAVEXA_STACK_TEST: "1"
+      PYTHONPATH: src:tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-16 || sudo apt-get install -y --no-install-recommends postgresql-client
+      - name: Install requirements
+        run: pip install -r requirements.txt
+      - name: Migrations - upgrade a fresh database to head
+        run: alembic upgrade head
+      - name: Migrations - upgrading again changes nothing (idempotent)
+        run: alembic upgrade head
+      - name: Migrations - the migrated schema equals what the app used to create at start-up
+        run: python scripts/schema_parity.py
+      - name: Migrations - down and up round trip (destructive downgrade, test database only)
+        run: |
+          ASAVEXA_ALLOW_DESTRUCTIVE_DOWNGRADE=1 alembic downgrade 9ab0a651f090
+          alembic upgrade head
+      - name: Every route over HTTP, two tenants, no token
+        run: python -W ignore -m unittest discover -s tests/stack -p "test_*.py" -v
+
+  frontend:
+    name: Frontend tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run the frontend suite
+        working-directory: frontend
+        run: node --test tests/*.test.js

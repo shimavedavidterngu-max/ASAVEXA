@@ -32,11 +32,11 @@ class AssetsMixin(ClaimsMixin):
     def set_condition(self, org, aid, condition, note, actor) -> dict:
         r = self._rec("hc_asset", org, aid, "Asset", actor, True); self._writable(org, r, actor)
         if r["status"] != "ACTIVE": raise HealthStateError("Only an active asset's condition can be changed.")
-        r["condition"] = enum(condition, CONDITIONS, "Condition"); self._hist(r, actor, "CONDITION_" + r["condition"], txt(note, "Note", 0, 300, required=False)); self._put("hc_asset", org, r); return r
+        r["condition"] = enum(condition, CONDITIONS, "Condition"); self._hist(r, actor, "CONDITION_" + r["condition"], txt(note, "Note", 0, 300, required=False)); self._put("hc_asset", org, r); self.log("HC_ASSET_CONDITION_SET", actor, aid, org, f"{r['ref']} {r['condition']}"); return r
 
     def link_asset_evidence(self, org, aid, ids, actor) -> dict:
         r = self._rec("hc_asset", org, aid, "Asset", actor, True); self._writable(org, r, actor)
-        have = {e["evidence_id"] for e in r["evidence"]}; r["evidence"] += [e for e in self._evidence(org, ids) if e["evidence_id"] not in have]; self._put("hc_asset", org, r); return r
+        have = {e["evidence_id"] for e in r["evidence"]}; r["evidence"] += [e for e in self._evidence(org, ids) if e["evidence_id"] not in have]; self._put("hc_asset", org, r); self.log("HC_ASSET_EVIDENCE_LINKED", actor, aid, org, r["ref"]); return r
 
     def request_retirement(self, org, aid, reason, actor) -> dict:
         r = self._rec("hc_asset", org, aid, "Asset", actor, True); self._writable(org, r, actor)
@@ -85,7 +85,7 @@ class AssetsMixin(ClaimsMixin):
     def cancel_maintenance(self, org, mid, note, actor) -> dict:
         r = self._rec("hc_maint", org, mid, "Maintenance", actor, True); self._writable(org, r, actor)
         if r["status"] != "REQUESTED": raise HealthStateError("Only an open maintenance request can be cancelled.")
-        r["status"] = "CANCELLED"; self._hist(r, actor, "CANCELLED", txt(note, "Reason", 3, 300)); self._put("hc_maint", org, r); return r
+        r["status"] = "CANCELLED"; self._hist(r, actor, "CANCELLED", txt(note, "Reason", 3, 300)); self._put("hc_maint", org, r); self.log("HC_MAINT_CANCELLED", actor, mid, org, r["ref"]); return r
 
     def list_maintenance(self, org, fid, actor) -> list:
         self._fac(org, fid, actor); return sorted(self._of("hc_maint", org, fid), key=lambda m: m["ref"])

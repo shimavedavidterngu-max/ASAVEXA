@@ -82,7 +82,9 @@ class InventoryMixin(ProcureMixin):
         q = qty(d.get("qty"), "Quantity"); loc = txt(d.get("location"), "Storage location", 0, 60, required=False) or "MAIN"; why = txt(d.get("purpose"), "Purpose (a department or activity, never a patient)", 3, 200)
         dept = self._dept(org, item["facility_id"], d.get("dept_id")) if d.get("dept_id") else None
         plan = self._plan_out(org, item, q, loc); ref = self._ref(org, "ISS", item["facility_id"]); cost = Decimal(item["avg_cost"])
-        return [self._write_move(org, item, "ISSUE", -t, b, e, loc, cost, ref, actor, why + (f" ({dept['name']})" if dept else "")) for b, e, t in plan]
+        moves = [self._write_move(org, item, "ISSUE", -t, b, e, loc, cost, ref, actor, why + (f" ({dept['name']})" if dept else "")) for b, e, t in plan]
+        self.log("HC_STOCK_ISSUED", actor, iid, org, f"{ref} {item['sku']} x{q}")
+        return moves
 
     def transfer_stock(self, org, iid, d, actor) -> list:
         item = self._rec("hc_item", org, iid, "Stock item", actor, True); self._writable(org, item, actor)
@@ -91,6 +93,7 @@ class InventoryMixin(ProcureMixin):
         plan = self._plan_out(org, item, q, a); ref = self._ref(org, "TRF", item["facility_id"]); cost = Decimal(item["avg_cost"]); out = []
         for b, e, t in plan:
             out.append(self._write_move(org, item, "TRANSFER_OUT", -t, b, e, a, cost, ref, actor, f"to {b2}")); out.append(self._write_move(org, item, "TRANSFER_IN", t, b, e, b2, cost, ref, actor, f"from {a}"))
+        self.log("HC_STOCK_TRANSFERRED", actor, iid, org, f"{ref} {item['sku']} x{q} {a} to {b2}")
         return out
 
     # ---- adjustments, write-offs and counts
