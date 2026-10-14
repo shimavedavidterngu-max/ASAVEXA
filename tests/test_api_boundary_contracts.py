@@ -256,6 +256,8 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "itaudit.router": "/itaudit",
         "resilience.router": "/resilience",
         "aigov.router": "/aigov",
+        "quality.router": "/quality",
+        "secretarial.router": "/secretarial",
         "pubfin.router": "/pubfin",
         "bizdev.router": "/bizdev",
         "cyber.router": "/cyber",

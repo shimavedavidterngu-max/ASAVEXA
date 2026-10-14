@@ -739,6 +739,38 @@ export class ApiClient {
   recordGvIncident(body) { return this.post("/aigov/incidents", body); }
   reviewGvIncident(id, body) { return this.post(`/aigov/incidents/${encodeURIComponent(id)}/review`, body); }
   voidGvIncident(id, reason) { return this.post(`/aigov/incidents/${encodeURIComponent(id)}/void`, { reason: reason || "" }); }
+  qlOverview() { return this.get("/quality/overview"); }
+  qlOptions() { return this.get("/quality/options"); }
+  setQlPolicy(body) { return this.put("/quality/policy", body); }
+  qlNcs() { return this.get("/quality/ncs"); }
+  qlNc(id) { return this.get(`/quality/ncs/${encodeURIComponent(id)}`); }
+  raiseQlNc(body) { return this.post("/quality/ncs", body); }
+  analyseQlNc(id, body) { return this.post(`/quality/ncs/${encodeURIComponent(id)}/analyse`, body); }
+  closeQlNc(id, body) { return this.post(`/quality/ncs/${encodeURIComponent(id)}/close`, body); }
+  voidQlNc(id, reason) { return this.post(`/quality/ncs/${encodeURIComponent(id)}/void`, { reason: reason || "" }); }
+  qlActions() { return this.get("/quality/actions"); }
+  addQlAction(body) { return this.post("/quality/actions", body); }
+  completeQlAction(id, body) { return this.post(`/quality/actions/${encodeURIComponent(id)}/complete`, body); }
+  verifyQlAction(id, body) { return this.post(`/quality/actions/${encodeURIComponent(id)}/verify`, body); }
+  cancelQlAction(id, reason) { return this.post(`/quality/actions/${encodeURIComponent(id)}/cancel`, { reason: reason || "" }); }
+  csOverview() { return this.get("/secretarial/overview"); }
+  csOptions() { return this.get("/secretarial/options"); }
+  setCsPolicy(body) { return this.put("/secretarial/policy", body); }
+  csMeetings() { return this.get("/secretarial/meetings"); }
+  csMeeting(id) { return this.get(`/secretarial/meetings/${encodeURIComponent(id)}`); }
+  scheduleCsMeeting(body) { return this.post("/secretarial/meetings", body); }
+  recordCsMinutes(id, body) { return this.post(`/secretarial/meetings/${encodeURIComponent(id)}/minutes`, body); }
+  approveCsMinutes(id, note) { return this.post(`/secretarial/meetings/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  cancelCsMeeting(id, reason) { return this.post(`/secretarial/meetings/${encodeURIComponent(id)}/cancel`, { reason: reason || "" }); }
+  csResolutions() { return this.get("/secretarial/resolutions"); }
+  proposeCsResolution(body) { return this.post("/secretarial/resolutions", body); }
+  decideCsResolution(id, body) { return this.post(`/secretarial/resolutions/${encodeURIComponent(id)}/decide`, body); }
+  withdrawCsResolution(id, reason) { return this.post(`/secretarial/resolutions/${encodeURIComponent(id)}/withdraw`, { reason: reason || "" }); }
+  csFilings() { return this.get("/secretarial/filings"); }
+  addCsFiling(body) { return this.post("/secretarial/filings", body); }
+  fileCsFiling(id, body) { return this.post(`/secretarial/filings/${encodeURIComponent(id)}/file`, body); }
+  confirmCsFiling(id, note) { return this.post(`/secretarial/filings/${encodeURIComponent(id)}/confirm`, { note: note || "" }); }
+  withdrawCsFiling(id, reason) { return this.post(`/secretarial/filings/${encodeURIComponent(id)}/withdraw`, { reason: reason || "" }); }
   rsOverview() { return this.get("/resilience/overview"); }
   setRsPolicy(body) { return this.put("/resilience/policy", body); }
   rsKris() { return this.get("/resilience/kris"); }

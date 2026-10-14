@@ -82,6 +82,10 @@ import { Resilience } from "./pages/Resilience.js";
 import * as RS from "./lib/resilience.js";
 import { AiGovernance } from "./pages/AiGovernance.js";
 import * as GV from "./lib/aigov.js";
+import { Quality } from "./pages/Quality.js";
+import * as QL from "./lib/quality.js";
+import { Secretarial } from "./pages/Secretarial.js";
+import * as CS from "./lib/secretarial.js";
 import * as IA from "./lib/itaudit.js";
 import * as FX from "./lib/fincrime.js";
 import * as CY from "./lib/cyber.js";
@@ -160,6 +164,8 @@ const NAV_ITEMS = [
   { path: "/itaudit", label: "IT audit", permission: PERMISSIONS.AUDIT_READ },
   { path: "/resilience", label: "Risk indicators and resilience", permission: PERMISSIONS.AUDIT_READ },
   { path: "/aigov", label: "AI governance", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/quality", label: "Quality management", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/secretarial", label: "Company secretarial", permission: PERMISSIONS.AUDIT_READ },
   { path: "/health", label: "Health Centre", permission: PERMISSIONS.HEALTH_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
@@ -216,6 +222,8 @@ const routes = [
   { path: "/itaudit", name: "itaudit" },
   { path: "/resilience", name: "resilience" },
   { path: "/aigov", name: "aigov" },
+  { path: "/quality", name: "quality" },
+  { path: "/secretarial", name: "secretarial" },
   { path: "/health", name: "health" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
@@ -800,6 +808,8 @@ function renderPage(matched, authState) {
   if (name === "itaudit") return renderItAuditPage(authState);
   if (name === "resilience") return renderResiliencePage(authState);
   if (name === "aigov") return renderAigovPage(authState);
+  if (name === "quality") return renderQualityPage(authState);
+  if (name === "secretarial") return renderSecretarialPage(authState);
   if (name === "health") return renderHealthPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
@@ -1150,7 +1160,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading"); uiState.ql = null; loadedOnce.delete("qlLoading"); uiState.cs = null; loadedOnce.delete("csLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -4805,6 +4815,121 @@ function aigovActions() {
     recordIncident: () => act("incident", GV.incidentPayload, (b) => api.recordGvIncident(b), null, (i) => { reset("incident"); gv.notice = `${i.ref} recorded. A different person must review it.`; }),
     reviewIncident: (id) => act("review", GV.reviewPayload, (b) => api.reviewGvIncident(id, b), "Incident reviewed.", () => { reset("review"); gv.sel.incident = null; }),
     voidIncident: (id) => { const p = needNote(`void-${id}`, "A reason", GV.minNote.void); if (p) return fail(p); return run(async () => { await api.voidGvIncident(id, note(`void-${id}`)); gv.notes = {}; gv.sel.incident = null; await refresh(); }, "Incident voided. The reason is kept."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Quality management (Stage 23): records and checks; inspects and measures nothing
+// ----------------------------------------------------------------------
+function newQl() {
+  const f = () => JSON.parse(JSON.stringify(QL.EMPTY));
+  return { tab: "overview", options: null, ov: null, ncs: [], actions: [], sel: { nc: null }, vault: [], forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderQualityPage(authState) {
+  if (!uiState.ql) uiState.ql = newQl();
+  once("qlLoading", () => loadQuality());
+  return Quality({ ql: uiState.ql, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.qlLoading, onRetry: () => { loadedOnce.delete("qlLoading"); render(); }, actions: qualityActions() });
+}
+
+async function qualityRefresh(ql) {
+  [ql.options, ql.ov, ql.ncs, ql.actions] = await Promise.all([api.qlOptions(), api.qlOverview(), api.qlNcs(), api.qlActions()]);
+  ql.forms.policy = QL.policyForm(ql.ov.policy);
+  if (ql.sel.nc) ql.sel.nc = await api.qlNc(ql.sel.nc.id).catch(() => null);
+}
+
+async function loadQuality() {
+  const ql = uiState.ql || (uiState.ql = newQl());
+  ql.error = null;
+  try {
+    await qualityRefresh(ql);
+    ql.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { ql.error = err.message || "Quality management could not be loaded."; }
+  render();
+}
+
+function qualityActions() {
+  const ql = uiState.ql;
+  const run = async (fn, ok) => { ql.error = null; ql.notice = null; ql.formError = null; ql.busy = true; render(); try { await fn(); if (ok) ql.notice = ok; } catch (err) { ql.error = err.message || "That did not work."; } ql.busy = false; render(); };
+  const problem = (form, text) => { ql.formError = { form, text }; ql.notice = null; ql.error = null; render(); };
+  const fail = (text) => { ql.formError = null; ql.notice = null; ql.error = text; render(); };
+  const refresh = () => qualityRefresh(ql);
+  const reset = (name) => { ql.forms[name] = JSON.parse(JSON.stringify(QL.EMPTY[name])); };
+  const note = (k) => (ql.notes[k] || "").trim();
+  const needNote = (k, what, min) => QL.noteProblem(note(k), what, min);
+  const act = (form, errForm, build, call, ok, after) => { const r = build(ql.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { ql.tab = t; ql.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { ql.forms[name] = { ...(ql.forms[name] || {}), [k]: v }; ql.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { ql.notes[k] = v; },
+    savePolicy: () => { const r = QL.policyPayload(ql.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setQlPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectNc: (id) => run(async () => { ql.sel.nc = id ? await api.qlNc(id) : null; ql.notes = {}; reset("analyse"); reset("close"); }),
+    raiseNc: () => act("nc", "nc", QL.ncPayload, (b) => api.raiseQlNc(b), null, (n) => { reset("nc"); ql.notice = `${n.ref} raised. Record its analysis next.`; }),
+    analyseNc: (id) => act("analyse", "analyse", QL.analysePayload, (b) => api.analyseQlNc(id, b), "Analysis recorded.", () => { reset("analyse"); }),
+    closeNc: (id) => act("close", "close", QL.closePayload, (b) => api.closeQlNc(id, b), "Nonconformance closed.", () => { reset("close"); ql.sel.nc = null; }),
+    voidNc: (id) => { const p = needNote(`void-${id}`, "A reason", QL.minNote.void); if (p) return fail(p); return run(async () => { await api.voidQlNc(id, note(`void-${id}`)); ql.notes = {}; ql.sel.nc = null; await refresh(); }, "Record voided. The reason is kept."); },
+    addAction: () => act("action", "action", QL.actionPayload, (b) => api.addQlAction(b), null, (x) => { reset("action"); ql.notice = `${x.ref} added.`; }),
+    completeAction: (id) => act("complete", `complete-${id}`, QL.completePayload, (b) => api.completeQlAction(id, b), "Action recorded as completed. A different person must check it worked.", () => { reset("complete"); }),
+    verifyAction: (id) => act("verify", `verify-${id}`, QL.verifyPayload, (b) => api.verifyQlAction(id, b), "Effectiveness check recorded.", () => { reset("verify"); }),
+    cancelAction: (id) => { const p = needNote(`cancel-${id}`, "A reason", QL.minNote.cancel); if (p) return fail(p); return run(async () => { await api.cancelQlAction(id, note(`cancel-${id}`)); ql.notes = {}; await refresh(); }, "Action cancelled. The reason is kept."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Company secretarial (Stage 24): records only; checks no law and contacts no registry
+// ----------------------------------------------------------------------
+function newCs() {
+  const f = () => JSON.parse(JSON.stringify(CS.EMPTY));
+  return { tab: "overview", options: null, ov: null, meetings: [], resolutions: [], filings: [], vault: [], forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderSecretarialPage(authState) {
+  if (!uiState.cs) uiState.cs = newCs();
+  once("csLoading", () => loadSecretarial());
+  return Secretarial({ cs: uiState.cs, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.csLoading, onRetry: () => { loadedOnce.delete("csLoading"); render(); }, actions: secretarialActions() });
+}
+
+async function secretarialRefresh(cs) {
+  [cs.options, cs.ov, cs.meetings, cs.resolutions, cs.filings] = await Promise.all([api.csOptions(), api.csOverview(), api.csMeetings(), api.csResolutions(), api.csFilings()]);
+  cs.forms.policy = CS.policyForm(cs.ov.policy);
+}
+
+async function loadSecretarial() {
+  const cs = uiState.cs || (uiState.cs = newCs());
+  cs.error = null;
+  try {
+    await secretarialRefresh(cs);
+    cs.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { cs.error = err.message || "Company secretarial could not be loaded."; }
+  render();
+}
+
+function secretarialActions() {
+  const cs = uiState.cs;
+  const run = async (fn, ok) => { cs.error = null; cs.notice = null; cs.formError = null; cs.busy = true; render(); try { await fn(); if (ok) cs.notice = ok; } catch (err) { cs.error = err.message || "That did not work."; } cs.busy = false; render(); };
+  const problem = (form, text) => { cs.formError = { form, text }; cs.notice = null; cs.error = null; render(); };
+  const fail = (text) => { cs.formError = null; cs.notice = null; cs.error = text; render(); };
+  const refresh = () => secretarialRefresh(cs);
+  const reset = (name) => { cs.forms[name] = JSON.parse(JSON.stringify(CS.EMPTY[name])); };
+  const note = (k) => (cs.notes[k] || "").trim();
+  const needNote = (k, what, min) => CS.noteProblem(note(k), what, min);
+  const act = (form, errForm, build, call, ok, after) => { const r = build(cs.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { cs.tab = t; cs.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { cs.forms[name] = { ...(cs.forms[name] || {}), [k]: v }; cs.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { cs.notes[k] = v; },
+    savePolicy: () => { const r = CS.policyPayload(cs.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setCsPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    scheduleMeeting: () => act("meeting", "meeting", CS.meetingPayload, (b) => api.scheduleCsMeeting(b), null, (m) => { reset("meeting"); cs.notice = `${m.ref} scheduled.`; }),
+    recordMinutes: (id) => act("minutes", `minutes-${id}`, CS.minutesPayload, (b) => api.recordCsMinutes(id, b), "Minutes recorded. A different person must approve them.", () => { reset("minutes"); }),
+    approveMinutes: (id) => { const n = note(`approve-${id}`); if (n) { const p = needNote(`approve-${id}`, "An approval note", 10); if (p) return fail(p); } return run(async () => { await api.approveCsMinutes(id, n); cs.notes = {}; await refresh(); }, "Minutes approved."); },
+    cancelMeeting: (id) => { const p = needNote(`cancel-${id}`, "A reason", CS.minNote.cancel); if (p) return fail(p); return run(async () => { await api.cancelCsMeeting(id, note(`cancel-${id}`)); cs.notes = {}; await refresh(); }, "Meeting cancelled. The reason is kept."); },
+    proposeResolution: () => act("resolution", "resolution", CS.resolutionPayload, (b) => api.proposeCsResolution(b), null, (r) => { reset("resolution"); cs.notice = `${r.ref} proposed. A different person must decide it.`; }),
+    decideResolution: (id) => act("decide", `decide-${id}`, CS.decidePayload, (b) => api.decideCsResolution(id, b), "Decision recorded.", () => { reset("decide"); }),
+    withdrawResolution: (id) => { const p = needNote(`withdraw-${id}`, "A reason", CS.minNote.withdraw); if (p) return fail(p); return run(async () => { await api.withdrawCsResolution(id, note(`withdraw-${id}`)); cs.notes = {}; await refresh(); }, "Resolution withdrawn. The reason is kept."); },
+    addFiling: () => act("filing", "filing", CS.filingPayload, (b) => api.addCsFiling(b), null, (f) => { reset("filing"); cs.notice = `${f.ref} added.`; }),
+    fileFiling: (id) => act("filed", `filed-${id}`, CS.filedPayload, (b) => api.fileCsFiling(id, b), "Recorded as filed. A different person must confirm it.", () => { reset("filed"); }),
+    confirmFiling: (id) => act("confirm", `confirm-${id}`, CS.confirmPayload, (b) => api.confirmCsFiling(id, b.note), "Filing confirmed.", () => { reset("confirm"); }),
+    withdrawFiling: (id) => { const p = needNote(`fwithdraw-${id}`, "A reason", CS.minNote.withdraw); if (p) return fail(p); return run(async () => { await api.withdrawCsFiling(id, note(`fwithdraw-${id}`)); cs.notes = {}; await refresh(); }, "Filing withdrawn. The reason is kept."); },
   };
 }
 

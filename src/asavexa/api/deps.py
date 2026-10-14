@@ -318,6 +318,24 @@ def get_aigov(security: SecurityContext = Depends(get_security), session=Depends
     return AigovService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
 
 
+def get_quality(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Quality management service: nonconformances and corrective actions in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
+    from ..quality.service import QualityService
+    from ..quality.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return QualityService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_secretarial(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Company secretarial service: meetings, resolutions and filings in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
+    from ..secretarial.service import SecretarialService
+    from ..secretarial.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return SecretarialService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
 def get_bizdev(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Business Development service: accounts, opportunities, proposals, targets and reports in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
     from ..bizdev.service import BizDevService

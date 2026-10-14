@@ -38,7 +38,7 @@ from asavexa.evidence.domain.enums import EvidenceType  # noqa: E402
 from asavexa.evidencereview.service import EvidenceReviewService  # noqa: E402
 from asavexa.identity.domain.errors import AsavexaIdentityError, PermissionDeniedError  # noqa: E402
 from asavexa.identity.domain.permissions import (AUDIT_READ, FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, GRC_APPROVE, GRC_PREPARE,  # noqa: E402
-                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
+                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, QUAL_APPROVE, QUAL_PREPARE, SEC_APPROVE, SEC_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
 from asavexa.reporting.services.service import ReportingService  # noqa: E402
 from asavexa.security import crypto  # noqa: E402
 from asavexa.security.auditchain import ChainedAuditRepository  # noqa: E402
@@ -66,6 +66,8 @@ fcr = importlib.import_module("asavexa.api.routers.fincrime")
 iar = importlib.import_module("asavexa.api.routers.itaudit")
 rsr = importlib.import_module("asavexa.api.routers.resilience")
 gvr = importlib.import_module("asavexa.api.routers.aigov")
+qlr = importlib.import_module("asavexa.api.routers.quality")
+scr = importlib.import_module("asavexa.api.routers.secretarial")
 ratelimit.LOGIN.limit = ratelimit.MFA.limit = 10000
 
 store = SqliteDocStore(w.conn)
@@ -134,6 +136,10 @@ from asavexa.resilience.service import ResilienceService  # noqa: E402
 rss = ResilienceService(store, w.vault, log=log_for("Resilience"))
 from asavexa.aigov.service import AigovService  # noqa: E402
 gvs = AigovService(store, w.vault, log=log_for("AiGovernance"))
+from asavexa.quality.service import QualityService  # noqa: E402
+qls = QualityService(store, w.vault, log=log_for("Quality"))
+from asavexa.secretarial.service import SecretarialService  # noqa: E402
+scs = SecretarialService(store, w.vault, log=log_for("Secretarial"))
 _fpa_shift = {"days": 0}      # test-only: lets a journey move the Planning and KPIs clock forward so a forecast period can end
 fps = FpaService(store, w.vault, is_member=_fpa_member, can_record=_fpa_can_record, log=log_for("Fpa"),
                  now=lambda: datetime.now(timezone.utc) + timedelta(days=_fpa_shift["days"]))
@@ -379,6 +385,66 @@ class Handler(BaseHTTPRequestHandler):
             if mm: need(A_); return gvr.review_incident(mm.group(1), gvr.ReviewBody(**b), org, a, gvs)
             mm = re.match(r"/incidents/([^/]+)/void$", sub)
             if mm: need(A_); return gvr.void_incident(mm.group(1), gvr.ReasonBody(**b), org, a, gvs)
+        if path.startswith("/quality"):
+            need(AUDIT_READ); sub = path[len("/quality"):]; P, A_ = QUAL_PREPARE, QUAL_APPROVE
+            if sub == "/options": return qlr.options(org, qls)
+            if sub == "/overview": return qlr.overview(org, qls)
+            if sub == "/policy" and m == "GET": return qlr.policy(org, qls)
+            if sub == "/policy" and m == "PUT": need(A_); return qlr.set_policy(qlr.PolicyBody(**b), org, a, qls)
+            if sub == "/ncs" and m == "GET": return qlr.ncs(qs.get("status"), qs.get("severity"), org, qls)
+            if sub == "/ncs" and m == "POST": need(P); return (201, qlr.raise_nc(qlr.NcBody(**b), org, a, qls))
+            mm = re.match(r"/ncs/([^/]+)$", sub)
+            if mm and m == "GET": return qlr.get_nc(mm.group(1), org, qls)
+            mm = re.match(r"/ncs/([^/]+)/analyse$", sub)
+            if mm: need(P); return qlr.analyse_nc(mm.group(1), qlr.AnalyseBody(**b), org, a, qls)
+            mm = re.match(r"/ncs/([^/]+)/close$", sub)
+            if mm: need(A_); return qlr.close_nc(mm.group(1), qlr.CloseBody(**b), org, a, qls)
+            mm = re.match(r"/ncs/([^/]+)/void$", sub)
+            if mm: need(A_); return qlr.void_nc(mm.group(1), qlr.ReasonBody(**b), org, a, qls)
+            if sub == "/actions" and m == "GET": return qlr.actions(qs.get("nc_id"), qs.get("status"), org, qls)
+            if sub == "/actions" and m == "POST": need(P); return (201, qlr.add_action(qlr.ActionBody(**b), org, a, qls))
+            mm = re.match(r"/actions/([^/]+)$", sub)
+            if mm and m == "GET": return qlr.get_action(mm.group(1), org, qls)
+            mm = re.match(r"/actions/([^/]+)/complete$", sub)
+            if mm: need(P); return qlr.complete_action(mm.group(1), qlr.CompleteBody(**b), org, a, qls)
+            mm = re.match(r"/actions/([^/]+)/verify$", sub)
+            if mm: need(A_); return qlr.verify_action(mm.group(1), qlr.VerifyBody(**b), org, a, qls)
+            mm = re.match(r"/actions/([^/]+)/cancel$", sub)
+            if mm: need(A_); return qlr.cancel_action(mm.group(1), qlr.ReasonBody(**b), org, a, qls)
+        if path.startswith("/secretarial"):
+            need(AUDIT_READ); sub = path[len("/secretarial"):]; P, A_ = SEC_PREPARE, SEC_APPROVE
+            if sub == "/options": return scr.options(org, scs)
+            if sub == "/overview": return scr.overview(org, scs)
+            if sub == "/policy" and m == "GET": return scr.policy(org, scs)
+            if sub == "/policy" and m == "PUT": need(A_); return scr.set_policy(scr.PolicyBody(**b), org, a, scs)
+            if sub == "/meetings" and m == "GET": return scr.meetings(qs.get("status"), org, scs)
+            if sub == "/meetings" and m == "POST": need(P); return (201, scr.schedule_meeting(scr.MeetingBody(**b), org, a, scs))
+            mm = re.match(r"/meetings/([^/]+)$", sub)
+            if mm and m == "GET": return scr.get_meeting(mm.group(1), org, scs)
+            mm = re.match(r"/meetings/([^/]+)/minutes$", sub)
+            if mm: need(P); return scr.record_minutes(mm.group(1), scr.MinutesBody(**b), org, a, scs)
+            mm = re.match(r"/meetings/([^/]+)/approve$", sub)
+            if mm: need(A_); return scr.approve_minutes(mm.group(1), scr.NoteBody(**b), org, a, scs)
+            mm = re.match(r"/meetings/([^/]+)/cancel$", sub)
+            if mm: need(A_); return scr.cancel_meeting(mm.group(1), scr.ReasonBody(**b), org, a, scs)
+            if sub == "/resolutions" and m == "GET": return scr.resolutions(qs.get("meeting_id"), qs.get("status"), org, scs)
+            if sub == "/resolutions" and m == "POST": need(P); return (201, scr.propose_resolution(scr.ResolutionBody(**b), org, a, scs))
+            mm = re.match(r"/resolutions/([^/]+)$", sub)
+            if mm and m == "GET": return scr.get_resolution(mm.group(1), org, scs)
+            mm = re.match(r"/resolutions/([^/]+)/decide$", sub)
+            if mm: need(A_); return scr.decide_resolution(mm.group(1), scr.DecideBody(**b), org, a, scs)
+            mm = re.match(r"/resolutions/([^/]+)/withdraw$", sub)
+            if mm: need(A_); return scr.withdraw_resolution(mm.group(1), scr.ReasonBody(**b), org, a, scs)
+            if sub == "/filings" and m == "GET": return scr.filings(qs.get("status"), org, scs)
+            if sub == "/filings" and m == "POST": need(P); return (201, scr.add_filing(scr.FilingBody(**b), org, a, scs))
+            mm = re.match(r"/filings/([^/]+)$", sub)
+            if mm and m == "GET": return scr.get_filing(mm.group(1), org, scs)
+            mm = re.match(r"/filings/([^/]+)/file$", sub)
+            if mm: need(P); return scr.file_filing(mm.group(1), scr.FiledBody(**b), org, a, scs)
+            mm = re.match(r"/filings/([^/]+)/confirm$", sub)
+            if mm: need(A_); return scr.confirm_filing(mm.group(1), scr.NoteBody(**b), org, a, scs)
+            mm = re.match(r"/filings/([^/]+)/withdraw$", sub)
+            if mm: need(A_); return scr.withdraw_filing(mm.group(1), scr.ReasonBody(**b), org, a, scs)
         if path.startswith("/fpa"):
             need(REPORTING_READ); sub = path[len("/fpa"):]; P, A_ = FPA_PREPARE, FPA_APPROVE
             if sub == "/options": return fpr.options(org, fps)
