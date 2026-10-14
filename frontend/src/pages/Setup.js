@@ -98,6 +98,7 @@ function workspacesStep(p) {
     h("div", { className: "ob-actions" },
       h("button", { className: "btn btn-primary", id: "su-finish", onClick: p.onFinish }, "Go to my dashboard"),
       h("button", { className: "btn btn-secondary", id: "su-standards", onClick: () => p.onGo("/standards") }, "Choose the reporting framework"),
+      canSetUp(role) ? h("button", { className: "btn btn-secondary", id: "su-entity", onClick: () => p.onGo("/entity-config") }, "Choose which workspaces appear in the menu") : null,
       h("button", { className: "btn btn-secondary", id: "su-back-ws", onClick: () => p.onStep("period") }, "Back")));
 }
 

@@ -248,6 +248,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "agents.router": "/agents",
         "assurance.router": "/assurance",
         "proof_links.router": "/proof-links",
+        "entity_config.router": "/entity-config",
         "pubfin.router": "/pubfin",
         "bizdev.router": "/bizdev",
         "cyber.router": "/cyber",

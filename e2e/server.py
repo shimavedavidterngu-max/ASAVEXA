@@ -34,7 +34,7 @@ from asavexa.evidence.domain.enums import EvidenceType  # noqa: E402
 from asavexa.evidencereview.service import EvidenceReviewService  # noqa: E402
 from asavexa.identity.domain.errors import AsavexaIdentityError, PermissionDeniedError  # noqa: E402
 from asavexa.identity.domain.permissions import (AUDIT_READ, FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, GRC_APPROVE, GRC_PREPARE,  # noqa: E402
-                                                 REPORTING_READ, ROLE_PERMISSIONS)
+                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, ROLE_PERMISSIONS)
 from asavexa.reporting.services.service import ReportingService  # noqa: E402
 from asavexa.security import crypto  # noqa: E402
 from asavexa.security.auditchain import ChainedAuditRepository  # noqa: E402
@@ -54,6 +54,7 @@ srt = importlib.import_module("asavexa.api.routers.standards_registry")
 agr = importlib.import_module("asavexa.api.routers.agents")
 asr = importlib.import_module("asavexa.api.routers.assurance")
 plr = importlib.import_module("asavexa.api.routers.proof_links")
+ecr = importlib.import_module("asavexa.api.routers.entity_config")
 ratelimit.LOGIN.limit = ratelimit.MFA.limit = 10000
 
 store = SqliteDocStore(w.conn)
@@ -87,6 +88,9 @@ from asavexa.proofgraph.links import ProofLinks  # noqa: E402
 from asavexa.proofgraph.wiring import make_sources  # noqa: E402
 pls = ProofLinks(store, make_sources(store, w.vault, w.compliance), log=log_for("ProofLink"))
 ers.links = pls
+from asavexa.entities.service import EntityConfigService  # noqa: E402
+from asavexa.workspaces import WORKSPACES, catalog as ws_catalog  # noqa: E402
+ecs = EntityConfigService(store, lambda: [x["id"] for x in WORKSPACES], log=log_for("EntityConfig"))
 
 
 def j(o):
@@ -102,6 +106,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self): self.go("GET")
     def do_POST(self): self.go("POST")
+    def do_PUT(self): self.go("PUT")
 
     def go(self, m):
         n = int(self.headers.get("content-length") or 0)
@@ -165,6 +170,12 @@ class Handler(BaseHTTPRequestHandler):
             need(AUDIT_READ)
             if path == "/assurance/vocabulary": return asr.vocabulary()
             if path == "/assurance/summary": return asr.summary(org, asvc)
+        if path == "/workspaces": return ws_catalog()
+        if path == "/organisation-profile": return {"organisation_type": "Business or SME"}
+        if path.startswith("/entity-config"):
+            if path == "/entity-config/catalog": return ecr.catalog(org)
+            if path == "/entity-config" and m == "GET": return ecr.read(org, ecs)
+            if path == "/entity-config" and m == "PUT": need(ORG_MANAGE_SETTINGS); return ecr.save(ecr.EntityConfigBody(**b), org, a, ecs)
         if path.startswith("/proof-links"):
             need(AUDIT_READ)
             if path == "/proof-links/vocabulary": return plr.vocabulary()

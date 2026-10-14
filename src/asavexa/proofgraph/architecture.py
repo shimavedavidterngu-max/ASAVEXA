@@ -14,7 +14,7 @@ LAYERS: List[dict] = [
      "modules": ["asavexa.identity.services.service", "asavexa.identity.domain.permissions"],
      "prefixes": ["/auth", "/organisations"]},
     {"id": "standards", "group": "Standards", "name": "Standards Engine", "parts": ["IFRS", "IFRS for SMEs", "US GAAP", "IPSAS", "Local GAAP"],
-     "modules": ["asavexa.standards.engine", "asavexa.standards.catalog", "asavexa.standards.registry"], "prefixes": ["/standards", "/standards-registry", "/organisation-profile"]},
+     "modules": ["asavexa.standards.engine", "asavexa.standards.catalog", "asavexa.standards.registry", "asavexa.entities.service"], "prefixes": ["/standards", "/standards-registry", "/organisation-profile", "/entity-config"]},
     {"id": "reporting", "group": "Reporting", "name": "Reporting Engine", "parts": ["Trial balance", "Income statement", "Balance sheet", "General ledger"],
      "modules": ["asavexa.reporting.services.service"], "prefixes": ["/reports"]},
     {"id": "proof_graph", "group": "Reporting", "name": "Proof-to-Report Graph", "parts": ["Report", "Line", "Journal", "Evidence", "Evidence Review"],

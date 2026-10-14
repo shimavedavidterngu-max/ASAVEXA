@@ -352,6 +352,10 @@ export class ApiClient {
 
   assuranceVocabulary() { return this.get("/assurance/vocabulary"); }
   assuranceSummary() { return this.get("/assurance/summary"); }
+  // ---- Organisation type and workspaces (src/asavexa/api/routers/entity_config.py) ----
+  entityConfig() { return this.get("/entity-config"); }
+  entityCatalog() { return this.get("/entity-config/catalog"); }
+  saveEntityConfig(body) { return this.put("/entity-config", body); }
   // ---- Proof links (src/asavexa/api/routers/proof_links.py) ----
   proofLinkVocabulary() { return this.get("/proof-links/vocabulary"); }
   proofLinkChoices(type) { return this.get("/proof-links/choices", { type }); }

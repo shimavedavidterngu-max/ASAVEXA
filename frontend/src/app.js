@@ -56,6 +56,8 @@ import { Agents } from "./pages/Agents.js";
 import { EMPTY_AGENT, agentFormProblem } from "./lib/agents.js";
 import { Assurance } from "./pages/Assurance.js";
 import { ProofLinks } from "./pages/ProofLinks.js";
+import { EntityConfig } from "./pages/EntityConfig.js";
+import { filterNavByWorkspaces, shownFor, formFromConfig, configPayload, toggleWorkspace, suggestedFor } from "./lib/entityConfig.js";
 import { EMPTY_LINK, EMPTY_GAP, linkPayload, gapPayload, needsReason, ACTION_NOTICE, relationsFor } from "./lib/proofLinks.js";
 import { EMPTY_FORM, formProblem } from "./lib/standardsRegistry.js";
 import { Analysis } from "./pages/Analysis.js";
@@ -142,6 +144,7 @@ const NAV_ITEMS = [
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
   { path: "/admin", label: "Administration", permission: PERMISSIONS.ORG_MANAGE_USERS },
   { path: "/setup", label: "Organisation setup", permission: PERMISSIONS.ORG_MANAGE_SETTINGS },
+  { path: "/entity-config", label: "Organisation type and workspaces", permission: PERMISSIONS.ORG_MANAGE_SETTINGS },
   { path: "/import", label: "Data Import", permission: null, anyOf: [PERMISSIONS.RECONCILIATION_IMPORT, PERMISSIONS.EVIDENCE_UPLOAD, PERMISSIONS.ACCOUNT_MANAGE, PERMISSIONS.JOURNAL_CREATE] },
   { path: "/ai", label: "ASAVEXA AI", permission: PERMISSIONS.LEDGER_READ },
   { path: "/passport", label: "Financial Passport", permission: PERMISSIONS.PASSPORT_MANAGE },
@@ -164,6 +167,7 @@ const NAV_ITEMS = [
 const routes = [
   { path: "/", name: "dashboard" },
   { path: "/setup", name: "setup" },
+  { path: "/entity-config", name: "entity-config" },
   { path: "/audit", name: "audit" },
   { path: "/accounting/journals/new", name: "accounting-journal-new" },
   { path: "/accounting/journals/:id", name: "accounting-journal-detail" },
@@ -446,7 +450,7 @@ function renderShell(authState) {
         "main",
         { className: "app-main", id: "app-main" },
         TopBar({
-          crumbs: breadcrumbs(path, visible), user: authState.user, role: authState.role,
+          crumbs: breadcrumbs(path, visibleNav(authState, path, true)), user: authState.user, role: authState.role,
           orgs: uiState.orgList === false ? false : (uiState.orgList || (uiState.home.data && uiState.home.data.orgs) || null),
           orgId: authState.organisationId, orgLabel: orgName(orgs, authState.organisationId),
           menu: uiState.menu, switching: uiState.switching, switchError: uiState.switchError, mobileOpen: uiState.mobileNav,
@@ -676,8 +680,11 @@ function loadHomeData(authState) {
 
 /** The sidebar entries this role may see, with only the most specific match marked active
  * (so "/passport/sharing" lights up Passport Sharing, not Financial Passport as well). */
-function visibleNav(authState, path) {
-  const items = NAV_ITEMS.filter((item) => (item.anyOf ? item.anyOf.some((p) => allowed(authState.role, p)) : !item.permission || allowed(authState.role, item.permission)));
+function visibleNav(authState, path, ignoreWorkspaceChoice = false) {
+  ensureEntityConfig(authState);
+  const permitted = NAV_ITEMS.filter((item) => (item.anyOf ? item.anyOf.some((p) => allowed(authState.role, p)) : !item.permission || allowed(authState.role, item.permission)));
+  // Menu only: hiding a workspace never grants or removes access, and an organisation that has not been set up sees everything.
+  const items = ignoreWorkspaceChoice ? permitted : filterNavByWorkspaces(permitted, shownFor(uiState.entity, authState.organisationId));
   const matches = items.filter((i) => path === i.path || (i.path !== "/" && path.startsWith(i.path + "/")));
   const best = matches.reduce((a, b) => (!a || b.path.length > a.path.length ? b : a), null);
   return items.map((item) => ({ item, active: item === best }));
@@ -733,6 +740,7 @@ function renderPage(matched, authState) {
   if (name.startsWith("compliance")) return renderCompliance(name, params, authState, nav);
   if (name === "admin") return renderAdmin(authState, nav);
   if (name === "setup") return renderSetupPage(authState);
+  if (name === "entity-config") return renderEntityConfigPage(authState);
   if (name === "import") return renderImport(authState, nav);
   if (name === "ai") return renderAi(authState);
   if (name === "passport-sharing") return renderPassportSharing(authState, nav);
@@ -1107,7 +1115,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -3406,6 +3414,60 @@ async function loadAs() {
     as.error = err.message || "Assurance could not be loaded.";
   }
 }
+
+// ----------------------------------------------------------------------
+// Organisation type and workspaces (Stage 15)
+// ----------------------------------------------------------------------
+/** Loads this organisation's set-up once per organisation, for the menu. A failure leaves the full menu in place and is not retried in a loop. */
+function ensureEntityConfig(authState) {
+  const org = authState && authState.organisationId;
+  if (!org || (uiState.entity && uiState.entity.org === org)) return;
+  const rec = { org, cfg: null };
+  uiState.entity = rec;
+  Promise.resolve().then(() => api.entityConfig()).then((c) => { rec.cfg = c; }).catch(() => {}).finally(() => { if (uiState.entity === rec) render(); });
+}
+
+function newEc() { return { catalog: null, config: null, workspaces: [], form: null, formError: null, busy: false, error: null, notice: null }; }
+
+function renderEntityConfigPage(authState) {
+  if (!uiState.ec) uiState.ec = newEc();
+  once("ecLoading", () => loadEc(authState));
+  return EntityConfig({ ec: uiState.ec, role: authState.role, loading: uiState.ecLoading, onRetry: () => { uiState.ecLoading = false; loadedOnce.delete("ecLoading"); render(); }, actions: ecActions(authState) });
+}
+
+async function loadEc(authState) {
+  const ec = uiState.ec || (uiState.ec = newEc());
+  ec.error = null;
+  try {
+    const [catalog, config, ws, prof] = await Promise.all([api.entityCatalog(), api.entityConfig(), api.workspaces(), api.getOrganisationProfile().catch(() => null)]);
+    ec.catalog = catalog; ec.config = config; ec.workspaces = ws.workspaces;
+    ec.form = formFromConfig(config, catalog, ws.workspaces, prof && prof.organisation_type);
+    if (uiState.entity && uiState.entity.org === authState.organisationId) uiState.entity.cfg = config;
+  } catch (err) {
+    ec.error = err.message || "The organisation set-up could not be loaded.";
+  }
+}
+
+function ecActions(authState) {
+  const ec = uiState.ec;
+  return {
+    setField: (k, v) => { ec.form = { ...ec.form, [k]: v }; ec.formError = null; if (k === "entity_type") { ec.form.subtype = ""; if (v) ec.form.enabled = suggestedFor(ec.catalog, v, ec.workspaces); } if (k === "entity_type" || k === "subtype") render(); },
+    toggle: (id) => { ec.form = { ...ec.form, enabled: toggleWorkspace(ec.form.enabled, id) }; render(); },
+    useSuggested: () => { ec.form = { ...ec.form, enabled: suggestedFor(ec.catalog, ec.form.entity_type, ec.workspaces) }; render(); },
+    save: async () => {
+      const r = configPayload(ec.form, ec.config.configured);
+      if (r.problem) { ec.formError = r.problem; render(); return; }
+      ec.busy = true; ec.error = null; ec.notice = null; render();
+      try {
+        const cfg = await api.saveEntityConfig(r.body);
+        ec.config = cfg; ec.form = formFromConfig(cfg, ec.catalog, ec.workspaces, null); ec.notice = "Saved. The menu now shows the chosen workspaces. Nobody's access has changed.";
+        uiState.entity = { org: authState.organisationId, cfg };
+      } catch (err) { ec.error = err.message || "That did not work."; }
+      ec.busy = false; render();
+    },
+  };
+}
+
 
 // ----------------------------------------------------------------------
 // Proof Links (Stage 13): stored links between records

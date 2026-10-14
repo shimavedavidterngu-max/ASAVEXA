@@ -183,6 +183,16 @@ def get_proof_links(security: SecurityContext = Depends(get_security), session=D
     return _build_proof_links(security, session)
 
 
+def get_entity_config(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Organisation type, subtype and which workspaces the menu shows. Shared document store; audited; grants no permission."""
+    from ..workspaces import WORKSPACES
+    from ..entities.service import EntityConfigService
+    from ..entities.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return EntityConfigService(SqlAlchemyDocStore(session), lambda: [w["id"] for w in WORKSPACES], log=make_log(security))
+
+
 def get_assurance(vault=Depends(get_evidence_vault), compliance=Depends(get_compliance_service), review=Depends(get_evidence_review),
                   registry=Depends(get_standards_registry), agents=Depends(get_agent_registry), analysis=Depends(get_analysis)):
     """The shared status vocabulary and a read-only count across modules. It owns no data and never writes: each module supplies its own records."""
