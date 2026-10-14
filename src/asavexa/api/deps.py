@@ -291,6 +291,33 @@ def get_fincrime(security: SecurityContext = Depends(get_security), session=Depe
     return FincrimeService(SqlAlchemyDocStore(session), get_evidence_vault(session), is_member=member, can_work=can_work, log=make_log(security))
 
 
+def get_itaudit(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """IT audit service: change records, application controls and tests in the shared document store; reads the Evidence Vault and Cybersecurity assets, never changes them; every action is audited."""
+    from ..itaudit.service import ItAuditService
+    from ..itaudit.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ItAuditService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_resilience(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Risk indicators and resilience service: indicators, loss events, business processes and continuity tests in the shared document store; reads the Evidence Vault and risk register, never changes them; every action is audited."""
+    from ..resilience.service import ResilienceService
+    from ..resilience.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ResilienceService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_aigov(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """AI governance service: AI systems, model changes and incidents in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
+    from ..aigov.service import AigovService
+    from ..aigov.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return AigovService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
 def get_bizdev(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Business Development service: accounts, opportunities, proposals, targets and reports in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
     from ..bizdev.service import BizDevService

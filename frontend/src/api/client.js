@@ -718,6 +718,74 @@ export class ApiClient {
   rejectFcDecision(id, reason) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/decision/reject`, { reason: reason || "" }); }
   reopenFcCase(id, reason) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/reopen`, { reason: reason || "" }); }
 
+  // ---- Risk indicators and resilience (src/asavexa/api/routers/resilience.py) ----
+  rsOptions() { return this.get("/resilience/options"); }
+  gvOverview() { return this.get("/aigov/overview"); }
+  gvOptions() { return this.get("/aigov/options"); }
+  setGvPolicy(body) { return this.put("/aigov/policy", body); }
+  gvSystems() { return this.get("/aigov/systems"); }
+  gvSystem(id) { return this.get(`/aigov/systems/${encodeURIComponent(id)}`); }
+  proposeGvSystem(body) { return this.post("/aigov/systems", body); }
+  approveGvSystem(id, note) { return this.post(`/aigov/systems/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectGvSystem(id, reason) { return this.post(`/aigov/systems/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+  retireGvSystem(id, reason) { return this.post(`/aigov/systems/${encodeURIComponent(id)}/retire`, { reason: reason || "" }); }
+  reviewGvSystem(id, note) { return this.post(`/aigov/systems/${encodeURIComponent(id)}/review`, { note: note || "" }); }
+  gvChanges() { return this.get("/aigov/changes"); }
+  recordGvChange(body) { return this.post("/aigov/changes", body); }
+  approveGvChange(id, note) { return this.post(`/aigov/changes/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectGvChange(id, reason) { return this.post(`/aigov/changes/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+  gvIncidents() { return this.get("/aigov/incidents"); }
+  gvIncident(id) { return this.get(`/aigov/incidents/${encodeURIComponent(id)}`); }
+  recordGvIncident(body) { return this.post("/aigov/incidents", body); }
+  reviewGvIncident(id, body) { return this.post(`/aigov/incidents/${encodeURIComponent(id)}/review`, body); }
+  voidGvIncident(id, reason) { return this.post(`/aigov/incidents/${encodeURIComponent(id)}/void`, { reason: reason || "" }); }
+  rsOverview() { return this.get("/resilience/overview"); }
+  setRsPolicy(body) { return this.put("/resilience/policy", body); }
+  rsKris() { return this.get("/resilience/kris"); }
+  rsKri(id) { return this.get(`/resilience/kris/${encodeURIComponent(id)}`); }
+  proposeRsKri(body) { return this.post("/resilience/kris", body); }
+  approveRsKri(id, note) { return this.post(`/resilience/kris/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectRsKri(id, reason) { return this.post(`/resilience/kris/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+  retireRsKri(id, reason) { return this.post(`/resilience/kris/${encodeURIComponent(id)}/retire`, { reason: reason || "" }); }
+  recordRsReading(id, body) { return this.post(`/resilience/kris/${encodeURIComponent(id)}/readings`, body); }
+  confirmRsReading(id, rid) { return this.post(`/resilience/kris/${encodeURIComponent(id)}/readings/${encodeURIComponent(rid)}/confirm`); }
+  rejectRsReading(id, rid, reason) { return this.post(`/resilience/kris/${encodeURIComponent(id)}/readings/${encodeURIComponent(rid)}/reject`, { reason: reason || "" }); }
+  rsLosses() { return this.get("/resilience/losses"); }
+  rsLoss(id) { return this.get(`/resilience/losses/${encodeURIComponent(id)}`); }
+  recordRsLoss(body) { return this.post("/resilience/losses", body); }
+  reviewRsLoss(id, body) { return this.post(`/resilience/losses/${encodeURIComponent(id)}/review`, body); }
+  voidRsLoss(id, reason) { return this.post(`/resilience/losses/${encodeURIComponent(id)}/void`, { reason: reason || "" }); }
+  rsProcesses() { return this.get("/resilience/processes"); }
+  proposeRsProcess(body) { return this.post("/resilience/processes", body); }
+  approveRsProcess(id, note) { return this.post(`/resilience/processes/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectRsProcess(id, reason) { return this.post(`/resilience/processes/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+  retireRsProcess(id, reason) { return this.post(`/resilience/processes/${encodeURIComponent(id)}/retire`, { reason: reason || "" }); }
+  rsDrills() { return this.get("/resilience/drills"); }
+  recordRsDrill(body) { return this.post("/resilience/drills", body); }
+  approveRsDrill(id, note) { return this.post(`/resilience/drills/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectRsDrill(id, reason) { return this.post(`/resilience/drills/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+
+  // ---- IT audit (src/asavexa/api/routers/itaudit.py) ----
+  iaOptions() { return this.get("/itaudit/options"); }
+  iaOverview() { return this.get("/itaudit/overview"); }
+  setIaPolicy(body) { return this.put("/itaudit/policy", body); }
+  iaChanges() { return this.get("/itaudit/changes"); }
+  recordIaChange(body) { return this.post("/itaudit/changes", body); }
+  voidIaChange(id, reason) { return this.post(`/itaudit/changes/${encodeURIComponent(id)}/void`, { reason: reason || "" }); }
+  iaControls() { return this.get("/itaudit/controls"); }
+  defineIaControl(body) { return this.post("/itaudit/controls", body); }
+  retireIaControl(id, reason) { return this.post(`/itaudit/controls/${encodeURIComponent(id)}/retire`, { reason: reason || "" }); }
+  iaTests() { return this.get("/itaudit/tests"); }
+  iaTest(id) { return this.get(`/itaudit/tests/${encodeURIComponent(id)}`); }
+  planIaChangeTest(body) { return this.post("/itaudit/tests/change", body); }
+  planIaControlTest(body) { return this.post("/itaudit/tests/control", body); }
+  concludeIaItem(id, iid, body) { return this.post(`/itaudit/tests/${encodeURIComponent(id)}/items/${encodeURIComponent(iid)}`, body); }
+  addIaCase(id, body) { return this.post(`/itaudit/tests/${encodeURIComponent(id)}/cases`, body); }
+  withdrawIaTest(id, reason) { return this.post(`/itaudit/tests/${encodeURIComponent(id)}/withdraw`, { reason: reason || "" }); }
+  submitIaTest(id) { return this.post(`/itaudit/tests/${encodeURIComponent(id)}/submit`); }
+  approveIaTest(id, note) { return this.post(`/itaudit/tests/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectIaTest(id, reason) { return this.post(`/itaudit/tests/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+
   // ---- Cybersecurity (src/asavexa/api/routers/cyber.py) ----
   cyOptions() { return this.get("/cyber/options"); }
   cyOverview() { return this.get("/cyber/overview"); }

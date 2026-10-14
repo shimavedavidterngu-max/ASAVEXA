@@ -77,6 +77,12 @@ import * as PC from "./lib/procurement.js";
 import { Fpa } from "./pages/Fpa.js";
 import * as FP from "./lib/fpa.js";
 import { Fincrime } from "./pages/Fincrime.js";
+import { ItAudit } from "./pages/ItAudit.js";
+import { Resilience } from "./pages/Resilience.js";
+import * as RS from "./lib/resilience.js";
+import { AiGovernance } from "./pages/AiGovernance.js";
+import * as GV from "./lib/aigov.js";
+import * as IA from "./lib/itaudit.js";
 import * as FX from "./lib/fincrime.js";
 import * as CY from "./lib/cyber.js";
 import { Health } from "./pages/Health.js";
@@ -151,6 +157,9 @@ const NAV_ITEMS = [
   { path: "/procurement", label: "Procurement", permission: PERMISSIONS.REPORTING_READ },
   { path: "/fpa", label: "Planning and KPIs", permission: PERMISSIONS.REPORTING_READ },
   { path: "/fincrime", label: "Financial-crime casework", permission: PERMISSIONS.FINCRIME_READ },
+  { path: "/itaudit", label: "IT audit", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/resilience", label: "Risk indicators and resilience", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/aigov", label: "AI governance", permission: PERMISSIONS.AUDIT_READ },
   { path: "/health", label: "Health Centre", permission: PERMISSIONS.HEALTH_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
@@ -204,6 +213,9 @@ const routes = [
   { path: "/procurement", name: "procurement" },
   { path: "/fpa", name: "fpa" },
   { path: "/fincrime", name: "fincrime" },
+  { path: "/itaudit", name: "itaudit" },
+  { path: "/resilience", name: "resilience" },
+  { path: "/aigov", name: "aigov" },
   { path: "/health", name: "health" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
@@ -785,6 +797,9 @@ function renderPage(matched, authState) {
   if (name === "procurement") return renderProcurementPage(authState);
   if (name === "fpa") return renderFpaPage(authState);
   if (name === "fincrime") return renderFincrimePage(authState);
+  if (name === "itaudit") return renderItAuditPage(authState);
+  if (name === "resilience") return renderResiliencePage(authState);
+  if (name === "aigov") return renderAigovPage(authState);
   if (name === "health") return renderHealthPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
@@ -1135,7 +1150,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -4575,6 +4590,221 @@ function fincrimeActions(authState) {
     },
     reopen: (id) => { const n = note(`case-${id}`), p = FX.noteProblem(n, "A reason", FX.minNote.reopen); if (p) return fail(p); return run(async () => { await api.reopenFcCase(id, n); fx.notes = {}; await refresh(); }, "Case reopened. The history is kept."); },
     changeLead: (id) => act("lead", FX.leadPayload, (b) => api.changeFcLead(id, b), "Lead investigator changed.", () => reset("lead")),
+  };
+}
+
+// ----------------------------------------------------------------------
+// IT audit (Stage 20): records and checks; never connects to, scans or tests a system
+// ----------------------------------------------------------------------
+function newIa() {
+  const f = () => JSON.parse(JSON.stringify(IA.EMPTY));
+  return { tab: "overview", options: null, ov: null, changes: [], controls: [], tests: [], sel: { test: null }, vault: [], flaggedOnly: false, forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderItAuditPage(authState) {
+  if (!uiState.ia) uiState.ia = newIa();
+  once("iaLoading", () => loadItAudit());
+  return ItAudit({ ia: uiState.ia, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.iaLoading, onRetry: () => { loadedOnce.delete("iaLoading"); render(); }, actions: itAuditActions() });
+}
+
+async function itAuditRefresh(ia) {
+  [ia.options, ia.ov, ia.changes, ia.controls, ia.tests] = await Promise.all([api.iaOptions(), api.iaOverview(), api.iaChanges(), api.iaControls(), api.iaTests()]);
+  ia.forms.policy = IA.policyForm(ia.ov.policy);
+  if (ia.sel.test) ia.sel.test = await api.iaTest(ia.sel.test.id).catch(() => null);
+}
+
+async function loadItAudit() {
+  const ia = uiState.ia || (uiState.ia = newIa());
+  ia.error = null;
+  try {
+    await itAuditRefresh(ia);
+    ia.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { ia.error = err.message || "IT audit could not be loaded."; }
+}
+
+function itAuditActions() {
+  const ia = uiState.ia;
+  const run = async (fn, ok) => { ia.error = null; ia.notice = null; ia.formError = null; ia.busy = true; render(); try { await fn(); if (ok) ia.notice = ok; } catch (err) { ia.error = err.message || "That did not work."; } ia.busy = false; render(); };
+  const problem = (form, text) => { ia.formError = { form, text }; ia.notice = null; ia.error = null; render(); };
+  const fail = (text) => { ia.formError = null; ia.notice = null; ia.error = text; render(); };
+  const refresh = () => itAuditRefresh(ia);
+  const reset = (name) => { ia.forms[name] = JSON.parse(JSON.stringify(IA.EMPTY[name])); };
+  const note = (k) => (ia.notes[k] || "").trim();
+  const act = (form, build, call, ok, after) => { const r = build(ia.forms[form]); if (r.problem) return problem(form, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { ia.tab = t; ia.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { ia.forms[name] = { ...(ia.forms[name] || {}), [k]: v }; ia.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { ia.notes[k] = v; },
+    toggleFlagged: () => { ia.flaggedOnly = !ia.flaggedOnly; render(); },
+    savePolicy: () => { const r = IA.policyPayload(ia.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setIaPolicy(r.body); await refresh(); }, "Settings saved. They apply to changes recorded from now on."); },
+    recordChange: () => act("change", IA.changePayload, (b) => api.recordIaChange(b), null, (c) => { reset("change"); ia.notice = `Change ${c.ref} recorded${c.flags.length ? ` with ${c.flags.length} flag(s)` : ""}.`; }),
+    voidChange: (id) => { const n = note(`void-${id}`), p = IA.noteProblem(n, "A reason", IA.minNote.void); if (p) return fail(p); return run(async () => { await api.voidIaChange(id, n); ia.notes = {}; await refresh(); }, "Change record voided. The reason is kept."); },
+    defineControl: () => act("control", IA.controlPayload, (b) => api.defineIaControl(b), null, (c) => { reset("control"); ia.notice = `Control ${c.ref} defined. A different person must test it.`; }),
+    retireControl: (id) => { const n = note(`retire-${id}`), p = IA.noteProblem(n, "A reason", IA.minNote.retire); if (p) return fail(p); return run(async () => { await api.retireIaControl(id, n); ia.notes = {}; await refresh(); }, "Control retired. The reason is kept."); },
+    selectTest: (id) => run(async () => { ia.sel.test = id ? await api.iaTest(id) : null; ia.notes = {}; }),
+    planChangeTest: () => act("ptest", IA.ptestPayload, (b) => api.planIaChangeTest(b), null, (t) => { reset("ptest"); ia.sel.test = t; ia.notice = `Test ${t.ref} planned with ${t.items.length} sampled change(s).`; }),
+    planControlTest: () => act("ctest", IA.ctestPayload, (b) => api.planIaControlTest(b), null, (t) => { reset("ctest"); ia.sel.test = t; ia.notice = `Test ${t.ref} planned.`; }),
+    concludeItem: (item, result) => {
+      const t = ia.sel.test, r = IA.itemPayload(result, note(`it-${item.id}`), item.flags.length > 0); if (r.problem) return fail(r.problem);
+      return run(async () => { await api.concludeIaItem(t.id, item.id, r.body); ia.notes = {}; await refresh(); }, `${item.ref} concluded.`);
+    },
+    addCase: (id) => act("case", IA.casePayload, (b) => api.addIaCase(id, b), "Test case added.", () => reset("case")),
+    withdrawTest: (id) => { const n = note(`wd-${id}`), p = IA.noteProblem(n, "A reason", IA.minNote.withdraw); if (p) return fail(p); return run(async () => { await api.withdrawIaTest(id, n); ia.notes = {}; await refresh(); }, "Test withdrawn. Its sample and reason are kept."); },
+    submitTest: (id) => run(async () => { await api.submitIaTest(id); await refresh(); }, "Test submitted. A different person must approve it."),
+    decideTest: (id, m, t) => {
+      const n = note(`test-${id}`);
+      if (m === "approve") { const p = IA.needsApprovalNote(t) ? IA.noteProblem(n, "A note", IA.minNote.approve) : (n ? IA.noteProblem(n, "A note", IA.minNote.approve) : ""); if (p) return fail(p); return run(async () => { await api.approveIaTest(id, n); ia.notes = {}; await refresh(); }, "Test approved."); }
+      const p = IA.noteProblem(n, "A reason", IA.minNote.reject); if (p) return fail(p);
+      return run(async () => { await api.rejectIaTest(id, n); ia.notes = {}; await refresh(); }, "Test sent back to the person who carried it out.");
+    },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Risk indicators and resilience (Stage 21): records and checks; measures nothing, connects to nothing
+// ----------------------------------------------------------------------
+function newRs() {
+  const f = () => JSON.parse(JSON.stringify(RS.EMPTY));
+  return { tab: "overview", options: null, ov: null, kris: [], losses: [], processes: [], drills: [], sel: { kri: null, loss: null }, vault: [], forms: { ...f(), review: { cause: "", lesson: "" }, policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderResiliencePage(authState) {
+  if (!uiState.rs) uiState.rs = newRs();
+  once("rsLoading", () => loadResilience());
+  return Resilience({ rs: uiState.rs, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.rsLoading, onRetry: () => { loadedOnce.delete("rsLoading"); render(); }, actions: resilienceActions() });
+}
+
+async function resilienceRefresh(rs) {
+  [rs.options, rs.ov, rs.kris, rs.losses, rs.processes, rs.drills] = await Promise.all([api.rsOptions(), api.rsOverview(), api.rsKris(), api.rsLosses(), api.rsProcesses(), api.rsDrills()]);
+  rs.forms.policy = RS.policyForm(rs.ov.policy);
+  if (rs.sel.kri) rs.sel.kri = await api.rsKri(rs.sel.kri.id).catch(() => null);
+  if (rs.sel.loss) rs.sel.loss = await api.rsLoss(rs.sel.loss.id).catch(() => null);
+}
+
+async function loadResilience() {
+  const rs = uiState.rs || (uiState.rs = newRs());
+  rs.error = null;
+  try {
+    await resilienceRefresh(rs);
+    rs.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { rs.error = err.message || "Risk indicators and resilience could not be loaded."; }
+}
+
+function resilienceActions() {
+  const rs = uiState.rs;
+  const run = async (fn, ok) => { rs.error = null; rs.notice = null; rs.formError = null; rs.busy = true; render(); try { await fn(); if (ok) rs.notice = ok; } catch (err) { rs.error = err.message || "That did not work."; } rs.busy = false; render(); };
+  const problem = (form, text) => { rs.formError = { form, text }; rs.notice = null; rs.error = null; render(); };
+  const fail = (text) => { rs.formError = null; rs.notice = null; rs.error = text; render(); };
+  const refresh = () => resilienceRefresh(rs);
+  const reset = (name) => { rs.forms[name] = JSON.parse(JSON.stringify(RS.EMPTY[name] || { cause: "", lesson: "" })); };
+  const note = (k) => (rs.notes[k] || "").trim();
+  const act = (form, build, call, ok, after) => { const r = build(rs.forms[form]); if (r.problem) return problem(form, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  const needNote = (k, what, min) => RS.noteProblem(note(k), what, min);
+  return {
+    setTab: (t) => run(async () => { rs.tab = t; rs.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { rs.forms[name] = { ...(rs.forms[name] || {}), [k]: v }; rs.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { rs.notes[k] = v; },
+    savePolicy: () => { const r = RS.policyPayload(rs.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setRsPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectKri: (id) => run(async () => { rs.sel.kri = id ? await api.rsKri(id) : null; rs.notes = {}; reset("reading"); }),
+    proposeKri: () => act("kri", RS.kriPayload, (b) => api.proposeRsKri(b), null, (k) => { reset("kri"); rs.notice = `Indicator ${k.ref} proposed. A different person must approve it.`; }),
+    kriStep: (id, m) => {
+      const n = note(`kri-${id}`);
+      if (m === "approve") return run(async () => { await api.approveRsKri(id, n); rs.notes = {}; await refresh(); }, "Indicator approved. Its thresholds can no longer be changed.");
+      const p = needNote(`kri-${id}`, "A reason", RS.minNote[m === "reject" ? "reject" : "retire"]); if (p) return fail(p);
+      return run(async () => { await (m === "reject" ? api.rejectRsKri(id, n) : api.retireRsKri(id, n)); rs.notes = {}; await refresh(); }, m === "reject" ? "Indicator rejected. The reason is kept." : "Indicator retired. The reason is kept.");
+    },
+    recordReading: (id) => act("reading", RS.readingPayload, (b) => api.recordRsReading(id, b), "Reading recorded. It counts once a different person confirms it.", () => reset("reading")),
+    readingStep: (kid, rid, m) => {
+      if (m === "confirm") return run(async () => { await api.confirmRsReading(kid, rid); await refresh(); }, "Reading confirmed.");
+      const p = needNote(`kri-${kid}`, "A reason", RS.minNote.reject); if (p) return fail(p);
+      return run(async () => { await api.rejectRsReading(kid, rid, note(`kri-${kid}`)); rs.notes = {}; await refresh(); }, "Reading rejected. The reason is kept.");
+    },
+    selectLoss: (id) => run(async () => { rs.sel.loss = id ? await api.rsLoss(id) : null; rs.notes = {}; reset("review"); }),
+    recordLoss: () => act("loss", RS.lossPayload, (b) => api.recordRsLoss(b), null, (e) => { reset("loss"); rs.notice = `${e.ref} recorded. A different person must review it.`; }),
+    reviewLoss: (id) => act("review", RS.reviewPayload, (b) => api.reviewRsLoss(id, b), "Loss event reviewed.", () => { reset("review"); rs.sel.loss = null; }),
+    voidLoss: (id) => { const p = needNote(`void-${id}`, "A reason", RS.minNote.void); if (p) return fail(p); return run(async () => { await api.voidRsLoss(id, note(`void-${id}`)); rs.notes = {}; rs.sel.loss = null; await refresh(); }, "Loss event voided. The reason is kept."); },
+    proposeProcess: () => act("process", RS.processPayload, (b) => api.proposeRsProcess(b), null, (p) => { reset("process"); rs.notice = `Process ${p.ref} proposed. A different person must approve it.`; }),
+    processStep: (id, m) => {
+      const n = note(`proc-${id}`);
+      if (m === "approve") return run(async () => { await api.approveRsProcess(id, n); rs.notes = {}; await refresh(); }, "Process approved. Its objectives can no longer be changed.");
+      const p = needNote(`proc-${id}`, "A reason", RS.minNote[m === "reject" ? "reject" : "retire"]); if (p) return fail(p);
+      return run(async () => { await (m === "reject" ? api.rejectRsProcess(id, n) : api.retireRsProcess(id, n)); rs.notes = {}; await refresh(); }, m === "reject" ? "Process rejected. The reason is kept." : "Process retired. The reason is kept.");
+    },
+    recordDrill: () => act("drill", RS.drillPayload, (b) => api.recordRsDrill(b), null, (t) => { reset("drill"); rs.notice = `Test ${t.ref} recorded: ${RS.statusOf(t.result).label}. A different person must approve it.`; }),
+    drillStep: (id, m, t) => {
+      const n = note(`drill-${id}`);
+      if (m === "approve") { const p = t.result === "NOT_MET" ? needNote(`drill-${id}`, "A note", RS.minNote.approveMiss) : (n ? needNote(`drill-${id}`, "A note", RS.minNote.approveMiss) : ""); if (p) return fail(p); return run(async () => { await api.approveRsDrill(id, n); rs.notes = {}; await refresh(); }, "Test approved."); }
+      const p = needNote(`drill-${id}`, "A reason", RS.minNote.reject); if (p) return fail(p);
+      return run(async () => { await api.rejectRsDrill(id, n); rs.notes = {}; await refresh(); }, "Test rejected. The reason is kept.");
+    },
+  };
+}
+
+// ----------------------------------------------------------------------
+// AI governance (Stage 22): records and checks; connects to no AI system, tests nothing
+// ----------------------------------------------------------------------
+function newGv() {
+  const f = () => JSON.parse(JSON.stringify(GV.EMPTY));
+  return { tab: "overview", options: null, ov: null, systems: [], changes: [], incidents: [], sel: { system: null, incident: null }, vault: [], forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderAigovPage(authState) {
+  if (!uiState.gv) uiState.gv = newGv();
+  once("gvLoading", () => loadAigov());
+  return AiGovernance({ gv: uiState.gv, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.gvLoading, onRetry: () => { loadedOnce.delete("gvLoading"); render(); }, actions: aigovActions() });
+}
+
+async function aigovRefresh(gv) {
+  [gv.options, gv.ov, gv.systems, gv.changes, gv.incidents] = await Promise.all([api.gvOptions(), api.gvOverview(), api.gvSystems(), api.gvChanges(), api.gvIncidents()]);
+  gv.forms.policy = GV.policyForm(gv.ov.policy);
+  if (gv.sel.system) gv.sel.system = await api.gvSystem(gv.sel.system.id).catch(() => null);
+  if (gv.sel.incident) gv.sel.incident = await api.gvIncident(gv.sel.incident.id).catch(() => null);
+}
+
+async function loadAigov() {
+  const gv = uiState.gv || (uiState.gv = newGv());
+  gv.error = null;
+  try {
+    await aigovRefresh(gv);
+    gv.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { gv.error = err.message || "AI governance could not be loaded."; }
+}
+
+function aigovActions() {
+  const gv = uiState.gv;
+  const run = async (fn, ok) => { gv.error = null; gv.notice = null; gv.formError = null; gv.busy = true; render(); try { await fn(); if (ok) gv.notice = ok; } catch (err) { gv.error = err.message || "That did not work."; } gv.busy = false; render(); };
+  const problem = (form, text) => { gv.formError = { form, text }; gv.notice = null; gv.error = null; render(); };
+  const fail = (text) => { gv.formError = null; gv.notice = null; gv.error = text; render(); };
+  const refresh = () => aigovRefresh(gv);
+  const reset = (name) => { gv.forms[name] = JSON.parse(JSON.stringify(GV.EMPTY[name])); };
+  const note = (k) => (gv.notes[k] || "").trim();
+  const act = (form, build, call, ok, after) => { const r = build(gv.forms[form]); if (r.problem) return problem(form, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  const needNote = (k, what, min) => GV.noteProblem(note(k), what, min);
+  return {
+    setTab: (t) => run(async () => { gv.tab = t; gv.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { gv.forms[name] = { ...(gv.forms[name] || {}), [k]: v }; gv.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { gv.notes[k] = v; },
+    savePolicy: () => { const r = GV.policyPayload(gv.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setGvPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectSystem: (id) => run(async () => { gv.sel.system = id ? await api.gvSystem(id) : null; gv.notes = {}; }),
+    proposeSystem: () => act("system", GV.systemPayload, (b) => api.proposeGvSystem(b), null, (s) => { reset("system"); gv.notice = `AI system ${s.ref} proposed. A different person must approve it.`; }),
+    systemStep: (id, m) => {
+      const n = note(`sys-${id}`);
+      if (m === "approve") return run(async () => { await api.approveGvSystem(id, n); gv.notes = {}; await refresh(); }, "AI system approved. Its intended use and tier can no longer be changed.");
+      const p = needNote(`sys-${id}`, "A note", GV.minNote[m]); if (p) return fail(p);
+      if (m === "review") return run(async () => { await api.reviewGvSystem(id, n); gv.notes = {}; await refresh(); }, "Review recorded.");
+      return run(async () => { await (m === "reject" ? api.rejectGvSystem(id, n) : api.retireGvSystem(id, n)); gv.notes = {}; await refresh(); }, m === "reject" ? "AI system rejected. The reason is kept." : "AI system retired. The reason is kept.");
+    },
+    recordChange: () => act("change", GV.changePayload, (b) => api.recordGvChange(b), null, (c) => { reset("change"); gv.notice = `Change ${c.ref} recorded. A different person must approve it.`; }),
+    changeStep: (id, m) => {
+      const n = note(`chg-${id}`);
+      if (m === "approve") return run(async () => { await api.approveGvChange(id, n); gv.notes = {}; await refresh(); }, "Change approved.");
+      const p = needNote(`chg-${id}`, "A reason", GV.minNote.reject); if (p) return fail(p);
+      return run(async () => { await api.rejectGvChange(id, n); gv.notes = {}; await refresh(); }, "Change rejected. The reason is kept.");
+    },
+    selectIncident: (id) => run(async () => { gv.sel.incident = id ? await api.gvIncident(id) : null; gv.notes = {}; reset("review"); }),
+    recordIncident: () => act("incident", GV.incidentPayload, (b) => api.recordGvIncident(b), null, (i) => { reset("incident"); gv.notice = `${i.ref} recorded. A different person must review it.`; }),
+    reviewIncident: (id) => act("review", GV.reviewPayload, (b) => api.reviewGvIncident(id, b), "Incident reviewed.", () => { reset("review"); gv.sel.incident = null; }),
+    voidIncident: (id) => { const p = needNote(`void-${id}`, "A reason", GV.minNote.void); if (p) return fail(p); return run(async () => { await api.voidGvIncident(id, note(`void-${id}`)); gv.notes = {}; gv.sel.incident = null; await refresh(); }, "Incident voided. The reason is kept."); },
   };
 }
 

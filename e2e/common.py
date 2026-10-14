@@ -16,6 +16,7 @@ CHROMIUM = os.environ.get("CHROMIUM_PATH")          # leave unset to use Playwri
 DARA = ("dara@meridian.test", "correct horse battery staple1")    # owner
 KWAME = ("kwame@meridian.test", "still-another-password1")        # approver
 AISHA = ("aisha@meridian.test", "yet-another-password1")          # accountant
+TUNDE = ("tunde@meridian.test", "tester-password-two1")           # administrator: can prepare IT-audit work, nothing else here
 OTHER = ("other@other.test", "unrelated-password1")               # a different company's owner
 fails = []
 web = None
