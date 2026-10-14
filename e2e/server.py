@@ -14,7 +14,7 @@ import os
 import re
 import sys
 import types
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,7 +34,7 @@ from asavexa.evidence.domain.enums import EvidenceType  # noqa: E402
 from asavexa.evidencereview.service import EvidenceReviewService  # noqa: E402
 from asavexa.identity.domain.errors import AsavexaIdentityError, PermissionDeniedError  # noqa: E402
 from asavexa.identity.domain.permissions import (AUDIT_READ, FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, GRC_APPROVE, GRC_PREPARE,  # noqa: E402
-                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, ROLE_PERMISSIONS)
+                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
 from asavexa.reporting.services.service import ReportingService  # noqa: E402
 from asavexa.security import crypto  # noqa: E402
 from asavexa.security.auditchain import ChainedAuditRepository  # noqa: E402
@@ -55,6 +55,10 @@ agr = importlib.import_module("asavexa.api.routers.agents")
 asr = importlib.import_module("asavexa.api.routers.assurance")
 plr = importlib.import_module("asavexa.api.routers.proof_links")
 ecr = importlib.import_module("asavexa.api.routers.entity_config")
+trr = importlib.import_module("asavexa.api.routers.treasury")
+prr = importlib.import_module("asavexa.api.routers.procurement")
+fpr = importlib.import_module("asavexa.api.routers.fpa")
+fcr = importlib.import_module("asavexa.api.routers.fincrime")
 ratelimit.LOGIN.limit = ratelimit.MFA.limit = 10000
 
 store = SqliteDocStore(w.conn)
@@ -91,6 +95,35 @@ ers.links = pls
 from asavexa.entities.service import EntityConfigService  # noqa: E402
 from asavexa.workspaces import WORKSPACES, catalog as ws_catalog  # noqa: E402
 ecs = EntityConfigService(store, lambda: [x["id"] for x in WORKSPACES], log=log_for("EntityConfig"))
+from asavexa.treasury.service import TreasuryService  # noqa: E402
+trs = TreasuryService(store, w.vault, log=log_for("Treasury"))
+from asavexa.procurement.service import ProcurementService  # noqa: E402
+prs = ProcurementService(store, log=log_for("Procurement"))
+from asavexa.fpa.service import FpaService  # noqa: E402
+
+
+def _fpa_member(o, u):
+    m = w.identity.memberships.get(o, u)
+    return m is not None and m.status.value == "ACTIVE"
+
+
+def _fpa_can_record(o, u):
+    m = w.identity.memberships.get(o, u)
+    return m is not None and FPA_PREPARE in ROLE_PERMISSIONS.get(m.role, ())
+
+
+from asavexa.fincrime.service import FincrimeService  # noqa: E402
+
+
+def _fc_can_work(o, u):
+    m = w.identity.memberships.get(o, u)
+    return m is not None and FINCRIME_PREPARE in ROLE_PERMISSIONS.get(m.role, ())
+
+
+fcs = FincrimeService(store, w.vault, is_member=_fpa_member, can_work=_fc_can_work, log=log_for("Fincrime"))
+_fpa_shift = {"days": 0}      # test-only: lets a journey move the Planning and KPIs clock forward so a forecast period can end
+fps = FpaService(store, w.vault, is_member=_fpa_member, can_record=_fpa_can_record, log=log_for("Fpa"),
+                 now=lambda: datetime.now(timezone.utc) + timedelta(days=_fpa_shift["days"]))
 
 
 def j(o):
@@ -145,6 +178,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/_fix":
             ev = w.vault.upload_evidence(org, EvidenceType.CONTRACT, b"lease-browser", "lease.pdf", "application/pdf", uploaded_by=w.accountant.id, linked_journal_id=w.rent_journal.id)
             w.vault.verify_evidence(org, ev.id, actor=w.approver.id); return {"ev": ev.id}
+        if path == "/_fpa_clock":
+            _fpa_shift["days"] = int(qs.get("days", 0)); return {"days": _fpa_shift["days"]}
         if path == "/_audit":
             evs, _ = w.audit.list_recent_for_org(org, 1000); return {"actions": [e.action for e in evs]}
         if path.startswith("/evidence-review"):
@@ -176,6 +211,168 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/entity-config/catalog": return ecr.catalog(org)
             if path == "/entity-config" and m == "GET": return ecr.read(org, ecs)
             if path == "/entity-config" and m == "PUT": need(ORG_MANAGE_SETTINGS); return ecr.save(ecr.EntityConfigBody(**b), org, a, ecs)
+        if path.startswith("/procurement"):
+            need(REPORTING_READ); sub = path[len("/procurement"):]; P, A_ = PROCURE_PREPARE, PROCURE_APPROVE
+            if sub == "/options": return prr.options(org, prs)
+            if sub == "/overview": return prr.overview(org, prs)
+            if sub == "/policy" and m == "GET": return prr.policy(org, prs)
+            if sub == "/policy" and m == "PUT": need(A_); return prr.set_policy(prr.PolicyBody(**b), org, a, prs)
+            if sub == "/suppliers" and m == "GET": return prr.suppliers(qs.get("status"), org, prs)
+            if sub == "/suppliers" and m == "POST": need(P); return (201, prr.register_supplier(prr.SupplierBody(**b), org, a, prs))
+            mm = re.match(r"/suppliers/([^/]+)$", sub)
+            if mm: return prr.get_supplier(mm.group(1), org, prs)
+            mm = re.match(r"/suppliers/([^/]+)/(approve|suspend|reinstate)$", sub)
+            if mm:
+                need(A_); sid, act = mm.groups(); fn = {"approve": prr.approve_supplier, "suspend": prr.suspend_supplier, "reinstate": prr.reinstate_supplier}[act]
+                return fn(sid, prr.NoteBody(**b), org, a, prs)
+            mm = re.match(r"/suppliers/([^/]+)/reviews$", sub)
+            if mm: need(P); return (201, prr.add_review(mm.group(1), prr.ReviewBody(**b), org, a, prs))
+            if sub == "/contracts" and m == "GET": return prr.contracts(org, prs)
+            if sub == "/contracts" and m == "POST": need(P); return (201, prr.draft_contract(prr.ContractBody(**b), org, a, prs))
+            mm = re.match(r"/contracts/([^/]+)$", sub)
+            if mm: return prr.get_contract(mm.group(1), org, prs)
+            mm = re.match(r"/contracts/([^/]+)/(approve|terminate)$", sub)
+            if mm:
+                need(A_); cid, act = mm.groups(); return (prr.approve_contract if act == "approve" else prr.terminate_contract)(cid, prr.NoteBody(**b), org, a, prs)
+            if sub == "/orders" and m == "GET": return prr.orders(qs.get("status"), qs.get("supplier_id"), org, prs)
+            if sub == "/orders" and m == "POST": need(P); return (201, prr.raise_order(prr.OrderBody(**b), org, a, prs))
+            mm = re.match(r"/orders/([^/]+)$", sub)
+            if mm: return prr.get_order(mm.group(1), org, prs)
+            mm = re.match(r"/orders/([^/]+)/(approve|reject)$", sub)
+            if mm: need(A_); oid, act = mm.groups(); return (prr.approve_order if act == "approve" else prr.reject_order)(oid, prr.NoteBody(**b), org, a, prs)
+            mm = re.match(r"/orders/([^/]+)/(cancel|close)$", sub)
+            if mm: need(P); oid, act = mm.groups(); return (prr.cancel_order if act == "cancel" else prr.close_order)(oid, prr.NoteBody(**b), org, a, prs)
+            mm = re.match(r"/orders/([^/]+)/deliveries$", sub)
+            if mm: need(P); return (201, prr.add_delivery(mm.group(1), prr.DeliveryBody(**b), org, a, prs))
+            mm = re.match(r"/orders/([^/]+)/invoices$", sub)
+            if mm: need(P); return (201, prr.add_invoice(mm.group(1), prr.InvoiceBody(**b), org, a, prs))
+            if sub == "/deliveries": return prr.deliveries(qs.get("order_id"), org, prs)
+            if sub == "/invoices": return prr.invoices(qs.get("status"), qs.get("order_id"), org, prs)
+            if sub == "/reviews": return prr.reviews(qs.get("supplier_id"), org, prs)
+            mm = re.match(r"/invoices/([^/]+)$", sub)
+            if mm: return prr.get_invoice(mm.group(1), org, prs)
+            mm = re.match(r"/invoices/([^/]+)/(approve|reject)$", sub)
+            if mm: need(A_); iid, act = mm.groups(); return (prr.approve_invoice if act == "approve" else prr.reject_invoice)(iid, prr.NoteBody(**b), org, a, prs)
+            mm = re.match(r"/invoices/([^/]+)/paid$", sub)
+            if mm: need(P); return prr.pay_invoice(mm.group(1), prr.PaidBody(**b), org, a, prs)
+        if path.startswith("/fpa"):
+            need(REPORTING_READ); sub = path[len("/fpa"):]; P, A_ = FPA_PREPARE, FPA_APPROVE
+            if sub == "/options": return fpr.options(org, fps)
+            if sub == "/overview": return fpr.overview(org, fps)
+            if sub == "/policy" and m == "GET": return fpr.policy(org, fps)
+            if sub == "/policy" and m == "PUT": need(A_); return fpr.set_policy(fpr.PolicyBody(**b), org, a, fps)
+            if sub == "/kpis" and m == "GET": return fpr.kpis(qs.get("status"), qs.get("owner"), org, fps)
+            if sub == "/kpis" and m == "POST": need(P); return (201, fpr.define_kpi(fpr.KpiBody(**b), org, a, fps))
+            mm = re.match(r"/kpis/([^/]+)$", sub)
+            if mm: return fpr.get_kpi(mm.group(1), org, fps)
+            mm = re.match(r"/kpis/([^/]+)/(approve|retire)$", sub)
+            if mm: need(A_); kid, act = mm.groups(); return (fpr.approve_kpi if act == "approve" else fpr.retire_kpi)(kid, fpr.NoteBody(**b), org, a, fps)
+            mm = re.match(r"/kpis/([^/]+)/accept$", sub)
+            if mm: need(P); return fpr.accept_ownership(mm.group(1), org, a, fps)
+            mm = re.match(r"/kpis/([^/]+)/owner$", sub)
+            if mm: need(A_); return fpr.change_owner(mm.group(1), fpr.OwnerBody(**b), org, a, fps)
+            mm = re.match(r"/kpis/([^/]+)/readings$", sub)
+            if mm: need(P); return (201, fpr.add_reading(mm.group(1), fpr.ReadingBody(**b), org, a, fps))
+            mm = re.match(r"/kpis/([^/]+)/readings/([^/]+)/(review|reject)$", sub)
+            if mm: need(A_); kid, rid, act = mm.groups(); return (fpr.review_reading if act == "review" else fpr.reject_reading)(kid, rid, fpr.NoteBody(**b), org, a, fps)
+            if sub == "/forecasts" and m == "GET": return fpr.forecasts(qs.get("status"), org, fps)
+            if sub == "/forecasts" and m == "POST": need(P); return (201, fpr.register_forecast(fpr.ForecastBody(**b), org, a, fps))
+            mm = re.match(r"/forecasts/([^/]+)$", sub)
+            if mm: return fpr.get_forecast(mm.group(1), org, fps)
+            mm = re.match(r"/forecasts/([^/]+)/withdraw$", sub)
+            if mm: need(P); return fpr.withdraw_forecast(mm.group(1), fpr.NoteBody(**b), org, a, fps)
+            mm = re.match(r"/forecasts/([^/]+)/actual$", sub)
+            if mm: need(P); return fpr.add_actual(mm.group(1), fpr.ActualBody(**b), org, a, fps)
+            mm = re.match(r"/forecasts/([^/]+)/actual/(confirm|reject)$", sub)
+            if mm: need(A_); fid, act = mm.groups(); return (fpr.confirm_actual if act == "confirm" else fpr.reject_actual)(fid, fpr.NoteBody(**b), org, a, fps)
+            if sub == "/accuracy": return fpr.accuracy(int(qs.get("min_lead_days", 0)), org, fps)
+        if path.startswith("/fincrime"):
+            need(FINCRIME_READ); sub = path[len("/fincrime"):]; P, A_ = FINCRIME_PREPARE, FINCRIME_APPROVE
+            if sub == "/options": return fcr.options(org, fcs)
+            if sub == "/overview": return fcr.overview(org, fcs)
+            if sub == "/policy" and m == "GET": return fcr.policy(org, fcs)
+            if sub == "/policy" and m == "PUT": need(A_); return fcr.set_policy(fcr.PolicyBody(**b), org, a, fcs)
+            if sub == "/alerts" and m == "GET": return fcr.alerts(qs.get("status"), org, fcs)
+            if sub == "/alerts" and m == "POST": need(P); return (201, fcr.raise_alert(fcr.AlertBody(**b), org, a, fcs))
+            mm = re.match(r"/alerts/([^/]+)/dismiss$", sub)
+            if mm: need(A_); return fcr.dismiss_alert(mm.group(1), fcr.ReasonBody(**b), org, a, fcs)
+            if sub == "/cases" and m == "GET": return fcr.cases(qs.get("status"), org, fcs)
+            if sub == "/cases" and m == "POST": need(P); return (201, fcr.open_case(fcr.CaseBody(**b), org, a, fcs))
+            mm = re.match(r"/cases/([^/]+)$", sub)
+            if mm: return fcr.get_case(mm.group(1), org, fcs)
+            mm = re.match(r"/cases/([^/]+)/declaration$", sub)
+            if mm: return fcr.declare_interest(mm.group(1), fcr.DeclareBody(**b), org, a, fcs)
+            mm = re.match(r"/cases/([^/]+)/lead$", sub)
+            if mm: need(A_); return fcr.change_lead(mm.group(1), fcr.LeadBody(**b), org, a, fcs)
+            mm = re.match(r"/cases/([^/]+)/events$", sub)
+            if mm: need(P); return (201, fcr.add_event(mm.group(1), fcr.EventBody(**b), org, a, fcs))
+            mm = re.match(r"/cases/([^/]+)/screenings$", sub)
+            if mm: need(P); return (201, fcr.record_screening(mm.group(1), fcr.ScreeningBody(**b), org, a, fcs))
+            mm = re.match(r"/cases/([^/]+)/screenings/([^/]+)/resolve$", sub)
+            if mm: need(A_); return fcr.resolve_screening(mm.group(1), mm.group(2), fcr.ResolveBody(**b), org, a, fcs)
+            mm = re.match(r"/cases/([^/]+)/losses$", sub)
+            if mm: need(P); return (201, fcr.record_loss(mm.group(1), fcr.LossBody(**b), org, a, fcs))
+            mm = re.match(r"/cases/([^/]+)/recoveries$", sub)
+            if mm: need(P); return (201, fcr.record_recovery(mm.group(1), fcr.RecoveryBody(**b), org, a, fcs))
+            mm = re.match(r"/cases/([^/]+)/recoveries/([^/]+)/(confirm|reject)$", sub)
+            if mm:
+                need(A_); cid, rid, act = mm.groups()
+                return fcr.confirm_recovery(cid, rid, org, a, fcs) if act == "confirm" else fcr.reject_recovery(cid, rid, fcr.ReasonBody(**b), org, a, fcs)
+            mm = re.match(r"/cases/([^/]+)/decision$", sub)
+            if mm: need(P); return fcr.propose_decision(mm.group(1), fcr.DecisionBody(**b), org, a, fcs)
+            mm = re.match(r"/cases/([^/]+)/decision/(approve|reject)$", sub)
+            if mm:
+                need(A_); cid, act = mm.groups()
+                return fcr.approve_decision(cid, fcr.NoteBody(**b), org, a, fcs) if act == "approve" else fcr.reject_decision(cid, fcr.ReasonBody(**b), org, a, fcs)
+            mm = re.match(r"/cases/([^/]+)/reopen$", sub)
+            if mm: need(A_); return fcr.reopen_case(mm.group(1), fcr.ReasonBody(**b), org, a, fcs)
+        if path.startswith("/treasury"):
+            need(REPORTING_READ); sub = path[len("/treasury"):]; P, A_ = TREASURY_PREPARE, TREASURY_APPROVE
+            if sub == "/options": return trr.options(org, trs)
+            if sub == "/overview": return trr.overview(org, trs)
+            if sub == "/position": return trr.position(org, trs)
+            if sub == "/forecast": return trr.forecast(int(qs.get("weeks", 13)), qs.get("include_possible") == "true", org, trs)
+            if sub == "/forecast-accuracy": return trr.accuracy(org, trs)
+            if sub == "/policy" and m == "GET": return trr.policy(org, trs)
+            if sub == "/policy" and m == "PUT": need(A_); return trr.set_policy(trr.PolicyBody(**b), org, a, trs)
+            if sub == "/accounts" and m == "GET": return trr.accounts(org, trs)
+            if sub == "/accounts" and m == "POST": need(P); return (201, trr.open_account(trr.AccountBody(**b), org, a, trs))
+            mm = re.match(r"/accounts/([^/]+)$", sub)
+            if mm and m == "GET": return trr.get_account(mm.group(1), org, trs)
+            mm = re.match(r"/accounts/([^/]+)/close$", sub)
+            if mm: need(P); return trr.close_account(mm.group(1), trr.NoteBody(**b), org, a, trs)
+            mm = re.match(r"/accounts/([^/]+)/balances$", sub)
+            if mm: need(P); return (201, trr.add_balance(mm.group(1), trr.BalanceBody(**b), org, a, trs))
+            mm = re.match(r"/accounts/([^/]+)/balances/([^/]+)/confirm$", sub)
+            if mm: need(A_); return trr.confirm_balance(mm.group(1), mm.group(2), org, a, trs)
+            if sub == "/flows" and m == "GET": return trr.flows(qs.get("status"), qs.get("currency"), org, trs)
+            if sub == "/flows" and m == "POST": need(P); return (201, trr.add_flow(trr.FlowBody(**b), org, a, trs))
+            mm = re.match(r"/flows/([^/]+)$", sub)
+            if mm and m == "GET": return trr.get_flow(mm.group(1), org, trs)
+            if mm and m == "PUT": need(P); return trr.change_flow(mm.group(1), trr.FlowChangeBody(**b), org, a, trs)
+            mm = re.match(r"/flows/([^/]+)/(realise|cancel)$", sub)
+            if mm:
+                need(P); fid, act = mm.groups()
+                return trr.realise_flow(fid, trr.RealiseBody(**b), org, a, trs) if act == "realise" else trr.cancel_flow(fid, trr.NoteBody(**b), org, a, trs)
+            if sub == "/payments" and m == "GET": return trr.payments(qs.get("status"), org, trs)
+            if sub == "/payments" and m == "POST": need(P); return (201, trr.request_payment(trr.PaymentBody(**b), org, a, trs))
+            mm = re.match(r"/payments/([^/]+)$", sub)
+            if mm and m == "GET": return trr.get_payment(mm.group(1), org, trs)
+            mm = re.match(r"/payments/([^/]+)/(approve|reject|cancel|release)$", sub)
+            if mm:
+                pid, act = mm.groups(); need(A_ if act in ("approve", "reject") else P)
+                if act == "release": return trr.release_payment(pid, trr.ReleaseBody(**b), org, a, trs)
+                return getattr(trr, act + "_payment")(pid, trr.NoteBody(**b), org, a, trs)
+            if sub == "/covenants" and m == "GET": return trr.covenants(org, trs)
+            if sub == "/covenants" and m == "POST": need(P); return (201, trr.add_covenant(trr.CovenantBody(**b), org, a, trs))
+            mm = re.match(r"/covenants/([^/]+)$", sub)
+            if mm and m == "GET": return trr.get_covenant(mm.group(1), org, trs)
+            mm = re.match(r"/covenants/([^/]+)/retire$", sub)
+            if mm: need(P); return trr.retire_covenant(mm.group(1), trr.NoteBody(**b), org, a, trs)
+            mm = re.match(r"/covenants/([^/]+)/results$", sub)
+            if mm: need(P); return (201, trr.add_result(mm.group(1), trr.ResultBody(**b), org, a, trs))
+            mm = re.match(r"/covenants/([^/]+)/results/([^/]+)/acknowledge$", sub)
+            if mm: need(A_); return trr.acknowledge(mm.group(1), mm.group(2), trr.AckBody(**b), org, a, trs)
         if path.startswith("/proof-links"):
             need(AUDIT_READ)
             if path == "/proof-links/vocabulary": return plr.vocabulary()

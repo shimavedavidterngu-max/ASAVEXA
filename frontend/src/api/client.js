@@ -627,6 +627,97 @@ export class ApiClient {
     return { blob: await response.blob(), filename: (/filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "") || [])[1] || "pipeline-report.csv" };
   }
 
+  // ---- Treasury (src/asavexa/api/routers/treasury.py) ----
+  trOptions() { return this.get("/treasury/options"); }
+  trOverview() { return this.get("/treasury/overview"); }
+  setTrPolicy(body) { return this.put("/treasury/policy", body); }
+  trForecast(weeks, includePossible) { return this.get("/treasury/forecast", { weeks: weeks || 13, include_possible: includePossible ? "true" : "false" }); }
+  trAccuracy() { return this.get("/treasury/forecast-accuracy"); }
+  trAccounts() { return this.get("/treasury/accounts"); }
+  trAccount(id) { return this.get(`/treasury/accounts/${encodeURIComponent(id)}`); }
+  openTrAccount(body) { return this.post("/treasury/accounts", body); }
+  closeTrAccount(id, note) { return this.post(`/treasury/accounts/${encodeURIComponent(id)}/close`, { note: note || "" }); }
+  addTrBalance(id, body) { return this.post(`/treasury/accounts/${encodeURIComponent(id)}/balances`, body); }
+  confirmTrBalance(id, bid) { return this.post(`/treasury/accounts/${encodeURIComponent(id)}/balances/${encodeURIComponent(bid)}/confirm`); }
+  trFlows(status) { return this.get("/treasury/flows", { status: status || undefined }); }
+  addTrFlow(body) { return this.post("/treasury/flows", body); }
+  realiseTrFlow(id, body) { return this.post(`/treasury/flows/${encodeURIComponent(id)}/realise`, body); }
+  cancelTrFlow(id, note) { return this.post(`/treasury/flows/${encodeURIComponent(id)}/cancel`, { note: note || "" }); }
+  trPayments(status) { return this.get("/treasury/payments", { status: status || undefined }); }
+  requestTrPayment(body) { return this.post("/treasury/payments", body); }
+  trPaymentStep(id, step, body) { return this.post(`/treasury/payments/${encodeURIComponent(id)}/${step}`, body || { note: "" }); }
+  trCovenants() { return this.get("/treasury/covenants"); }
+  addTrCovenant(body) { return this.post("/treasury/covenants", body); }
+  retireTrCovenant(id, note) { return this.post(`/treasury/covenants/${encodeURIComponent(id)}/retire`, { note: note || "" }); }
+  addTrResult(id, body) { return this.post(`/treasury/covenants/${encodeURIComponent(id)}/results`, body); }
+  ackTrBreach(id, rid, body) { return this.post(`/treasury/covenants/${encodeURIComponent(id)}/results/${encodeURIComponent(rid)}/acknowledge`, body); }
+
+  // ---- Procurement (src/asavexa/api/routers/procurement.py) ----
+  pcOptions() { return this.get("/procurement/options"); }
+  pcOverview() { return this.get("/procurement/overview"); }
+  setPcPolicy(body) { return this.put("/procurement/policy", body); }
+  pcSuppliers() { return this.get("/procurement/suppliers"); }
+  pcSupplier(id) { return this.get(`/procurement/suppliers/${encodeURIComponent(id)}`); }
+  registerPcSupplier(body) { return this.post("/procurement/suppliers", body); }
+  pcSupplierStep(id, step, note) { return this.post(`/procurement/suppliers/${encodeURIComponent(id)}/${step}`, { note: note || "" }); }
+  pcContracts() { return this.get("/procurement/contracts"); }
+  draftPcContract(body) { return this.post("/procurement/contracts", body); }
+  pcContractStep(id, step, note) { return this.post(`/procurement/contracts/${encodeURIComponent(id)}/${step}`, { note: note || "" }); }
+  pcOrders(status) { return this.get("/procurement/orders", { status: status || undefined }); }
+  pcOrder(id) { return this.get(`/procurement/orders/${encodeURIComponent(id)}`); }
+  raisePcOrder(body) { return this.post("/procurement/orders", body); }
+  pcOrderStep(id, step, note) { return this.post(`/procurement/orders/${encodeURIComponent(id)}/${step}`, { note: note || "" }); }
+  pcDeliveries() { return this.get("/procurement/deliveries"); }
+  addPcDelivery(orderId, body) { return this.post(`/procurement/orders/${encodeURIComponent(orderId)}/deliveries`, body); }
+  pcInvoices() { return this.get("/procurement/invoices"); }
+  addPcInvoice(orderId, body) { return this.post(`/procurement/orders/${encodeURIComponent(orderId)}/invoices`, body); }
+  pcInvoiceStep(id, step, note) { return this.post(`/procurement/invoices/${encodeURIComponent(id)}/${step}`, { note: note || "" }); }
+  payPcInvoice(id, body) { return this.post(`/procurement/invoices/${encodeURIComponent(id)}/paid`, body); }
+  pcReviews() { return this.get("/procurement/reviews"); }
+  addPcReview(supplierId, body) { return this.post(`/procurement/suppliers/${encodeURIComponent(supplierId)}/reviews`, body); }
+
+  // ---- Planning and KPIs (src/asavexa/api/routers/fpa.py) ----
+  fpOptions() { return this.get("/fpa/options"); }
+  fpOverview() { return this.get("/fpa/overview"); }
+  setFpPolicy(body) { return this.put("/fpa/policy", body); }
+  fpKpis() { return this.get("/fpa/kpis"); }
+  fpKpi(id) { return this.get(`/fpa/kpis/${encodeURIComponent(id)}`); }
+  defineFpKpi(body) { return this.post("/fpa/kpis", body); }
+  fpKpiStep(id, step, note) { return this.post(`/fpa/kpis/${encodeURIComponent(id)}/${step}`, { note: note || "" }); }
+  acceptFpKpi(id) { return this.post(`/fpa/kpis/${encodeURIComponent(id)}/accept`); }
+  changeFpOwner(id, body) { return this.post(`/fpa/kpis/${encodeURIComponent(id)}/owner`, body); }
+  addFpReading(id, body) { return this.post(`/fpa/kpis/${encodeURIComponent(id)}/readings`, body); }
+  fpReadingStep(kid, rid, step, note) { return this.post(`/fpa/kpis/${encodeURIComponent(kid)}/readings/${encodeURIComponent(rid)}/${step}`, { note: note || "" }); }
+  fpForecasts(status) { return this.get("/fpa/forecasts", { status: status || undefined }); }
+  registerFpForecast(body) { return this.post("/fpa/forecasts", body); }
+  fpForecastStep(id, step, note) { return this.post(`/fpa/forecasts/${encodeURIComponent(id)}/${step}`, { note: note || "" }); }
+  addFpActual(id, body) { return this.post(`/fpa/forecasts/${encodeURIComponent(id)}/actual`, body); }
+  fpAccuracy(minLeadDays) { return this.get("/fpa/accuracy", { min_lead_days: minLeadDays || 0 }); }
+
+  // ---- Financial-crime casework (src/asavexa/api/routers/fincrime.py) ----
+  fcOptions() { return this.get("/fincrime/options"); }
+  fcOverview() { return this.get("/fincrime/overview"); }
+  setFcPolicy(body) { return this.put("/fincrime/policy", body); }
+  fcAlerts() { return this.get("/fincrime/alerts"); }
+  raiseFcAlert(body) { return this.post("/fincrime/alerts", body); }
+  dismissFcAlert(id, reason) { return this.post(`/fincrime/alerts/${encodeURIComponent(id)}/dismiss`, { reason: reason || "" }); }
+  fcCases() { return this.get("/fincrime/cases"); }
+  fcCase(id) { return this.get(`/fincrime/cases/${encodeURIComponent(id)}`); }
+  openFcCase(body) { return this.post("/fincrime/cases", body); }
+  declareFc(id, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/declaration`, body); }
+  changeFcLead(id, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/lead`, body); }
+  addFcEvent(id, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/events`, body); }
+  recordFcScreening(id, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/screenings`, body); }
+  resolveFcScreening(id, sid, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/screenings/${encodeURIComponent(sid)}/resolve`, body); }
+  recordFcLoss(id, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/losses`, body); }
+  recordFcRecovery(id, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/recoveries`, body); }
+  confirmFcRecovery(id, rid) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/recoveries/${encodeURIComponent(rid)}/confirm`); }
+  rejectFcRecovery(id, rid, reason) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/recoveries/${encodeURIComponent(rid)}/reject`, { reason: reason || "" }); }
+  proposeFcDecision(id, body) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/decision`, body); }
+  approveFcDecision(id, note) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/decision/approve`, { note: note || "" }); }
+  rejectFcDecision(id, reason) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/decision/reject`, { reason: reason || "" }); }
+  reopenFcCase(id, reason) { return this.post(`/fincrime/cases/${encodeURIComponent(id)}/reopen`, { reason: reason || "" }); }
+
   // ---- Cybersecurity (src/asavexa/api/routers/cyber.py) ----
   cyOptions() { return this.get("/cyber/options"); }
   cyOverview() { return this.get("/cyber/overview"); }

@@ -70,6 +70,14 @@ import * as PF from "./lib/pubfin.js";
 import { Bizdev } from "./pages/Bizdev.js";
 import * as BD from "./lib/bizdev.js";
 import { Cyber } from "./pages/Cyber.js";
+import { Treasury } from "./pages/Treasury.js";
+import * as TR from "./lib/treasury.js";
+import { Procurement } from "./pages/Procurement.js";
+import * as PC from "./lib/procurement.js";
+import { Fpa } from "./pages/Fpa.js";
+import * as FP from "./lib/fpa.js";
+import { Fincrime } from "./pages/Fincrime.js";
+import * as FX from "./lib/fincrime.js";
 import * as CY from "./lib/cyber.js";
 import { Health } from "./pages/Health.js";
 import * as HC from "./lib/health.js";
@@ -139,6 +147,10 @@ const NAV_ITEMS = [
   { path: "/pubfin", label: "Public Finance", permission: PERMISSIONS.REPORTING_READ },
   { path: "/bizdev", label: "Business Development", permission: PERMISSIONS.REPORTING_READ },
   { path: "/cyber", label: "Cybersecurity", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/treasury", label: "Treasury and Cash", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/procurement", label: "Procurement", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/fpa", label: "Planning and KPIs", permission: PERMISSIONS.REPORTING_READ },
+  { path: "/fincrime", label: "Financial-crime casework", permission: PERMISSIONS.FINCRIME_READ },
   { path: "/health", label: "Health Centre", permission: PERMISSIONS.HEALTH_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
@@ -188,6 +200,10 @@ const routes = [
   { path: "/pubfin", name: "pubfin" },
   { path: "/bizdev", name: "bizdev" },
   { path: "/cyber", name: "cyber" },
+  { path: "/treasury", name: "treasury" },
+  { path: "/procurement", name: "procurement" },
+  { path: "/fpa", name: "fpa" },
+  { path: "/fincrime", name: "fincrime" },
   { path: "/health", name: "health" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
@@ -765,6 +781,10 @@ function renderPage(matched, authState) {
   if (name === "pubfin") return renderPubfinPage(authState);
   if (name === "bizdev") return renderBizdevPage(authState);
   if (name === "cyber") return renderCyberPage(authState);
+  if (name === "treasury") return renderTreasuryPage(authState);
+  if (name === "procurement") return renderProcurementPage(authState);
+  if (name === "fpa") return renderFpaPage(authState);
+  if (name === "fincrime") return renderFincrimePage(authState);
   if (name === "health") return renderHealthPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
@@ -1115,7 +1135,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -4249,6 +4269,312 @@ function bizdevActions() {
     submitReport: () => run(async () => { await api.submitBdReport(bd.report.id); await refresh(); }, "Frozen and submitted. A different person must now approve it."),
     decideReport: (ok) => { if (!ok) { const p = need("report", "a note saying why you are sending it back", 3); if (p) return fail(p); } return run(async () => { await (ok ? api.approveBdReport(bd.report.id, note("report")) : api.rejectBdReport(bd.report.id, note("report"))); bd.notes.report = ""; await refresh(); }, ok ? "Report approved." : "Sent back."); },
     exportReport: () => run(async () => { const { blob, filename } = await api.exportBdReport(bd.report.id); saveBlob(blob, filename); }, "Downloaded."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Treasury and Cash (Stage 16): records and checks; never moves money
+// ----------------------------------------------------------------------
+function newTr() {
+  return { tab: "overview", options: null, ov: null, accounts: [], flows: [], payments: [], covenants: [], vault: [], forecast: null, accuracy: null, weeks: 13, possible: false, acct: null, payFilter: "",
+    forms: { account: { ...TR.EMPTY.account }, balance: { ...TR.EMPTY.balance }, flow: { ...TR.EMPTY.flow }, payment: { ...TR.EMPTY.payment }, covenant: { ...TR.EMPTY.covenant }, realise: { actual_amount: "", actual_date: "" }, policy: null },
+    notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderTreasuryPage(authState) {
+  if (!uiState.tr) uiState.tr = newTr();
+  once("trLoading", () => loadTreasury());
+  return Treasury({ tr: uiState.tr, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.trLoading, onRetry: () => { loadedOnce.delete("trLoading"); render(); }, actions: treasuryActions() });
+}
+
+async function treasuryRefresh(tr) {
+  [tr.options, tr.ov, tr.accounts, tr.flows, tr.payments, tr.covenants, tr.accuracy] = await Promise.all([api.trOptions(), api.trOverview(), api.trAccounts(), api.trFlows(), api.trPayments(tr.payFilter), api.trCovenants(), api.trAccuracy()]);
+  tr.forms.policy = TR.policyForm(tr.ov.policy);
+  if (tr.acct) tr.acct = await api.trAccount(tr.acct.id);
+  if (tr.forecast) tr.forecast = await api.trForecast(tr.weeks, tr.possible);
+}
+
+async function loadTreasury() {
+  const tr = uiState.tr || (uiState.tr = newTr());
+  tr.error = null;
+  try {
+    await treasuryRefresh(tr);
+    tr.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { tr.error = err.message || "Treasury could not be loaded."; }
+}
+
+function treasuryActions() {
+  const tr = uiState.tr;
+  const run = async (fn, ok) => { tr.error = null; tr.notice = null; tr.formError = null; tr.busy = true; render(); try { await fn(); if (ok) tr.notice = ok; } catch (err) { tr.error = err.message || "That did not work."; } tr.busy = false; render(); };
+  const problem = (form, text) => { tr.formError = { form, text }; tr.notice = null; tr.error = null; render(); };
+  const fail = (text) => { tr.formError = null; tr.notice = null; tr.error = text; render(); };      // for buttons that sit in rows an approver sees
+  const refresh = () => treasuryRefresh(tr);
+  const note = (k) => tr.notes[k] || "";
+  const reset = (name) => { tr.forms[name] = { ...TR.EMPTY[name] }; };
+  return {
+    setTab: (t) => run(async () => { tr.tab = t; tr.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { tr.forms[name] = { ...(tr.forms[name] || {}), [k]: v }; if (name === "flow" && k === "account_id") tr.forms.flow.currency = ""; tr.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { tr.notes[k] = v; },
+    savePolicy: () => { const r = TR.policyPayload(tr.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setTrPolicy(r.body); await refresh(); }, "Policy saved. It applies from now on."); },
+    // accounts
+    selectAccount: (id) => run(async () => { tr.acct = id ? await api.trAccount(id) : null; reset("balance"); tr.notes = {}; }),
+    openAccount: () => { const r = TR.accountPayload(tr.forms.account); if (r.problem) return problem("account", r.problem); return run(async () => { const c = await api.openTrAccount(r.body); reset("account"); tr.acct = c; await refresh(); }, "Account opened. Record its balance next."); },
+    recordBalance: (id) => { const r = TR.balancePayload(tr.forms.balance); if (r.problem) return problem("balance", r.problem); return run(async () => { await api.addTrBalance(id, r.body); reset("balance"); await refresh(); }, "Balance recorded. A different person must confirm it."); },
+    confirmBalance: (id, bid) => run(async () => { await api.confirmTrBalance(id, bid); await refresh(); }, "Balance confirmed."),
+    closeAccount: (id) => { const p = TR.noteProblem(note("close-account"), "A reason", 5); if (p) return problem("balance", p); return run(async () => { await api.closeTrAccount(id, note("close-account").trim()); tr.acct = null; tr.notes = {}; await refresh(); }, "Account closed."); },
+    // forecast and cash flows
+    setWeeks: (w) => { tr.weeks = w; },
+    setPossible: (v) => { tr.possible = !!v; },
+    runForecast: () => run(async () => { tr.forecast = await api.trForecast(tr.weeks, tr.possible); }),
+    addFlow: () => { const r = TR.flowPayload(tr.forms.flow); if (r.problem) return problem("flow", r.problem); return run(async () => { await api.addTrFlow(r.body); reset("flow"); await refresh(); }, "Expected cash flow added."); },
+    realiseFlow: (id) => { const f = tr.forms.realise, p = TR.amountProblem(f.actual_amount, "The amount that actually moved", { positive: true }) || (TR.isRealDate(f.actual_date) ? "" : "The date it happened must be a real date written YYYY-MM-DD."); if (p) return problem("realise", p);
+      return run(async () => { await api.realiseTrFlow(id, { actual_amount: f.actual_amount.replace(/,/g, "").trim(), actual_date: f.actual_date.trim() }); tr.forms.realise = { actual_amount: "", actual_date: "" }; await refresh(); }, "Marked as happened."); },
+    cancelFlow: (id) => { const p = TR.noteProblem(note("flow-note"), "A reason", 5); if (p) return problem("realise", p); return run(async () => { await api.cancelTrFlow(id, note("flow-note").trim()); tr.notes["flow-note"] = ""; await refresh(); }, "Cash flow cancelled."); },
+    // payments
+    filterPayments: (v) => run(async () => { tr.payFilter = v; tr.payments = await api.trPayments(v); }),
+    requestPayment: () => { const r = TR.paymentPayload(tr.forms.payment); if (r.problem) return problem("payment", r.problem); return run(async () => { const p = await api.requestTrPayment(r.body); reset("payment"); await refresh(); tr.notice = `Payment ${p.ref} requested${p.flags.length ? ` with ${p.flags.length} warning${p.flags.length > 1 ? "s" : ""}` : ""}. A different person must approve it.`; }); },
+    payStep: (id, step) => {
+      const n = note(`pay-${id}`).trim();
+      if ((step === "reject" || step === "cancel") && TR.noteProblem(n, "A reason", 5)) return fail(TR.noteProblem(n, "A reason", 5));
+      const body = step === "release" ? TR.releasePayload({ released_date: note(`reldate-${id}`), bank_reference: note(`relref-${id}`) }) : { body: { note: n } };
+      if (body.problem) return fail(body.problem);
+      return run(async () => { await api.trPaymentStep(id, step, body.body); tr.notes = {}; await refresh(); }, { approve: "Approval recorded.", reject: "Payment rejected.", cancel: "Request cancelled.", release: "Recorded as released." }[step]);
+    },
+    // covenants
+    addCovenant: () => { const r = TR.covenantPayload(tr.forms.covenant); if (r.problem) return problem("covenant", r.problem); return run(async () => { await api.addTrCovenant(r.body); reset("covenant"); await refresh(); }, "Covenant added."); },
+    addResult: (id) => { const name = `result-${id}`, f = tr.forms[name] || { ...TR.EMPTY.result }, r = TR.resultPayload(f); if (r.problem) return problem(name, r.problem);
+      return run(async () => { const c = await api.addTrResult(id, r.body); delete tr.forms[name]; await refresh(); tr.notice = c.latest_status === "BREACHED" ? "Result recorded. It is a breach, so a different person must acknowledge it." : `Result recorded: ${TR.label(c.latest_status).toLowerCase()}.`; }); },
+    acknowledge: (cid, rid) => { const k = `ack-${rid}`, n = note(k).trim(); if (TR.noteProblem(n, "Your note", 10)) return fail(TR.noteProblem(n, "Your note", 10));
+      return run(async () => { await api.ackTrBreach(cid, rid, { waiver_obtained: !!tr.notes[`${k}-waiver`], note: n }); tr.notes = {}; await refresh(); }, "Breach acknowledged. It stays on the record."); },
+    retireCovenant: (id) => { const p = TR.noteProblem(note(`retire-${id}`), "A reason", 5); if (p) return problem(`result-${id}`, p); return run(async () => { await api.retireTrCovenant(id, note(`retire-${id}`).trim()); tr.notes = {}; await refresh(); }, "Covenant retired."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Procurement (Stage 17): records and checks; never buys or pays
+// ----------------------------------------------------------------------
+function newPc() {
+  const f = () => JSON.parse(JSON.stringify(PC.EMPTY));
+  return { tab: "overview", options: null, ov: null, suppliers: [], contracts: [], orders: [], live: [], deliveries: [], invoices: [], reviews: [], released: [], orderFilter: "", sel: { supplier: null, order: null },
+    forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderProcurementPage(authState) {
+  if (!uiState.pc) uiState.pc = newPc();
+  once("pcLoading", () => loadProcurement());
+  return Procurement({ pc: uiState.pc, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.pcLoading, onRetry: () => { loadedOnce.delete("pcLoading"); render(); }, actions: procurementActions() });
+}
+
+async function procurementRefresh(pc) {
+  [pc.options, pc.ov, pc.suppliers, pc.contracts, pc.orders, pc.live, pc.deliveries, pc.invoices, pc.reviews] = await Promise.all([api.pcOptions(), api.pcOverview(), api.pcSuppliers(), api.pcContracts(), api.pcOrders(pc.orderFilter), api.pcOrders("APPROVED"), api.pcDeliveries(), api.pcInvoices(), api.pcReviews()]);
+  pc.forms.policy = PC.policyForm(pc.ov.policy);
+  if (pc.sel.supplier) pc.sel.supplier = await api.pcSupplier(pc.sel.supplier.id).catch(() => null);
+  if (pc.sel.order) pc.sel.order = await api.pcOrder(pc.sel.order.id).catch(() => null);
+  pc.released = await api.trPayments("RELEASED").catch(() => []);
+}
+
+async function loadProcurement() {
+  const pc = uiState.pc || (uiState.pc = newPc());
+  pc.error = null;
+  try { await procurementRefresh(pc); } catch (err) { pc.error = err.message || "Procurement could not be loaded."; }
+}
+
+function procurementActions() {
+  const pc = uiState.pc;
+  const run = async (fn, ok) => { pc.error = null; pc.notice = null; pc.formError = null; pc.busy = true; render(); try { await fn(); if (ok) pc.notice = ok; } catch (err) { pc.error = err.message || "That did not work."; } pc.busy = false; render(); };
+  const problem = (form, text) => { pc.formError = { form, text }; pc.notice = null; pc.error = null; render(); };
+  const fail = (text) => { pc.formError = null; pc.notice = null; pc.error = text; render(); };
+  const refresh = () => procurementRefresh(pc);
+  const note = (k) => (pc.notes[k] || "").trim();
+  const reset = (name) => { pc.forms[name] = JSON.parse(JSON.stringify(PC.EMPTY[name])); };
+  const step = (kind, id, m, call, extra) => {
+    const n = note(`${kind}-${id}`), min = PC.needsNote[m];
+    if (min && PC.noteProblem(n, "A reason", min)) return fail(PC.noteProblem(n, "A reason", min));
+    return run(async () => { await call(id, m, n); pc.notes = {}; await refresh(); }, extra[m]);
+  };
+  return {
+    setTab: (t) => run(async () => { pc.tab = t; pc.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { pc.forms[name] = { ...(pc.forms[name] || {}), [k]: v }; pc.formError = null;
+      if (name === "delivery" && k === "order_id") pc.forms.delivery = PC.prefillDelivery(pc.live.find((o) => o.id === v));
+      if (name === "invoice" && k === "order_id") pc.forms.invoice = PC.prefillInvoice(pc.live.find((o) => o.id === v));
+      if (name === "order" && k === "supplier_id") pc.forms.order.contract_id = "";
+      if (rerender) render(); },
+    setNote: (k, v) => { pc.notes[k] = v; },
+    setLine: (i, k, v) => { pc.forms.order.lines[i][k] = v; pc.formError = null; },
+    addLine: () => { pc.forms.order.lines.push({ description: "", qty: "", unit_price: "" }); render(); },
+    setQty: (form, n, v) => { pc.forms[form].qtys = { ...(pc.forms[form].qtys || {}), [n]: v }; pc.formError = null; },
+    setPrice: (n, v) => { pc.forms.invoice.prices = { ...(pc.forms.invoice.prices || {}), [n]: v }; pc.formError = null; },
+    savePolicy: () => { const r = PC.policyPayload(pc.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setPcPolicy(r.body); await refresh(); }, "Policy saved. It applies from now on."); },
+    // suppliers
+    selectSupplier: (id) => run(async () => { pc.sel.supplier = id ? await api.pcSupplier(id) : null; pc.notes = {}; }),
+    registerSupplier: () => { const r = PC.supplierPayload(pc.forms.supplier); if (r.problem) return problem("supplier", r.problem); return run(async () => { const s = await api.registerPcSupplier(r.body); reset("supplier"); await refresh(); pc.notice = `Supplier ${s.ref} registered. A different person must approve it.`; }); },
+    supplierStep: (id, m) => step("sup", id, m, (i, mm, n) => api.pcSupplierStep(i, mm, n), { approve: "Supplier approved.", suspend: "Supplier suspended.", reinstate: "Supplier reinstated." }),
+    // contracts
+    draftContract: () => { const r = PC.contractPayload(pc.forms.contract); if (r.problem) return problem("contract", r.problem); return run(async () => { const c = await api.draftPcContract(r.body); reset("contract"); await refresh(); pc.notice = `Contract ${c.ref} drafted. A different person must approve it.`; }); },
+    contractStep: (id, m) => step("con", id, m, (i, mm, n) => api.pcContractStep(i, mm, n), { approve: "Contract approved.", terminate: "Contract terminated." }),
+    // orders
+    filterOrders: (v) => run(async () => { pc.orderFilter = v; pc.orders = await api.pcOrders(v); }),
+    raiseOrder: () => { const r = PC.orderPayload(pc.forms.order); if (r.problem) return problem("order", r.problem); return run(async () => { const o = await api.raisePcOrder(r.body); reset("order"); await refresh(); pc.notice = `Order ${o.ref} raised${o.approvals_needed > 1 ? `. It needs ${o.approvals_needed} different approvers` : ". A different person must approve it"}.`; }); },
+    orderStep: (id, m) => step("po", id, m, (i, mm, n) => api.pcOrderStep(i, mm, n), { approve: "Approval recorded.", reject: "Order rejected.", cancel: "Order cancelled.", close: "Order closed." }),
+    selectOrder: (id) => run(async () => { pc.sel.order = id ? await api.pcOrder(id) : null; }),
+    // deliveries and invoices
+    addDelivery: () => { const f = pc.forms.delivery, r = PC.deliveryPayload(f); if (r.problem) return problem("delivery", r.problem); return run(async () => { const d = await api.addPcDelivery(f.order_id, r.body); reset("delivery"); await refresh(); pc.notice = `Delivery ${d.ref} recorded.`; }); },
+    addInvoice: () => { const f = pc.forms.invoice, r = PC.invoicePayload(f); if (r.problem) return problem("invoice", r.problem); return run(async () => { const i = await api.addPcInvoice(f.order_id, r.body); reset("invoice"); await refresh();
+      pc.notice = i.flags.length ? `Invoice ${i.ref} recorded as an exception: ${i.flags.map(PC.words).join(", ").toLowerCase()}. A different person must decide.` : `Invoice ${i.ref} matched the order and the deliveries. A different person must approve it.`; }); },
+    invoiceStep: (id, m) => {
+      if (m === "paid") { const r = PC.paidPayload({ treasury_payment_id: pc.notes[`link-${id}`], paid_date: pc.notes[`paiddate-${id}`], bank_reference: pc.notes[`paidref-${id}`] }); if (r.problem) return fail(r.problem); return run(async () => { await api.payPcInvoice(id, r.body); pc.notes = {}; await refresh(); }, "Payment recorded."); }
+      const inv = pc.invoices.find((x) => x.id === id), n = note(`iv-${id}`);
+      if (m === "approve" && PC.overrideNeeded(inv) && PC.noteProblem(n, "Your reason for accepting the exception", 10)) return fail(PC.noteProblem(n, "Your reason for accepting the exception", 10));
+      if (m === "reject" && PC.noteProblem(n, "A reason", 5)) return fail(PC.noteProblem(n, "A reason", 5));
+      return run(async () => { await api.pcInvoiceStep(id, m, n); pc.notes = {}; await refresh(); }, m === "approve" ? "Invoice approved." : "Invoice rejected.");
+    },
+    // reviews
+    addReview: () => { const f = pc.forms.review, r = PC.reviewPayload(f); if (r.problem) return problem("review", r.problem); return run(async () => { const x = await api.addPcReview(f.supplier_id, r.body); reset("review"); await refresh(); pc.notice = `Review ${x.ref} saved. Average ${x.average} of 5.`; }); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Planning and KPIs (Stage 18): records and checks; never calculates or verifies
+// ----------------------------------------------------------------------
+function newFp() {
+  const f = () => JSON.parse(JSON.stringify(FP.EMPTY));
+  return { tab: "overview", options: null, ov: null, kpis: [], forecasts: [], accuracy: null, members: [], vault: [], forecastFilter: "", minLead: 0, sel: { kpi: null },
+    forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderFpaPage(authState) {
+  if (!uiState.fp) uiState.fp = newFp();
+  once("fpLoading", () => loadFpa(authState));
+  return Fpa({ fp: uiState.fp, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.fpLoading, onRetry: () => { loadedOnce.delete("fpLoading"); render(); }, actions: fpaActions(authState) });
+}
+
+async function fpaRefresh(fp) {
+  [fp.options, fp.ov, fp.kpis, fp.forecasts, fp.accuracy] = await Promise.all([api.fpOptions(), api.fpOverview(), api.fpKpis(), api.fpForecasts(fp.forecastFilter), api.fpAccuracy(fp.minLead)]);
+  fp.forms.policy = FP.policyForm(fp.ov.policy);
+  if (fp.sel.kpi) fp.sel.kpi = await api.fpKpi(fp.sel.kpi.id).catch(() => null);
+}
+
+async function loadFpa(authState) {
+  const fp = uiState.fp || (uiState.fp = newFp());
+  fp.error = null;
+  try {
+    await fpaRefresh(fp);
+    try { fp.members = await api.listMembers(authState.organisationId); } catch (_) { fp.members = []; }
+    fp.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { fp.error = err.message || "Planning and KPIs could not be loaded."; }
+}
+
+function fpaActions(authState) {
+  const fp = uiState.fp;
+  const run = async (fn, ok) => { fp.error = null; fp.notice = null; fp.formError = null; fp.busy = true; render(); try { await fn(); if (ok) fp.notice = ok; } catch (err) { fp.error = err.message || "That did not work."; } fp.busy = false; render(); };
+  const problem = (form, text) => { fp.formError = { form, text }; fp.notice = null; fp.error = null; render(); };
+  const fail = (text) => { fp.formError = null; fp.notice = null; fp.error = text; render(); };
+  const refresh = () => fpaRefresh(fp);
+  const note = (k) => (fp.notes[k] || "").trim();
+  const reset = (name) => { fp.forms[name] = JSON.parse(JSON.stringify(FP.EMPTY[name])); };
+  const needNote = (n, m) => { const min = FP.minNote[m]; return min ? FP.noteProblem(n, "A reason", min) : ""; };
+  return {
+    setTab: (t) => run(async () => { fp.tab = t; fp.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { fp.forms[name] = { ...(fp.forms[name] || {}), [k]: v }; fp.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { fp.notes[k] = v; },
+    savePolicy: () => { const r = FP.policyPayload(fp.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setFpPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    // KPIs
+    selectKpi: (id) => run(async () => { fp.sel.kpi = id ? await api.fpKpi(id) : null; fp.notes = {}; fp.forms.reading = { ...FP.EMPTY.reading, period_end: (fp.sel.kpi && fp.sel.kpi.next_period_end) || "" }; }),
+    defineKpi: () => { const r = FP.kpiPayload(fp.forms.kpi); if (r.problem) return problem("kpi", r.problem); return run(async () => { const k = await api.defineFpKpi(r.body); reset("kpi"); await refresh(); fp.notice = `KPI ${k.ref} defined. A different person must approve the target, and the owner must accept ownership.`; }); },
+    kpiStep: (id, m) => {
+      const n = note(`kpi-${id}`), p = needNote(n, m); if (p) return fail(p);
+      if (m === "accept") return run(async () => { await api.acceptFpKpi(id); await refresh(); }, "Ownership accepted. You can now record readings.");
+      return run(async () => { await api.fpKpiStep(id, m, n); fp.notes = {}; await refresh(); }, m === "approve" ? "KPI approved." : "KPI retired.");
+    },
+    changeOwner: (id) => { const r = FP.reassignPayload(fp.forms.reassign); if (r.problem) return problem(`owner-${id}`, r.problem); return run(async () => { await api.changeFpOwner(id, r.body); fp.forms.reassign = { ...FP.EMPTY.reassign }; await refresh(); }, "Owner changed. The new owner must accept before recording readings."); },
+    recordReading: (id) => { const k = fp.sel.kpi, r = FP.readingPayload(fp.forms.reading, k.unit); if (r.problem) return problem("reading", r.problem); return run(async () => { const x = await api.addFpReading(id, r.body); fp.forms.reading = { ...FP.EMPTY.reading }; await refresh(); fp.notice = `Reading ${x.ref} recorded. A different person must review it.`; }); },
+    readingStep: (kid, rid, m) => {
+      const n = note(`rd-${kid}`), p = needNote(n, m); if (p) return fail(p);
+      return run(async () => { await api.fpReadingStep(kid, rid, m, n); fp.notes = {}; await refresh(); }, m === "review" ? "Reading reviewed." : "Reading rejected. The owner can record it again.");
+    },
+    // forecasts
+    filterForecasts: (v) => run(async () => { fp.forecastFilter = v; fp.forecasts = await api.fpForecasts(v); }),
+    registerForecast: () => { const r = FP.forecastPayload(fp.forms.forecast); if (r.problem) return problem("forecast", r.problem); return run(async () => { const f = await api.registerFpForecast(r.body); reset("forecast"); await refresh(); fp.notice = `Forecast ${f.ref} registered on ${f.made_on}. It cannot be changed, only withdrawn.`; }); },
+    forecastStep: (id, m) => {
+      const x = fp.forecasts.find((f) => f.id === id), n = note(`fc-${id}`);
+      if (m === "actual") { const r = FP.actualPayload({ value: fp.notes[`actval-${id}`], source_note: fp.notes[`actsrc-${id}`], evidence_id: fp.notes[`actdoc-${id}`] }, x.unit); if (r.problem) return fail(r.problem); return run(async () => { await api.addFpActual(id, r.body); fp.notes = {}; await refresh(); }, "Actual recorded. A third person must confirm it."); }
+      const p = m === "reject" || m === "withdraw" ? FP.noteProblem(n, "A reason", 5) : ""; if (p) return fail(p);
+      const step = { withdraw: "withdraw", confirm: "actual/confirm", reject: "actual/reject" }[m];
+      return run(async () => { await api.fpForecastStep(id, step, n); fp.notes = {}; await refresh(); }, { withdraw: "Forecast withdrawn.", confirm: "Actual confirmed. It now counts towards accuracy.", reject: "Actual rejected. The forecast is waiting for the right figure." }[m]);
+    },
+    setMinLead: (n) => run(async () => { fp.minLead = n; fp.accuracy = await api.fpAccuracy(n); }),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Financial-crime casework (Stage 19): records and checks; never screens, monitors or files
+// ----------------------------------------------------------------------
+function newFx() {
+  const f = () => JSON.parse(JSON.stringify(FX.EMPTY));
+  return { tab: "overview", options: null, ov: null, alerts: [], cases: [], sel: { case: null }, members: [], vault: [], forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderFincrimePage(authState) {
+  if (!uiState.fx) uiState.fx = newFx();
+  once("fxLoading", () => loadFincrime(authState));
+  return Fincrime({ fc: uiState.fx, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.fxLoading, onRetry: () => { loadedOnce.delete("fxLoading"); render(); }, actions: fincrimeActions(authState) });
+}
+
+async function fincrimeRefresh(fx) {
+  [fx.options, fx.ov, fx.alerts, fx.cases] = await Promise.all([api.fcOptions(), api.fcOverview(), api.fcAlerts(), api.fcCases()]);
+  fx.forms.policy = FX.policyForm(fx.ov.policy);
+  if (fx.sel.case) fx.sel.case = await api.fcCase(fx.sel.case.id).catch(() => null);
+}
+
+async function loadFincrime(authState) {
+  const fx = uiState.fx || (uiState.fx = newFx());
+  fx.error = null;
+  try {
+    await fincrimeRefresh(fx);
+    try { fx.members = await api.listMembers(authState.organisationId); } catch (_) { fx.members = []; }
+    fx.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { fx.error = err.message || "Financial-crime casework could not be loaded."; }
+}
+
+function fincrimeActions(authState) {
+  const fx = uiState.fx;
+  const run = async (fn, ok) => { fx.error = null; fx.notice = null; fx.formError = null; fx.busy = true; render(); try { await fn(); if (ok) fx.notice = ok; } catch (err) { fx.error = err.message || "That did not work."; } fx.busy = false; render(); };
+  const problem = (form, text) => { fx.formError = { form, text }; fx.notice = null; fx.error = null; render(); };
+  const fail = (text) => { fx.formError = null; fx.notice = null; fx.error = text; render(); };
+  const refresh = () => fincrimeRefresh(fx);
+  const reset = (name) => { fx.forms[name] = JSON.parse(JSON.stringify(FX.EMPTY[name])); };
+  const note = (k) => (fx.notes[k] || "").trim();
+  const act = (form, build, call, ok, after) => { const r = build(fx.forms[form]); if (r.problem) return problem(form, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { fx.tab = t; fx.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { fx.forms[name] = { ...(fx.forms[name] || {}), [k]: v }; fx.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { fx.notes[k] = v; },
+    toggleAlert: (id, on) => { const cur = fx.forms.casef.alert_ids || []; fx.forms.casef = { ...fx.forms.casef, alert_ids: on ? [...new Set([...cur, id])] : cur.filter((x) => x !== id) }; },
+    savePolicy: () => { const r = FX.policyPayload(fx.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setFcPolicy(r.body); await refresh(); }, "Targets saved. They apply from now on."); },
+    raiseAlert: () => act("alert", FX.alertPayload, (b) => api.raiseFcAlert(b), "Alert raised.", () => reset("alert")),
+    dismissAlert: (id) => { const n = note(`al-${id}`), p = FX.noteProblem(n, "A reason", FX.minNote.dismiss); if (p) return fail(p); return run(async () => { await api.dismissFcAlert(id, n); fx.notes = {}; await refresh(); }, "Alert dismissed. The reason is kept."); },
+    selectCase: (id) => run(async () => { fx.sel.case = id ? await api.fcCase(id) : null; fx.notes = {}; fx.forms.declare = { ...FX.EMPTY.declare }; }),
+    openCase: () => act("casef", FX.casePayload, (b) => api.openFcCase(b), null, (c) => { reset("casef"); fx.sel.case = c; fx.notice = `Case ${c.ref} opened. You are the lead investigator.`; }),
+    declare: (id) => act("declare", FX.declarePayload, (b) => api.declareFc(id, b), "Declaration recorded.", () => { fx.forms.declare = { ...FX.EMPTY.declare }; }),
+    addEvent: (id) => act("event", FX.eventPayload, (b) => api.addFcEvent(id, b), "Added to the timeline.", () => reset("event")),
+    recordScreening: (id) => act("screening", FX.screeningPayload, (b) => api.recordFcScreening(id, b), "Screening result recorded. A possible match must be resolved by a different person.", () => reset("screening")),
+    resolveScreening: (cid, sid, outcome) => { const n = note(`case-${cid}`), r = FX.resolvePayload(outcome, n); if (r.problem) return fail(r.problem); return run(async () => { await api.resolveFcScreening(cid, sid, r.body); fx.notes = {}; await refresh(); }, "Screening result resolved."); },
+    recordLoss: (id) => act("loss", FX.lossPayload, (b) => api.recordFcLoss(id, b), "Loss recorded.", () => reset("loss")),
+    recordRecovery: (id) => act("recovery", FX.recoveryPayload, (b) => api.recordFcRecovery(id, b), "Recovery recorded. A different person must confirm it.", () => reset("recovery")),
+    recoveryStep: (cid, rid, m) => {
+      if (m === "confirm") return run(async () => { await api.confirmFcRecovery(cid, rid); await refresh(); }, "Recovery confirmed.");
+      const n = note(`case-${cid}`), p = FX.noteProblem(n, "A reason", FX.minNote.reject_recovery); if (p) return fail(p);
+      return run(async () => { await api.rejectFcRecovery(cid, rid, n); fx.notes = {}; await refresh(); }, "Recovery rejected.");
+    },
+    propose: (id) => act("decision", FX.decisionPayload, (b) => api.proposeFcDecision(id, b), "Outcome proposed. A different person must decide it.", () => reset("decision")),
+    decisionStep: (id, m) => {
+      const n = note(`case-${id}`);
+      if (m === "approve") return run(async () => { await api.approveFcDecision(id, n); fx.notes = {}; await refresh(); }, "Outcome approved. The case is closed.");
+      const p = FX.noteProblem(n, "A reason", FX.minNote.reject); if (p) return fail(p);
+      return run(async () => { await api.rejectFcDecision(id, n); fx.notes = {}; await refresh(); }, "Outcome sent back to the lead investigator.");
+    },
+    reopen: (id) => { const n = note(`case-${id}`), p = FX.noteProblem(n, "A reason", FX.minNote.reopen); if (p) return fail(p); return run(async () => { await api.reopenFcCase(id, n); fx.notes = {}; await refresh(); }, "Case reopened. The history is kept."); },
+    changeLead: (id) => act("lead", FX.leadPayload, (b) => api.changeFcLead(id, b), "Lead investigator changed.", () => reset("lead")),
   };
 }
 

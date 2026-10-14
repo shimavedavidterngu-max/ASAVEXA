@@ -132,6 +132,17 @@ BD_APPROVE = "bd:approve"                  # approve large discounts, confirm wi
 CYBER_PREPARE = "cyber:prepare"            # record assets, vulnerabilities, incidents and access reviews; mark fixes done; draft reports. Viewing needs audit:read
 CYBER_APPROVE = "cyber:approve"            # verify fixes, accept vulnerability risk, close incidents, approve access reviews and reports, set policy (never your own work)
 
+TREASURY_PREPARE = "treasury:prepare"      # record bank accounts, balances, expected cash flows, payment requests and covenant results; release approved payments. Viewing needs reporting:read
+TREASURY_APPROVE = "treasury:approve"      # approve payment requests, confirm balances, acknowledge covenant breaches, set treasury policy (never your own work)
+
+PROCURE_PREPARE = "procure:prepare"        # register suppliers, draft contracts, raise purchase orders, record deliveries and invoices, mark invoices paid, review suppliers. Viewing needs reporting:read
+PROCURE_APPROVE = "procure:approve"        # approve suppliers, contracts, purchase orders and invoices (never your own work); suspend suppliers; set procurement policy
+FPA_PREPARE = "fpa:prepare"              # define KPIs, record readings, register forecasts and record actuals (never decide your own work)
+FINCRIME_READ = "fincrime:read"          # see confidential financial-crime alerts and cases (deliberately not held by operational roles)
+FINCRIME_PREPARE = "fincrime:prepare"    # raise alerts, open and work cases, record screening results, losses and recoveries, propose outcomes
+FINCRIME_APPROVE = "fincrime:approve"    # dismiss alerts, decide outcomes, resolve screening matches, confirm recoveries, reassign leads, reopen cases, set targets (never your own work)
+FPA_APPROVE = "fpa:approve"              # approve KPI definitions, review readings, confirm actuals, change owners, retire KPIs, set the policy
+
 HEALTH_READ = "health:read"                # see a facility's budgets, procurement, stock, assets and reports (only the facilities you have been given)
 HEALTH_PREPARE = "health:prepare"          # raise requisitions and orders, receive goods, record invoices, stock moves, receipts, assets and maintenance
 HEALTH_APPROVE = "health:approve"          # approve budgets, requisitions, orders, payments, adjustments, write-offs and reports (never your own work)
@@ -150,7 +161,7 @@ ALL_PERMISSIONS = frozenset(
         CONTROL_READ, CONTROL_MANAGE, CONTROL_EXECUTE,
         FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY,
         AUDIT_READ, PASSPORT_MANAGE, SECURITY_MANAGE, VALIDATION_MANAGE, PILOT_MANAGE, NETWORK_MANAGE,
-        ANALYSIS_PREPARE, ANALYSIS_APPROVE, TAX_PREPARE, TAX_APPROVE, FORENSIC_READ, FORENSIC_PREPARE, FORENSIC_APPROVE, GRC_PREPARE, GRC_APPROVE, PUBFIN_PREPARE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, CYBER_PREPARE, CYBER_APPROVE,
+        ANALYSIS_PREPARE, ANALYSIS_APPROVE, TAX_PREPARE, TAX_APPROVE, FORENSIC_READ, FORENSIC_PREPARE, FORENSIC_APPROVE, GRC_PREPARE, GRC_APPROVE, PUBFIN_PREPARE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, CYBER_PREPARE, CYBER_APPROVE, TREASURY_PREPARE, TREASURY_APPROVE, PROCURE_PREPARE, FPA_PREPARE, PROCURE_APPROVE, FPA_APPROVE, FINCRIME_READ, FINCRIME_PREPARE, FINCRIME_APPROVE,
         HEALTH_READ, HEALTH_PREPARE, HEALTH_APPROVE, HEALTH_ADMIN, HEALTH_CLAIMS, HEALTH_STAFFING,
     }
 )
@@ -168,7 +179,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
         ACCOUNT_MANAGE, JOURNAL_CREATE, LEDGER_READ, EVIDENCE_UPLOAD, EVIDENCE_READ,
         RECONCILIATION_IMPORT, RECONCILIATION_CREATE, RECONCILIATION_MATCH, RECONCILIATION_READ,
         REPORTING_READ, PERIOD_CLOSE_REQUEST, PERIOD_CLOSE_READ,
-        CONTROL_READ, CONTROL_EXECUTE, FINDING_REMEDIATE, ANALYSIS_PREPARE, TAX_PREPARE, PUBFIN_PREPARE, BD_PREPARE,
+        CONTROL_READ, CONTROL_EXECUTE, FINDING_REMEDIATE, ANALYSIS_PREPARE, TAX_PREPARE, PUBFIN_PREPARE, BD_PREPARE, TREASURY_PREPARE, PROCURE_PREPARE, FPA_PREPARE,
         HEALTH_READ, HEALTH_PREPARE, HEALTH_CLAIMS,
     }),
     Role.FINANCE_OFFICER: frozenset({
@@ -178,14 +189,14 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
         RECONCILIATION_APPROVE, RECONCILIATION_READ, REPORTING_READ,
         PERIOD_CLOSE_REQUEST, PERIOD_CLOSE_REVIEW, PERIOD_CLOSE_APPROVE, PERIOD_CLOSE_READ,
         CONTROL_READ, CONTROL_MANAGE, CONTROL_EXECUTE,
-        FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, ANALYSIS_PREPARE, ANALYSIS_APPROVE, TAX_PREPARE, TAX_APPROVE, GRC_PREPARE, PUBFIN_PREPARE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE,
+        FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, ANALYSIS_PREPARE, ANALYSIS_APPROVE, TAX_PREPARE, TAX_APPROVE, GRC_PREPARE, PUBFIN_PREPARE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, TREASURY_PREPARE, TREASURY_APPROVE, PROCURE_PREPARE, FPA_PREPARE, PROCURE_APPROVE, FPA_APPROVE,
         HEALTH_READ, HEALTH_PREPARE, HEALTH_CLAIMS, HEALTH_STAFFING,
     }),
     Role.APPROVER: frozenset({
         JOURNAL_POST, JOURNAL_REVERSE, LEDGER_READ, EVIDENCE_VERIFY,
         EVIDENCE_READ, AUDIT_READ, RECONCILIATION_APPROVE, RECONCILIATION_READ, REPORTING_READ,
         PERIOD_CLOSE_REVIEW, PERIOD_CLOSE_APPROVE, PERIOD_CLOSE_READ,
-        CONTROL_READ, CONTROL_EXECUTE, FINDING_VERIFY, ANALYSIS_APPROVE, TAX_APPROVE, FORENSIC_READ, FORENSIC_APPROVE, GRC_APPROVE, PUBFIN_APPROVE, BD_APPROVE, CYBER_APPROVE,
+        CONTROL_READ, CONTROL_EXECUTE, FINDING_VERIFY, ANALYSIS_APPROVE, TAX_APPROVE, FORENSIC_READ, FORENSIC_APPROVE, GRC_APPROVE, PUBFIN_APPROVE, BD_APPROVE, CYBER_APPROVE, TREASURY_APPROVE, PROCURE_APPROVE, FPA_APPROVE, FINCRIME_READ, FINCRIME_APPROVE,
         HEALTH_READ, HEALTH_APPROVE, HEALTH_CLAIMS,
     }),
     Role.REVIEWER: frozenset({
@@ -195,12 +206,12 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
     }),
     Role.MANAGER: frozenset({
         LEDGER_READ, EVIDENCE_READ, RECONCILIATION_READ, REPORTING_READ, PERIOD_CLOSE_READ,
-        CONTROL_READ, AUDIT_READ, PASSPORT_MANAGE, FORENSIC_READ, FORENSIC_APPROVE, GRC_PREPARE, GRC_APPROVE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, CYBER_PREPARE, CYBER_APPROVE,
+        CONTROL_READ, AUDIT_READ, PASSPORT_MANAGE, FORENSIC_READ, FORENSIC_APPROVE, GRC_PREPARE, GRC_APPROVE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, CYBER_PREPARE, CYBER_APPROVE, TREASURY_PREPARE, TREASURY_APPROVE, PROCURE_PREPARE, FPA_PREPARE, PROCURE_APPROVE, FPA_APPROVE, FINCRIME_READ, FINCRIME_APPROVE,
         HEALTH_READ, HEALTH_PREPARE, HEALTH_APPROVE, HEALTH_CLAIMS,
     }),
     Role.AUDITOR: frozenset({
         LEDGER_READ, EVIDENCE_READ, RECONCILIATION_READ, REPORTING_READ, PERIOD_CLOSE_READ,
-        CONTROL_READ, AUDIT_READ, FORENSIC_READ, FORENSIC_PREPARE,
+        CONTROL_READ, AUDIT_READ, FORENSIC_READ, FORENSIC_PREPARE, FINCRIME_READ, FINCRIME_PREPARE,
         HEALTH_READ,
     }),
     Role.EXTERNAL_AUDITOR: frozenset({

@@ -4,7 +4,7 @@
 
 /** Menu path of each workspace in the server's catalogue (workspaces.py). A test pins this to the real catalogue and menu. */
 export const WORKSPACE_PATHS = {
-  analysis: "/analysis", forensic: "/forensic", grc: "/grc", tax: "/tax", public_finance: "/pubfin", health: "/health", cyber: "/cyber", bizdev: "/bizdev",
+  analysis: "/analysis", forensic: "/forensic", grc: "/grc", tax: "/tax", public_finance: "/pubfin", health: "/health", cyber: "/cyber", treasury: "/treasury", procurement: "/procurement", fpa: "/fpa", fincrime: "/fincrime", bizdev: "/bizdev",
 };
 const PATH_TO_WS = Object.fromEntries(Object.entries(WORKSPACE_PATHS).map(([id, p]) => [p, id]));
 

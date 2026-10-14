@@ -233,6 +233,64 @@ def get_cyber(security: SecurityContext = Depends(get_security), session=Depends
     return CyberService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
 
 
+def get_treasury(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Treasury service: cash accounts, balances, expected cash flows, payment requests and covenants in the shared document store; reads the Evidence Vault, never changes it; every action is audited. It never moves money."""
+    from ..treasury.service import TreasuryService
+    from ..treasury.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return TreasuryService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_procurement(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Procurement service: suppliers, contracts, purchase orders, deliveries, invoices and reviews in the shared document store; every action is audited. It reads Treasury payments to confirm an invoice was paid, and never changes them."""
+    from ..procurement.service import ProcurementService
+    from ..procurement.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ProcurementService(SqlAlchemyDocStore(session), log=make_log(security))
+
+
+def get_fpa(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Planning and KPIs service: KPI definitions, owners, readings and forecast accuracy in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
+    from ..fpa.service import FpaService
+    from ..fpa.wiring import make_log
+    from ..identity.domain.permissions import FPA_PREPARE, ROLE_PERMISSIONS
+    from .db.security_store import SqlAlchemyDocStore
+
+    memberships = SqlAlchemyMembershipRepository(session)
+
+    def member(org, user):
+        m = memberships.get(org, user)
+        return m is not None and m.status.value == "ACTIVE"
+
+    def can_record(org, user):
+        m = memberships.get(org, user)
+        return m is not None and FPA_PREPARE in ROLE_PERMISSIONS.get(m.role, ())
+
+    return FpaService(SqlAlchemyDocStore(session), get_evidence_vault(session), is_member=member, can_record=can_record, log=make_log(security))
+
+
+def get_fincrime(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Financial-crime casework service: alerts, cases, conflict declarations, screening records, decisions, loss and recovery in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
+    from ..fincrime.service import FincrimeService
+    from ..fincrime.wiring import make_log
+    from ..identity.domain.permissions import FINCRIME_PREPARE, ROLE_PERMISSIONS
+    from .db.security_store import SqlAlchemyDocStore
+
+    memberships = SqlAlchemyMembershipRepository(session)
+
+    def member(org, user):
+        m = memberships.get(org, user)
+        return m is not None and m.status.value == "ACTIVE"
+
+    def can_work(org, user):
+        m = memberships.get(org, user)
+        return m is not None and FINCRIME_PREPARE in ROLE_PERMISSIONS.get(m.role, ())
+
+    return FincrimeService(SqlAlchemyDocStore(session), get_evidence_vault(session), is_member=member, can_work=can_work, log=make_log(security))
+
+
 def get_bizdev(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Business Development service: accounts, opportunities, proposals, targets and reports in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
     from ..bizdev.service import BizDevService
