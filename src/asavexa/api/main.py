@@ -121,7 +121,7 @@ from ..compliance.domain.errors import (
     RemediationRequiredError,
     UnknownCheckKeyError,
 )
-from .routers import accounts, agents, ai, assurance, proof_links, entity_config, treasury, procurement, fpa, fincrime, itaudit, resilience, aigov, quality, secretarial, evidence_review, standards_registry, analysis, audit, auth, webhooks, compliance, evidence, ingestion, journals, forensic, grc, pubfin, bizdev, cyber, health, organisation_profile, network, passport, period_close, pilot, periods, proof, reconciliation, reporting, security, shared_passport, standards, tax, validation, workspaces
+from .routers import accounts, agents, ai, assurance, proof_links, entity_config, treasury, procurement, fpa, fincrime, itaudit, resilience, aigov, quality, secretarial, fixedassets, inventory, investments, valuation, insurance, esg, payroll, evidence_review, standards_registry, analysis, audit, auth, webhooks, compliance, evidence, ingestion, journals, forensic, grc, pubfin, bizdev, cyber, health, organisation_profile, network, passport, period_close, pilot, periods, proof, reconciliation, reporting, security, shared_passport, standards, tax, validation, workspaces
 
 app = FastAPI(
     title="Asavexa",
@@ -261,6 +261,13 @@ app.include_router(resilience.router)
 app.include_router(aigov.router)
 app.include_router(quality.router)
 app.include_router(secretarial.router)
+app.include_router(fixedassets.router)
+app.include_router(inventory.router)
+app.include_router(investments.router)
+app.include_router(valuation.router)
+app.include_router(insurance.router)
+app.include_router(esg.router)
+app.include_router(payroll.router)
 app.include_router(health.router)
 app.include_router(workspaces.router)
 

@@ -24,7 +24,7 @@ import asavexa, pydantic
 pydantic.EmailStr = str   # email-validator is not installable here; only affects this harness
 for pkg, path in [("asavexa.api","api"),("asavexa.api.routers","api/routers"),("asavexa.api.schemas","api/schemas")]:
     m = types.ModuleType(pkg); m.__path__ = ["/home/claude/asavexa/src/asavexa/"+path]; sys.modules[pkg] = m
-mod("asavexa.api.deps", **{n: (lambda: None) for n in ["get_bearer_token","get_current_actor","get_identity_service","get_security","get_current_org","get_current_session","get_evidence_vault","get_evidence_review","get_standards_registry","get_agent_registry","get_assurance","get_proof_links","get_entity_config","get_treasury","get_procurement","get_fpa","get_fincrime","get_itaudit","get_resilience","get_aigov","get_quality","get_secretarial"]},
+mod("asavexa.api.deps", **{n: (lambda: None) for n in ["get_bearer_token","get_current_actor","get_identity_service","get_security","get_current_org","get_current_session","get_evidence_vault","get_evidence_review","get_standards_registry","get_agent_registry","get_assurance","get_proof_links","get_entity_config","get_treasury","get_procurement","get_fpa","get_fincrime","get_itaudit","get_resilience","get_aigov","get_quality","get_secretarial","get_fixedassets","get_inventory","get_investments","get_valuation","get_insurance","get_esg","get_payroll"]},
     require_permission=lambda p: ("perm", p))
 import importlib
 auth = importlib.import_module("asavexa.api.routers.auth")

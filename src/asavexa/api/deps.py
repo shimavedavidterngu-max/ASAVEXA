@@ -336,6 +336,69 @@ def get_secretarial(security: SecurityContext = Depends(get_security), session=D
     return SecretarialService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
 
 
+def get_fixedassets(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Fixed assets service: assets, disposals and counts in the shared document store; reads the Evidence Vault, never changes it; posts nothing to a ledger; every action is audited."""
+    from ..fixedassets.service import FixedAssetService
+    from ..fixedassets.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return FixedAssetService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_inventory(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Inventory service: stock items and movements in the shared document store; posts nothing to a ledger; every action is audited."""
+    from ..inventory.service import InventoryService
+    from ..inventory.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return InventoryService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_investments(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Investments service: holdings, trades and typed prices in the shared document store; reads no market data and posts nothing to a ledger; every action is audited."""
+    from ..investments.service import InvestmentsService
+    from ..investments.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return InvestmentsService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_valuation(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Valuation service: workpapers and typed inputs in the shared document store; reads no market data and gives no opinion of value; every action is audited."""
+    from ..valuation.service import ValuationService
+    from ..valuation.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ValuationService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_insurance(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Insurance service: policies, claims and receipts in the shared document store; contacts no insurer and gives no insurance advice; every action is audited."""
+    from ..insurance.service import InsuranceService
+    from ..insurance.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return InsuranceService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_esg(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """ESG service: emission records and targets in the shared document store; supplies no emission factors and measures nothing; every action is audited."""
+    from ..esg.service import EsgService
+    from ..esg.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return EsgService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_payroll(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Payroll service: payroll runs and typed pay lines in the shared document store; calculates no tax or statutory amount and pays nobody; every action is audited."""
+    from ..payroll.service import PayrollService
+    from ..payroll.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return PayrollService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
 def get_bizdev(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Business Development service: accounts, opportunities, proposals, targets and reports in the shared document store; reads the Evidence Vault, never changes it; every action is audited."""
     from ..bizdev.service import BizDevService

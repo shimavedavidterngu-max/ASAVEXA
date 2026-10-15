@@ -149,6 +149,20 @@ AIG_PREPARE = "aigov:prepare"            # propose AI systems, record model chan
 AIG_APPROVE = "aigov:approve"            # approve or reject AI systems and changes, review a system, review or void incidents, retire systems, set the policy (never your own work)
 QUAL_PREPARE = "quality:prepare"          # raise and analyse nonconformances, add and complete corrective actions. Viewing needs audit:read
 SEC_PREPARE = "secretarial:prepare"          # schedule meetings, record minutes, propose resolutions, add and file filings. Viewing needs audit:read
+FIX_PREPARE = "fixedassets:prepare"          # propose assets and disposals, record physical counts. Viewing needs audit:read
+INV_PREPARE = "inventory:prepare"          # add items, record receipts and issues, propose adjustments. Viewing needs audit:read
+INV_APPROVE = "inventory:approve"          # approve or reject adjustments, discontinue items, set the policy (never your own work)
+INVEST_PREPARE = "investments:prepare"      # add holdings, record purchases and prices, propose sales. Viewing needs audit:read
+INVEST_APPROVE = "investments:approve"      # approve or reject sales, close holdings, set the policy (never your own work)
+VAL_PREPARE = "valuation:prepare"            # create workpapers, add and remove methods, submit and withdraw. Viewing needs audit:read
+VAL_APPROVE = "valuation:approve"            # approve or return a submitted workpaper, set the policy (never your own submission)
+INS_PREPARE = "insurance:prepare"            # record policies and claims, propose an outcome, record money received. Viewing needs audit:read
+INS_APPROVE = "insurance:approve"            # approve or reject an outcome (never your own proposal), cancel a policy, set the warning window
+ESG_PREPARE = "esg:prepare"                  # propose emission records and targets. Viewing needs audit:read
+ESG_APPROVE = "esg:approve"                  # verify or reject records, approve or reject targets, set the factor age limit (never your own proposal)
+PAY_PREPARE = "payroll:prepare"            # create runs, add and remove pay lines, submit and withdraw. Viewing needs audit:read
+PAY_APPROVE = "payroll:approve"            # approve or return a submitted run, set the review limit (never your own submission)
+FIX_APPROVE = "fixedassets:approve"          # approve or reject assets and disposals, review counts, set the policy (never your own work)
 SEC_APPROVE = "secretarial:approve"          # approve minutes, decide resolutions, confirm filings, cancel or withdraw, set the policy (never your own work)
 QUAL_APPROVE = "quality:approve"          # check action effectiveness, cancel actions, close or void nonconformances, set the policy (never your own work)
 FPA_APPROVE = "fpa:approve"              # approve KPI definitions, review readings, confirm actuals, change owners, retire KPIs, set the policy
@@ -171,7 +185,7 @@ ALL_PERMISSIONS = frozenset(
         CONTROL_READ, CONTROL_MANAGE, CONTROL_EXECUTE,
         FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY,
         AUDIT_READ, PASSPORT_MANAGE, SECURITY_MANAGE, VALIDATION_MANAGE, PILOT_MANAGE, NETWORK_MANAGE,
-        ANALYSIS_PREPARE, ANALYSIS_APPROVE, TAX_PREPARE, TAX_APPROVE, FORENSIC_READ, FORENSIC_PREPARE, FORENSIC_APPROVE, GRC_PREPARE, GRC_APPROVE, PUBFIN_PREPARE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, CYBER_PREPARE, CYBER_APPROVE, TREASURY_PREPARE, TREASURY_APPROVE, PROCURE_PREPARE, FPA_PREPARE, PROCURE_APPROVE, FPA_APPROVE, FINCRIME_READ, FINCRIME_PREPARE, FINCRIME_APPROVE, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE, ITAUDIT_APPROVE, RESIL_APPROVE, AIG_APPROVE, QUAL_APPROVE, SEC_APPROVE,
+        ANALYSIS_PREPARE, ANALYSIS_APPROVE, TAX_PREPARE, TAX_APPROVE, FORENSIC_READ, FORENSIC_PREPARE, FORENSIC_APPROVE, GRC_PREPARE, GRC_APPROVE, PUBFIN_PREPARE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, CYBER_PREPARE, CYBER_APPROVE, TREASURY_PREPARE, TREASURY_APPROVE, PROCURE_PREPARE, FPA_PREPARE, PROCURE_APPROVE, FPA_APPROVE, FINCRIME_READ, FINCRIME_PREPARE, FINCRIME_APPROVE, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE, FIX_PREPARE, INV_PREPARE, INVEST_PREPARE, VAL_PREPARE, INS_PREPARE, ESG_PREPARE, PAY_PREPARE, ITAUDIT_APPROVE, RESIL_APPROVE, AIG_APPROVE, QUAL_APPROVE, SEC_APPROVE, FIX_APPROVE, INV_APPROVE, INVEST_APPROVE, VAL_APPROVE, INS_APPROVE, ESG_APPROVE, PAY_APPROVE,
         HEALTH_READ, HEALTH_PREPARE, HEALTH_APPROVE, HEALTH_ADMIN, HEALTH_CLAIMS, HEALTH_STAFFING,
     }
 )
@@ -183,7 +197,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
         LEDGER_READ, EVIDENCE_READ, RECONCILIATION_READ, REPORTING_READ, PERIOD_CLOSE_READ,
         CONTROL_READ, CONTROL_MANAGE, FINDING_MANAGE,
         AUDIT_READ, PASSPORT_MANAGE, SECURITY_MANAGE, VALIDATION_MANAGE, PILOT_MANAGE, NETWORK_MANAGE, GRC_PREPARE, CYBER_PREPARE,
-        HEALTH_READ, HEALTH_PREPARE, HEALTH_ADMIN, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE,
+        HEALTH_READ, HEALTH_PREPARE, HEALTH_ADMIN, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE, FIX_PREPARE, INV_PREPARE, INVEST_PREPARE, VAL_PREPARE, INS_PREPARE, ESG_PREPARE, PAY_PREPARE,
     }),
     Role.ACCOUNTANT: frozenset({
         ACCOUNT_MANAGE, JOURNAL_CREATE, LEDGER_READ, EVIDENCE_UPLOAD, EVIDENCE_READ,
@@ -207,7 +221,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
         EVIDENCE_READ, AUDIT_READ, RECONCILIATION_APPROVE, RECONCILIATION_READ, REPORTING_READ,
         PERIOD_CLOSE_REVIEW, PERIOD_CLOSE_APPROVE, PERIOD_CLOSE_READ,
         CONTROL_READ, CONTROL_EXECUTE, FINDING_VERIFY, ANALYSIS_APPROVE, TAX_APPROVE, FORENSIC_READ, FORENSIC_APPROVE, GRC_APPROVE, PUBFIN_APPROVE, BD_APPROVE, CYBER_APPROVE, TREASURY_APPROVE, PROCURE_APPROVE, FPA_APPROVE, FINCRIME_READ, FINCRIME_APPROVE,
-        HEALTH_READ, HEALTH_APPROVE, HEALTH_CLAIMS, ITAUDIT_APPROVE, RESIL_APPROVE, AIG_APPROVE, QUAL_APPROVE, SEC_APPROVE,
+        HEALTH_READ, HEALTH_APPROVE, HEALTH_CLAIMS, ITAUDIT_APPROVE, RESIL_APPROVE, AIG_APPROVE, QUAL_APPROVE, SEC_APPROVE, FIX_APPROVE, INV_APPROVE, INVEST_APPROVE, VAL_APPROVE, INS_APPROVE, ESG_APPROVE, PAY_APPROVE,
     }),
     Role.REVIEWER: frozenset({
         LEDGER_READ, EVIDENCE_READ, RECONCILIATION_READ, REPORTING_READ, PERIOD_CLOSE_READ,
@@ -217,11 +231,11 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
     Role.MANAGER: frozenset({
         LEDGER_READ, EVIDENCE_READ, RECONCILIATION_READ, REPORTING_READ, PERIOD_CLOSE_READ,
         CONTROL_READ, AUDIT_READ, PASSPORT_MANAGE, FORENSIC_READ, FORENSIC_APPROVE, GRC_PREPARE, GRC_APPROVE, PUBFIN_APPROVE, BD_PREPARE, BD_APPROVE, CYBER_PREPARE, CYBER_APPROVE, TREASURY_PREPARE, TREASURY_APPROVE, PROCURE_PREPARE, FPA_PREPARE, PROCURE_APPROVE, FPA_APPROVE, FINCRIME_READ, FINCRIME_APPROVE,
-        HEALTH_READ, HEALTH_PREPARE, HEALTH_APPROVE, HEALTH_CLAIMS, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE, ITAUDIT_APPROVE, RESIL_APPROVE, AIG_APPROVE, QUAL_APPROVE, SEC_APPROVE,
+        HEALTH_READ, HEALTH_PREPARE, HEALTH_APPROVE, HEALTH_CLAIMS, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE, FIX_PREPARE, INV_PREPARE, INVEST_PREPARE, VAL_PREPARE, INS_PREPARE, ESG_PREPARE, PAY_PREPARE, ITAUDIT_APPROVE, RESIL_APPROVE, AIG_APPROVE, QUAL_APPROVE, SEC_APPROVE, FIX_APPROVE, INV_APPROVE, INVEST_APPROVE, VAL_APPROVE, INS_APPROVE, ESG_APPROVE, PAY_APPROVE,
     }),
     Role.AUDITOR: frozenset({
         LEDGER_READ, EVIDENCE_READ, RECONCILIATION_READ, REPORTING_READ, PERIOD_CLOSE_READ,
-        CONTROL_READ, AUDIT_READ, FORENSIC_READ, FORENSIC_PREPARE, FINCRIME_READ, FINCRIME_PREPARE, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE,
+        CONTROL_READ, AUDIT_READ, FORENSIC_READ, FORENSIC_PREPARE, FINCRIME_READ, FINCRIME_PREPARE, ITAUDIT_PREPARE, RESIL_PREPARE, AIG_PREPARE, QUAL_PREPARE, SEC_PREPARE, FIX_PREPARE, INV_PREPARE, INVEST_PREPARE, VAL_PREPARE, INS_PREPARE, ESG_PREPARE, PAY_PREPARE,
         HEALTH_READ,
     }),
     Role.EXTERNAL_AUDITOR: frozenset({

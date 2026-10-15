@@ -86,6 +86,20 @@ import { Quality } from "./pages/Quality.js";
 import * as QL from "./lib/quality.js";
 import { Secretarial } from "./pages/Secretarial.js";
 import * as CS from "./lib/secretarial.js";
+import { FixedAssets } from "./pages/FixedAssets.js";
+import * as FA from "./lib/fixedassets.js";
+import { Inventory } from "./pages/Inventory.js";
+import * as IV from "./lib/inventory.js";
+import { Investments } from "./pages/Investments.js";
+import * as IM from "./lib/investments.js";
+import { Valuation } from "./pages/Valuation.js";
+import * as VL from "./lib/valuation.js";
+import { Insurance } from "./pages/Insurance.js";
+import * as IC from "./lib/insurance.js";
+import { Esg } from "./pages/Esg.js";
+import * as ES from "./lib/esg.js";
+import { Payroll } from "./pages/Payroll.js";
+import * as PW from "./lib/payroll.js";
 import * as IA from "./lib/itaudit.js";
 import * as FX from "./lib/fincrime.js";
 import * as CY from "./lib/cyber.js";
@@ -166,6 +180,13 @@ const NAV_ITEMS = [
   { path: "/aigov", label: "AI governance", permission: PERMISSIONS.AUDIT_READ },
   { path: "/quality", label: "Quality management", permission: PERMISSIONS.AUDIT_READ },
   { path: "/secretarial", label: "Company secretarial", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/fixedassets", label: "Fixed assets", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/inventory", label: "Inventory", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/investments", label: "Investments", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/valuation", label: "Valuation", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/insurance", label: "Insurance and claims", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/esg", label: "ESG and carbon", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/payroll", label: "Payroll and workforce cost", permission: PERMISSIONS.AUDIT_READ },
   { path: "/health", label: "Health Centre", permission: PERMISSIONS.HEALTH_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
@@ -224,6 +245,13 @@ const routes = [
   { path: "/aigov", name: "aigov" },
   { path: "/quality", name: "quality" },
   { path: "/secretarial", name: "secretarial" },
+  { path: "/fixedassets", name: "fixedassets" },
+  { path: "/inventory", name: "inventory" },
+  { path: "/investments", name: "investments" },
+  { path: "/valuation", name: "valuation" },
+  { path: "/insurance", name: "insurance" },
+  { path: "/esg", name: "esg" },
+  { path: "/payroll", name: "payroll" },
   { path: "/health", name: "health" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
@@ -810,6 +838,13 @@ function renderPage(matched, authState) {
   if (name === "aigov") return renderAigovPage(authState);
   if (name === "quality") return renderQualityPage(authState);
   if (name === "secretarial") return renderSecretarialPage(authState);
+  if (name === "fixedassets") return renderFixedAssetsPage(authState);
+  if (name === "inventory") return renderInventoryPage(authState);
+  if (name === "investments") return renderInvestmentsPage(authState);
+  if (name === "valuation") return renderValuationPage(authState);
+  if (name === "insurance") return renderInsurancePage(authState);
+  if (name === "esg") return renderEsgPage(authState);
+  if (name === "payroll") return renderPayrollPage(authState);
   if (name === "health") return renderHealthPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
@@ -1160,7 +1195,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading"); uiState.ql = null; loadedOnce.delete("qlLoading"); uiState.cs = null; loadedOnce.delete("csLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading"); uiState.ql = null; loadedOnce.delete("qlLoading"); uiState.cs = null; loadedOnce.delete("csLoading"); uiState.fa = null; loadedOnce.delete("faLoading"); uiState.iv = null; loadedOnce.delete("ivLoading"); uiState.im = null; loadedOnce.delete("imLoading"); uiState.vl = null; loadedOnce.delete("vlLoading"); uiState.ic = null; loadedOnce.delete("icLoading"); uiState.es = null; loadedOnce.delete("esLoading"); uiState.pw = null; loadedOnce.delete("pwLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -4930,6 +4965,379 @@ function secretarialActions() {
     fileFiling: (id) => act("filed", `filed-${id}`, CS.filedPayload, (b) => api.fileCsFiling(id, b), "Recorded as filed. A different person must confirm it.", () => { reset("filed"); }),
     confirmFiling: (id) => act("confirm", `confirm-${id}`, CS.confirmPayload, (b) => api.confirmCsFiling(id, b.note), "Filing confirmed.", () => { reset("confirm"); }),
     withdrawFiling: (id) => { const p = needNote(`fwithdraw-${id}`, "A reason", CS.minNote.withdraw); if (p) return fail(p); return run(async () => { await api.withdrawCsFiling(id, note(`fwithdraw-${id}`)); cs.notes = {}; await refresh(); }, "Filing withdrawn. The reason is kept."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Fixed assets (Stage 25): records and arithmetic on typed figures; posts nothing to a ledger
+// ----------------------------------------------------------------------
+function newFa() {
+  const f = () => JSON.parse(JSON.stringify(FA.EMPTY));
+  return { tab: "overview", options: null, ov: null, assets: [], sel: { asset: null }, schedule: null, vault: [], forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderFixedAssetsPage(authState) {
+  if (!uiState.fa) uiState.fa = newFa();
+  once("faLoading", () => loadFixedAssets());
+  return FixedAssets({ fa: uiState.fa, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.faLoading, onRetry: () => { loadedOnce.delete("faLoading"); render(); }, actions: fixedAssetsActions() });
+}
+
+async function fixedAssetsRefresh(fa) {
+  [fa.options, fa.ov, fa.assets] = await Promise.all([api.faOptions(), api.faOverview(), api.faAssets()]);
+  fa.forms.policy = FA.policyForm(fa.ov.policy);
+  if (fa.sel.asset) {
+    fa.sel.asset = await api.faAsset(fa.sel.asset.id).catch(() => null);
+    fa.schedule = fa.sel.asset ? await api.faSchedule(fa.sel.asset.id, 12).catch(() => null) : null;
+  }
+}
+
+async function loadFixedAssets() {
+  const fa = uiState.fa || (uiState.fa = newFa());
+  fa.error = null;
+  try {
+    await fixedAssetsRefresh(fa);
+    fa.vault = await api.listEvidence().catch(() => []);
+  } catch (err) { fa.error = err.message || "Fixed assets could not be loaded."; }
+  render();
+}
+
+function fixedAssetsActions() {
+  const fa = uiState.fa;
+  const run = async (fn, ok) => { fa.error = null; fa.notice = null; fa.formError = null; fa.busy = true; render(); try { await fn(); if (ok) fa.notice = ok; } catch (err) { fa.error = err.message || "That did not work."; } fa.busy = false; render(); };
+  const problem = (form, text) => { fa.formError = { form, text }; fa.notice = null; fa.error = null; render(); };
+  const fail = (text) => { fa.formError = null; fa.notice = null; fa.error = text; render(); };
+  const refresh = () => fixedAssetsRefresh(fa);
+  const reset = (name) => { fa.forms[name] = JSON.parse(JSON.stringify(FA.EMPTY[name])); };
+  const note = (k) => (fa.notes[k] || "").trim();
+  const needNote = (k, what, min) => FA.noteProblem(note(k), what, min);
+  const optNote = (k, what) => { const n = note(k); return n ? FA.noteProblem(n, what, 10) : ""; };
+  const act = (form, errForm, build, call, ok, after) => { const r = build(fa.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { fa.tab = t; fa.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { fa.forms[name] = { ...(fa.forms[name] || {}), [k]: v }; fa.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { fa.notes[k] = v; },
+    savePolicy: () => { const r = FA.policyPayload(fa.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setFaPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectAsset: (id) => run(async () => { fa.sel.asset = id ? await api.faAsset(id) : null; fa.schedule = id ? await api.faSchedule(id, 12).catch(() => null) : null; fa.notes = {}; reset("disposal"); reset("count"); }),
+    proposeAsset: () => act("asset", "asset", FA.assetPayload, (b) => api.proposeFaAsset(b), null, (x) => { reset("asset"); fa.notice = `${x.ref} proposed. A different person must approve it.`; }),
+    approveAsset: (id) => { const p = optNote(`asset-${id}`, "An approval note"); if (p) return fail(p); return run(async () => { await api.approveFaAsset(id, note(`asset-${id}`)); fa.notes = {}; await refresh(); }, "Asset approved."); },
+    rejectAsset: (id) => { const p = needNote(`asset-${id}`, "A reason", FA.minNote.reject); if (p) return fail(p); return run(async () => { await api.rejectFaAsset(id, note(`asset-${id}`)); fa.notes = {}; await refresh(); }, "Asset rejected. The reason is kept."); },
+    proposeDisposal: (id) => act("disposal", "disposal", FA.disposalPayload, (b) => api.proposeFaDisposal(id, b), "Disposal proposed. A different person must decide it.", () => { reset("disposal"); }),
+    approveDisposal: (id) => { const p = optNote(`disposal-${id}`, "An approval note"); if (p) return fail(p); return run(async () => { await api.approveFaDisposal(id, note(`disposal-${id}`)); fa.notes = {}; await refresh(); }, "Disposal approved."); },
+    rejectDisposal: (id) => { const p = needNote(`disposal-${id}`, "A reason", FA.minNote.rejectDisposal); if (p) return fail(p); return run(async () => { await api.rejectFaDisposal(id, note(`disposal-${id}`)); fa.notes = {}; await refresh(); }, "Disposal rejected. The asset stays active."); },
+    recordCount: (id) => act("count", "count", FA.countPayload, (b) => api.recordFaCount(id, b), "Count recorded. A different person must review it.", () => { reset("count"); }),
+    reviewCount: (id, no) => { const p = needNote(`count-${id}-${no}`, "A review note", 10); if (p) return fail(p); return run(async () => { await api.reviewFaCount(id, no, note(`count-${id}-${no}`)); fa.notes = {}; await refresh(); }, "Count reviewed."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Inventory (Stage 26): a stock register from typed receipts and issues; posts nothing to a ledger
+// ----------------------------------------------------------------------
+function newIv() {
+  const f = () => JSON.parse(JSON.stringify(IV.EMPTY));
+  return { tab: "overview", options: null, ov: null, items: [], sel: { item: null }, forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderInventoryPage(authState) {
+  if (!uiState.iv) uiState.iv = newIv();
+  once("ivLoading", () => loadInventory());
+  return Inventory({ iv: uiState.iv, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.ivLoading, onRetry: () => { loadedOnce.delete("ivLoading"); render(); }, actions: inventoryActions() });
+}
+
+async function inventoryRefresh(iv) {
+  [iv.options, iv.ov, iv.items] = await Promise.all([api.ivOptions(), api.ivOverview(), api.ivItems()]);
+  iv.forms.policy = IV.policyForm(iv.ov.policy);
+  if (iv.sel.item) iv.sel.item = await api.ivItem(iv.sel.item.id).catch(() => null);
+}
+async function loadInventory() {
+  const iv = uiState.iv || (uiState.iv = newIv());
+  iv.error = null;
+  try { await inventoryRefresh(iv); } catch (err) { iv.error = err.message || "Inventory could not be loaded."; }
+  render();
+}
+
+function inventoryActions() {
+  const iv = uiState.iv;
+  const run = async (fn, ok) => { iv.error = null; iv.notice = null; iv.formError = null; iv.busy = true; render(); try { await fn(); if (ok) iv.notice = ok; } catch (err) { iv.error = err.message || "That did not work."; } iv.busy = false; render(); };
+  const problem = (form, text) => { iv.formError = { form, text }; iv.notice = null; iv.error = null; render(); };
+  const fail = (text) => { iv.formError = null; iv.notice = null; iv.error = text; render(); };
+  const refresh = () => inventoryRefresh(iv);
+  const reset = (name) => { iv.forms[name] = JSON.parse(JSON.stringify(IV.EMPTY[name])); };
+  const note = (k) => (iv.notes[k] || "").trim();
+  const needNote = (k, what, min) => IV.noteProblem(note(k), what, min);
+  const optNote = (k, what) => { const n = note(k); return n ? IV.noteProblem(n, what, 10) : ""; };
+  const act = (form, errForm, build, call, ok, after) => { const r = build(iv.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { iv.tab = t; iv.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { iv.forms[name] = { ...(iv.forms[name] || {}), [k]: v }; iv.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { iv.notes[k] = v; },
+    savePolicy: () => { const r = IV.policyPayload(iv.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setIvPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectItem: (id) => run(async () => { iv.sel.item = id ? await api.ivItem(id) : null; iv.notes = {}; reset("receive"); reset("issue"); reset("adjust"); }),
+    addItem: () => act("item", "item", IV.itemPayload, (b) => api.addIvItem(b), null, (x) => { reset("item"); iv.notice = `${x.ref} added.`; }),
+    receive: (id) => act("receive", "receive", IV.receivePayload, (b) => api.receiveIv(id, b), "Receipt recorded.", () => { reset("receive"); }),
+    issue: (id) => act("issue", "issue", IV.issuePayload, (b) => api.issueIv(id, b), "Issue recorded.", () => { reset("issue"); }),
+    proposeAdjustment: (id, onHand) => act("adjust", "adjust", (f) => IV.adjustPayload(f, onHand), (b) => api.proposeIvAdjustment(id, b), "Adjustment proposed. A different person must decide it.", () => { reset("adjust"); }),
+    approveAdjustment: (id, no) => { const p = optNote(`adj-${id}-${no}`, "An approval note"); if (p) return fail(p); return run(async () => { await api.approveIvAdjustment(id, no, note(`adj-${id}-${no}`)); iv.notes = {}; await refresh(); }, "Adjustment approved and applied."); },
+    rejectAdjustment: (id, no) => { const p = needNote(`adj-${id}-${no}`, "A reason", IV.minNote.reject); if (p) return fail(p); return run(async () => { await api.rejectIvAdjustment(id, no, note(`adj-${id}-${no}`)); iv.notes = {}; await refresh(); }, "Adjustment rejected. The reason is kept."); },
+    discontinue: (id) => { const p = needNote(`disc-${id}`, "A reason", IV.minNote.discontinue); if (p) return fail(p); return run(async () => { await api.discontinueIvItem(id, note(`disc-${id}`)); iv.notes = {}; await refresh(); }, "Item discontinued. The reason is kept."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Investments (Stage 27): holdings from typed purchases, sales and prices; reads no market data; posts nothing to a ledger
+// ----------------------------------------------------------------------
+function newIm() {
+  const f = () => JSON.parse(JSON.stringify(IM.EMPTY));
+  return { tab: "overview", options: null, ov: null, holdings: [], sel: { holding: null }, forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderInvestmentsPage(authState) {
+  if (!uiState.im) uiState.im = newIm();
+  once("imLoading", () => loadInvestments());
+  return Investments({ im: uiState.im, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.imLoading, onRetry: () => { loadedOnce.delete("imLoading"); render(); }, actions: investmentsActions() });
+}
+
+async function investmentsRefresh(im) {
+  [im.options, im.ov, im.holdings] = await Promise.all([api.imOptions(), api.imOverview(), api.imHoldings()]);
+  im.forms.policy = IM.policyForm(im.ov.policy);
+  if (im.sel.holding) im.sel.holding = await api.imHolding(im.sel.holding.id).catch(() => null);
+}
+async function loadInvestments() {
+  const im = uiState.im || (uiState.im = newIm());
+  im.error = null;
+  try { await investmentsRefresh(im); } catch (err) { im.error = err.message || "Investments could not be loaded."; }
+  render();
+}
+
+function investmentsActions() {
+  const im = uiState.im;
+  const run = async (fn, ok) => { im.error = null; im.notice = null; im.formError = null; im.busy = true; render(); try { await fn(); if (ok) im.notice = ok; } catch (err) { im.error = err.message || "That did not work."; } im.busy = false; render(); };
+  const problem = (form, text) => { im.formError = { form, text }; im.notice = null; im.error = null; render(); };
+  const fail = (text) => { im.formError = null; im.notice = null; im.error = text; render(); };
+  const refresh = () => investmentsRefresh(im);
+  const reset = (name) => { im.forms[name] = JSON.parse(JSON.stringify(IM.EMPTY[name])); };
+  const note = (k) => (im.notes[k] || "").trim();
+  const needNote = (k, what, min) => IM.noteProblem(note(k), what, min);
+  const optNote = (k, what) => { const n = note(k); return n ? IM.noteProblem(n, what, 10) : ""; };
+  const act = (form, errForm, build, call, ok, after) => { const r = build(im.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { im.tab = t; im.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { im.forms[name] = { ...(im.forms[name] || {}), [k]: v }; im.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { im.notes[k] = v; },
+    savePolicy: () => { const r = IM.policyPayload(im.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setImPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectHolding: (id) => run(async () => { im.sel.holding = id ? await api.imHolding(id) : null; im.notes = {}; reset("buy"); reset("sell"); reset("mark"); }),
+    addHolding: () => act("holding", "holding", IM.holdingPayload, (b) => api.addImHolding(b), null, (x) => { reset("holding"); im.notice = `${x.ref} added.`; }),
+    buy: (id) => act("buy", "buy", IM.buyPayload, (b) => api.buyIm(id, b), "Purchase recorded.", () => { reset("buy"); }),
+    proposeSell: (id, held) => act("sell", "sell", (f) => IM.sellPayload(f, held), (b) => api.proposeImSell(id, b), "Sale proposed. A different person must decide it.", () => { reset("sell"); }),
+    recordMark: (id) => act("mark", "mark", IM.markPayload, (b) => api.recordImMark(id, b), "Price recorded.", () => { reset("mark"); }),
+    approveSell: (id, no) => { const p = optNote(`sell-${id}-${no}`, "An approval note"); if (p) return fail(p); return run(async () => { await api.approveImSell(id, no, note(`sell-${id}-${no}`)); im.notes = {}; await refresh(); }, "Sale approved and applied."); },
+    rejectSell: (id, no) => { const p = needNote(`sell-${id}-${no}`, "A reason", IM.minNote.reject); if (p) return fail(p); return run(async () => { await api.rejectImSell(id, no, note(`sell-${id}-${no}`)); im.notes = {}; await refresh(); }, "Sale rejected. The reason is kept."); },
+    close: (id) => { const p = needNote(`close-${id}`, "A reason", IM.minNote.close); if (p) return fail(p); return run(async () => { await api.closeImHolding(id, note(`close-${id}`)); im.notes = {}; await refresh(); }, "Holding closed. The reason is kept."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Valuation (Stage 28): workpapers worked out from typed inputs; reads no market data; gives no opinion of value
+// ----------------------------------------------------------------------
+function newVl() {
+  const f = () => JSON.parse(JSON.stringify(VL.EMPTY));
+  return { tab: "overview", options: null, ov: null, cases: [], sel: { case: null }, sens: null, forms: { ...f(), policy: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderValuationPage(authState) {
+  if (!uiState.vl) uiState.vl = newVl();
+  once("vlLoading", () => loadValuation());
+  return Valuation({ vl: uiState.vl, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.vlLoading, onRetry: () => { loadedOnce.delete("vlLoading"); render(); }, actions: valuationActions() });
+}
+
+async function valuationRefresh(vl) {
+  [vl.options, vl.ov, vl.cases] = await Promise.all([api.vlOptions(), api.vlOverview(), api.vlCases()]);
+  vl.forms.policy = VL.policyForm(vl.ov.policy);
+  if (vl.sel.case) vl.sel.case = await api.vlCase(vl.sel.case.id).catch(() => null);
+  if (!vl.sel.case) vl.sens = null;
+}
+async function loadValuation() {
+  const vl = uiState.vl || (uiState.vl = newVl());
+  vl.error = null;
+  try { await valuationRefresh(vl); } catch (err) { vl.error = err.message || "Valuation could not be loaded."; }
+  render();
+}
+
+function valuationActions() {
+  const vl = uiState.vl;
+  const run = async (fn, ok) => { vl.error = null; vl.notice = null; vl.formError = null; vl.busy = true; render(); try { await fn(); if (ok) vl.notice = ok; } catch (err) { vl.error = err.message || "That did not work."; } vl.busy = false; render(); };
+  const problem = (form, text) => { vl.formError = { form, text }; vl.notice = null; vl.error = null; render(); };
+  const fail = (text) => { vl.formError = null; vl.notice = null; vl.error = text; render(); };
+  const refresh = () => valuationRefresh(vl);
+  const reset = (name) => { vl.forms[name] = JSON.parse(JSON.stringify(VL.EMPTY[name])); };
+  const note = (k) => (vl.notes[k] || "").trim();
+  const needNote = (k, what, min) => VL.noteProblem(note(k), what, min);
+  const optNote = (k, what) => { const n = note(k); return n ? VL.noteProblem(n, what, 10) : ""; };
+  const act = (form, errForm, build, call, ok, after) => { const r = build(vl.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { vl.tab = t; vl.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { vl.forms[name] = { ...(vl.forms[name] || {}), [k]: v }; vl.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { vl.notes[k] = v; },
+    savePolicy: () => { const r = VL.policyPayload(vl.forms.policy); if (r.problem) return problem("policy", r.problem); return run(async () => { await api.setVlPolicy(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectCase: (id) => run(async () => { vl.sel.case = id ? await api.vlCase(id) : null; vl.sens = null; vl.notes = {}; reset("method"); reset("submit"); }),
+    createCase: () => act("case", "case", VL.casePayload, (b) => api.createVlCase(b), null, (x) => { reset("case"); vl.notice = `${x.ref} started.`; }),
+    addMethod: (id) => act("method", "method", VL.methodPayload, (b) => api.addVlMethod(id, b), "Method added.", () => { const k = vl.forms.method.kind; reset("method"); vl.forms.method.kind = k; }),
+    removeMethod: (id, no) => { const p = needNote(`rm-${id}-${no}`, "A reason", VL.minNote.remove); if (p) return fail(p); return run(async () => { await api.removeVlMethod(id, no, note(`rm-${id}-${no}`)); vl.notes = {}; vl.sens = null; await refresh(); }, "Method removed. The reason is kept."); },
+    showSensitivity: (id, no) => run(async () => { const s = await api.vlSensitivity(id, no); vl.sens = { caseId: id, method: no, rows: s.rows }; }),
+    submit: (id) => act("submit", "submit", VL.submitPayload, (b) => api.submitVl(id, b.rationale), "Submitted. A different person must review it.", () => { reset("submit"); }),
+    withdraw: (id) => { const p = needNote(`wd-${id}`, "A reason", VL.minNote.withdraw); if (p) return fail(p); return run(async () => { await api.withdrawVl(id, note(`wd-${id}`)); vl.notes = {}; await refresh(); }, "Valuation withdrawn. The reason is kept."); },
+    approve: (id) => { const p = optNote(`dec-${id}`, "An approval note"); if (p) return fail(p); return run(async () => { await api.approveVl(id, note(`dec-${id}`)); vl.notes = {}; await refresh(); }, "Valuation approved."); },
+    returnCase: (id) => { const p = needNote(`dec-${id}`, "A reason", VL.minNote.return); if (p) return fail(p); return run(async () => { await api.returnVl(id, note(`dec-${id}`)); vl.notes = {}; await refresh(); }, "Valuation returned. The reason is kept."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Insurance and claims (Stage 29): a register of what people type in; contacts no insurer; gives no advice
+// ----------------------------------------------------------------------
+function newIc() {
+  return { tab: "overview", ov: null, policies: [], claims: [], sel: { policy: null, claim: null }, forms: { ...JSON.parse(JSON.stringify(IC.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderInsurancePage(authState) {
+  if (!uiState.ic) uiState.ic = newIc();
+  once("icLoading", () => loadInsurance());
+  return Insurance({ ic: uiState.ic, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.icLoading, onRetry: () => { loadedOnce.delete("icLoading"); render(); }, actions: insuranceActions() });
+}
+
+async function insuranceRefresh(ic) {
+  [ic.ov, ic.policies, ic.claims] = await Promise.all([api.icOverview(), api.icPolicies(), api.icClaims()]);
+  ic.forms.setting = { warning_days: String(ic.ov.policy.warning_days) };
+  if (ic.sel.policy) ic.sel.policy = await api.icPolicy(ic.sel.policy.id).catch(() => null);
+  if (ic.sel.claim) ic.sel.claim = await api.icClaim(ic.sel.claim.id).catch(() => null);
+}
+async function loadInsurance() {
+  const ic = uiState.ic || (uiState.ic = newIc());
+  ic.error = null;
+  try { await insuranceRefresh(ic); } catch (err) { ic.error = err.message || "Insurance and claims could not be loaded."; }
+  render();
+}
+
+function insuranceActions() {
+  const ic = uiState.ic;
+  const run = async (fn, ok) => { ic.error = null; ic.notice = null; ic.formError = null; ic.busy = true; render(); try { await fn(); if (ok) ic.notice = ok; } catch (err) { ic.error = err.message || "That did not work."; } ic.busy = false; render(); };
+  const problem = (form, text) => { ic.formError = { form, text }; ic.notice = null; ic.error = null; render(); };
+  const fail = (text) => { ic.formError = null; ic.notice = null; ic.error = text; render(); };
+  const refresh = () => insuranceRefresh(ic);
+  const reset = (name) => { ic.forms[name] = JSON.parse(JSON.stringify(IC.EMPTY[name])); };
+  const note = (k) => (ic.notes[k] || "").trim();
+  const act = (form, errForm, build, call, ok, after) => { const r = build(ic.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { ic.tab = t; ic.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { ic.forms[name] = { ...(ic.forms[name] || {}), [k]: v }; ic.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { ic.notes[k] = v; },
+    saveSetting: () => { const r = IC.settingPayload(ic.forms.setting.warning_days); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setIcSetting(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectPolicy: (id) => run(async () => { ic.sel.policy = id ? await api.icPolicy(id) : null; ic.notes = {}; reset("claim"); }),
+    selectClaim: (id) => run(async () => { ic.sel.claim = id ? await api.icClaim(id) : null; ic.notes = {}; reset("outcome"); reset("receipt"); }),
+    addPolicy: () => act("policy", "policy", IC.policyPayload, (b) => api.addIcPolicy(b), null, (x) => { reset("policy"); ic.notice = `${x.ref} recorded.`; }),
+    cancelPolicy: (id) => { const n = note(`cancel-${id}`); const p = IC.noteProblem(n, "A reason", IC.minNote.cancel); if (p) return fail(p); return run(async () => { await api.cancelIcPolicy(id, n); ic.notes = {}; await refresh(); }, "Policy cancelled. The reason is kept."); },
+    addClaim: (id) => act("claim", "claim", (f) => IC.claimPayload(f, ic.sel.policy && ic.sel.policy.sum_insured), (b) => api.addIcClaim(id, b), null, (x) => { reset("claim"); ic.notice = `${x.ref} recorded.`; }),
+    proposeOutcome: (id, claimed) => act("outcome", "outcome", (f) => IC.outcomePayload(f, claimed), (b) => api.proposeIcOutcome(id, b), "Outcome proposed. A different person must decide it.", () => { reset("outcome"); }),
+    approveOutcome: (id, no) => { const n = note(`pr-${id}-${no}`); if (n) { const p = IC.noteProblem(n, "An approval note", 10); if (p) return fail(p); } return run(async () => { await api.approveIcOutcome(id, no, n); ic.notes = {}; await refresh(); }, "Outcome approved."); },
+    rejectOutcome: (id, no) => { const n = note(`pr-${id}-${no}`); const p = IC.noteProblem(n, "A reason", IC.minNote.reject); if (p) return fail(p); return run(async () => { await api.rejectIcOutcome(id, no, n); ic.notes = {}; await refresh(); }, "Outcome rejected. The reason is kept."); },
+    recordReceipt: (id, outstanding) => act("receipt", "receipt", (f) => IC.receiptPayload(f, outstanding), (b) => api.recordIcReceipt(id, b), "Money received recorded.", () => { reset("receipt"); }),
+  };
+}
+
+// ----------------------------------------------------------------------
+// ESG and carbon (Stage 30): emission records from typed data and factors; supplies no factors; measures nothing
+// ----------------------------------------------------------------------
+function newEs() {
+  return { tab: "overview", ov: null, entries: [], targets: [], forms: { ...JSON.parse(JSON.stringify(ES.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderEsgPage(authState) {
+  if (!uiState.es) uiState.es = newEs();
+  once("esLoading", () => loadEsg());
+  return Esg({ es: uiState.es, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.esLoading, onRetry: () => { loadedOnce.delete("esLoading"); render(); }, actions: esgActions() });
+}
+
+async function esgRefresh(es) {
+  [es.ov, es.entries, es.targets] = await Promise.all([api.esOverview(), api.esEntries(), api.esTargets()]);
+  es.forms.setting = { factor_max_age_years: String(es.ov.setting.factor_max_age_years) };
+}
+async function loadEsg() {
+  const es = uiState.es || (uiState.es = newEs());
+  es.error = null;
+  try { await esgRefresh(es); } catch (err) { es.error = err.message || "ESG and carbon could not be loaded."; }
+  render();
+}
+
+function esgActions() {
+  const es = uiState.es;
+  const run = async (fn, ok) => { es.error = null; es.notice = null; es.formError = null; es.busy = true; render(); try { await fn(); if (ok) es.notice = ok; } catch (err) { es.error = err.message || "That did not work."; } es.busy = false; render(); };
+  const problem = (form, text) => { es.formError = { form, text }; es.notice = null; es.error = null; render(); };
+  const fail = (text) => { es.formError = null; es.notice = null; es.error = text; render(); };
+  const refresh = () => esgRefresh(es);
+  const reset = (name) => { es.forms[name] = JSON.parse(JSON.stringify(ES.EMPTY[name])); };
+  const note = (k) => (es.notes[k] || "").trim();
+  const act = (form, errForm, build, call, ok, after) => { const r = build(es.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  const approve = (call, key) => { const n = note(key); if (n) { const p = ES.noteProblem(n, "An approval note", 10); if (p) return fail(p); } return run(async () => { await call(n); es.notes = {}; await refresh(); }, "Approved."); };
+  const reject = (call, key) => { const n = note(key); const p = ES.noteProblem(n, "A reason", ES.minNote.reject); if (p) return fail(p); return run(async () => { await call(n); es.notes = {}; await refresh(); }, "Rejected. The reason is kept."); };
+  return {
+    setTab: (t) => run(async () => { es.tab = t; es.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { es.forms[name] = { ...(es.forms[name] || {}), [k]: v }; es.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { es.notes[k] = v; },
+    saveSetting: () => { const r = ES.settingPayload(es.forms.setting.factor_max_age_years); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setEsSetting(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    addEntry: () => act("entry", "entry", ES.entryPayload, (b) => api.addEsEntry(b), null, (x) => { const k = [es.forms.entry.scope, es.forms.entry.category]; reset("entry"); es.forms.entry.scope = k[0]; es.forms.entry.category = k[1]; es.notice = `${x.ref} proposed. A different person must verify it.`; }),
+    verifyEntry: (id) => approve((n) => api.verifyEsEntry(id, n), `en-${id}`),
+    rejectEntry: (id) => reject((n) => api.rejectEsEntry(id, n), `en-${id}`),
+    addTarget: () => act("target", "target", ES.targetPayload, (b) => api.addEsTarget(b), null, (x) => { reset("target"); es.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    approveTarget: (id) => approve((n) => api.approveEsTarget(id, n), `tg-${id}`),
+    rejectTarget: (id) => reject((n) => api.rejectEsTarget(id, n), `tg-${id}`),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Payroll and workforce cost (Stage 31): typed pay lines added up exactly; calculates no tax; pays nobody
+// ----------------------------------------------------------------------
+function newPw() {
+  return { tab: "overview", ov: null, runs: [], sel: { run: null }, forms: { ...JSON.parse(JSON.stringify(PW.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderPayrollPage(authState) {
+  if (!uiState.pw) uiState.pw = newPw();
+  once("pwLoading", () => loadPayroll());
+  return Payroll({ pw: uiState.pw, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.pwLoading, onRetry: () => { loadedOnce.delete("pwLoading"); render(); }, actions: payrollActions() });
+}
+
+async function payrollRefresh(pw) {
+  [pw.ov, pw.runs] = await Promise.all([api.pwOverview(), api.pwRuns()]);
+  pw.forms.setting = { review_limit: String(pw.ov.setting.review_limit) };
+  if (pw.sel.run) pw.sel.run = await api.pwRun(pw.sel.run.id).catch(() => null);
+}
+async function loadPayroll() {
+  const pw = uiState.pw || (uiState.pw = newPw());
+  pw.error = null;
+  try { await payrollRefresh(pw); } catch (err) { pw.error = err.message || "Payroll could not be loaded."; }
+  render();
+}
+
+function payrollActions() {
+  const pw = uiState.pw;
+  const run = async (fn, ok) => { pw.error = null; pw.notice = null; pw.formError = null; pw.busy = true; render(); try { await fn(); if (ok) pw.notice = ok; } catch (err) { pw.error = err.message || "That did not work."; } pw.busy = false; render(); };
+  const problem = (form, text) => { pw.formError = { form, text }; pw.notice = null; pw.error = null; render(); };
+  const fail = (text) => { pw.formError = null; pw.notice = null; pw.error = text; render(); };
+  const refresh = () => payrollRefresh(pw);
+  const reset = (name) => { pw.forms[name] = JSON.parse(JSON.stringify(PW.EMPTY[name])); };
+  const note = (k) => (pw.notes[k] || "").trim();
+  const act = (form, errForm, build, call, ok, after) => { const r = build(pw.forms[form]); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { pw.tab = t; pw.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { pw.forms[name] = { ...(pw.forms[name] || {}), [k]: v }; pw.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { pw.notes[k] = v; },
+    saveSetting: () => { const r = PW.settingPayload(pw.forms.setting.review_limit); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setPwSetting(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectRun: (id) => run(async () => { pw.sel.run = id ? await api.pwRun(id) : null; pw.notes = {}; reset("line"); reset("submit"); }),
+    createRun: () => act("run", "run", PW.runPayload, (b) => api.createPwRun(b), null, (x) => { reset("run"); pw.notice = `${x.ref} started.`; }),
+    addLine: (id) => act("line", "line", PW.linePayload, (b) => api.addPwLine(id, b), "Line added.", () => { reset("line"); }),
+    removeLine: (id, no) => { const p = PW.noteProblem(note(`rm-${id}-${no}`), "A reason", PW.minNote.remove); if (p) return fail(p); return run(async () => { await api.removePwLine(id, no, note(`rm-${id}-${no}`)); pw.notes = {}; await refresh(); }, "Line removed. The reason is kept."); },
+    submit: (id) => act("submit", "submit", PW.submitPayload, (b) => api.submitPw(id, b.note), "Submitted. A different person must review it.", () => { reset("submit"); }),
+    withdraw: (id) => { const p = PW.noteProblem(note(`wd-${id}`), "A reason", PW.minNote.withdraw); if (p) return fail(p); return run(async () => { await api.withdrawPw(id, note(`wd-${id}`)); pw.notes = {}; await refresh(); }, "Run withdrawn. The reason is kept."); },
+    approve: (id) => { const n = note(`dec-${id}`); if (n) { const p = PW.noteProblem(n, "An approval note", 10); if (p) return fail(p); } return run(async () => { await api.approvePw(id, n); pw.notes = {}; await refresh(); }, "Run approved."); },
+    returnRun: (id) => { const p = PW.noteProblem(note(`dec-${id}`), "A reason", PW.minNote.return); if (p) return fail(p); return run(async () => { await api.returnPw(id, note(`dec-${id}`)); pw.notes = {}; await refresh(); }, "Run returned. The reason is kept."); },
   };
 }
 

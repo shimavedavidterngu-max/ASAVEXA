@@ -771,6 +771,94 @@ export class ApiClient {
   fileCsFiling(id, body) { return this.post(`/secretarial/filings/${encodeURIComponent(id)}/file`, body); }
   confirmCsFiling(id, note) { return this.post(`/secretarial/filings/${encodeURIComponent(id)}/confirm`, { note: note || "" }); }
   withdrawCsFiling(id, reason) { return this.post(`/secretarial/filings/${encodeURIComponent(id)}/withdraw`, { reason: reason || "" }); }
+  faOverview() { return this.get("/fixedassets/overview"); }
+  faOptions() { return this.get("/fixedassets/options"); }
+  setFaPolicy(body) { return this.put("/fixedassets/policy", body); }
+  faAssets() { return this.get("/fixedassets/assets"); }
+  faAsset(id) { return this.get(`/fixedassets/assets/${encodeURIComponent(id)}`); }
+  faSchedule(id, months) { return this.get(`/fixedassets/assets/${encodeURIComponent(id)}/schedule?months=${encodeURIComponent(months || 12)}`); }
+  proposeFaAsset(body) { return this.post("/fixedassets/assets", body); }
+  approveFaAsset(id, note) { return this.post(`/fixedassets/assets/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectFaAsset(id, reason) { return this.post(`/fixedassets/assets/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+  proposeFaDisposal(id, body) { return this.post(`/fixedassets/assets/${encodeURIComponent(id)}/disposal`, body); }
+  approveFaDisposal(id, note) { return this.post(`/fixedassets/assets/${encodeURIComponent(id)}/disposal/approve`, { note: note || "" }); }
+  rejectFaDisposal(id, reason) { return this.post(`/fixedassets/assets/${encodeURIComponent(id)}/disposal/reject`, { reason: reason || "" }); }
+  recordFaCount(id, body) { return this.post(`/fixedassets/assets/${encodeURIComponent(id)}/counts`, body); }
+  reviewFaCount(id, no, note) { return this.post(`/fixedassets/assets/${encodeURIComponent(id)}/counts/${encodeURIComponent(no)}/review`, { note: note || "" }); }
+  ivOverview() { return this.get("/inventory/overview"); }
+  ivOptions() { return this.get("/inventory/options"); }
+  setIvPolicy(body) { return this.put("/inventory/policy", body); }
+  ivItems() { return this.get("/inventory/items"); }
+  ivItem(id) { return this.get(`/inventory/items/${encodeURIComponent(id)}`); }
+  addIvItem(body) { return this.post("/inventory/items", body); }
+  discontinueIvItem(id, reason) { return this.post(`/inventory/items/${encodeURIComponent(id)}/discontinue`, { reason: reason || "" }); }
+  receiveIv(id, body) { return this.post(`/inventory/items/${encodeURIComponent(id)}/receive`, body); }
+  issueIv(id, body) { return this.post(`/inventory/items/${encodeURIComponent(id)}/issue`, body); }
+  proposeIvAdjustment(id, body) { return this.post(`/inventory/items/${encodeURIComponent(id)}/adjustments`, body); }
+  approveIvAdjustment(id, no, note) { return this.post(`/inventory/items/${encodeURIComponent(id)}/adjustments/${encodeURIComponent(no)}/approve`, { note: note || "" }); }
+  rejectIvAdjustment(id, no, reason) { return this.post(`/inventory/items/${encodeURIComponent(id)}/adjustments/${encodeURIComponent(no)}/reject`, { reason: reason || "" }); }
+  imOverview() { return this.get("/investments/overview"); }
+  imOptions() { return this.get("/investments/options"); }
+  setImPolicy(body) { return this.put("/investments/policy", body); }
+  imHoldings() { return this.get("/investments/holdings"); }
+  imHolding(id) { return this.get(`/investments/holdings/${encodeURIComponent(id)}`); }
+  addImHolding(body) { return this.post("/investments/holdings", body); }
+  closeImHolding(id, reason) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/close`, { reason: reason || "" }); }
+  buyIm(id, body) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/buy`, body); }
+  proposeImSell(id, body) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/sells`, body); }
+  approveImSell(id, no, note) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/sells/${encodeURIComponent(no)}/approve`, { note: note || "" }); }
+  rejectImSell(id, no, reason) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/sells/${encodeURIComponent(no)}/reject`, { reason: reason || "" }); }
+  recordImMark(id, body) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/marks`, body); }
+  pwOverview() { return this.get("/payroll/overview"); }
+  pwOptions() { return this.get("/payroll/options"); }
+  setPwSetting(body) { return this.put("/payroll/setting", body); }
+  pwRuns() { return this.get("/payroll/runs"); }
+  pwRun(id) { return this.get(`/payroll/runs/${encodeURIComponent(id)}`); }
+  createPwRun(body) { return this.post("/payroll/runs", body); }
+  addPwLine(id, body) { return this.post(`/payroll/runs/${encodeURIComponent(id)}/lines`, body); }
+  removePwLine(id, no, reason) { return this.post(`/payroll/runs/${encodeURIComponent(id)}/lines/${encodeURIComponent(no)}/remove`, { reason: reason || "" }); }
+  submitPw(id, note) { return this.post(`/payroll/runs/${encodeURIComponent(id)}/submit`, { note: note || "" }); }
+  withdrawPw(id, reason) { return this.post(`/payroll/runs/${encodeURIComponent(id)}/withdraw`, { reason: reason || "" }); }
+  approvePw(id, note) { return this.post(`/payroll/runs/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  returnPw(id, reason) { return this.post(`/payroll/runs/${encodeURIComponent(id)}/return`, { reason: reason || "" }); }
+  esOverview() { return this.get("/esg/overview"); }
+  esOptions() { return this.get("/esg/options"); }
+  setEsSetting(body) { return this.put("/esg/setting", body); }
+  esEntries() { return this.get("/esg/entries"); }
+  addEsEntry(body) { return this.post("/esg/entries", body); }
+  verifyEsEntry(id, note) { return this.post(`/esg/entries/${encodeURIComponent(id)}/verify`, { note: note || "" }); }
+  rejectEsEntry(id, reason) { return this.post(`/esg/entries/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+  esTargets() { return this.get("/esg/targets"); }
+  addEsTarget(body) { return this.post("/esg/targets", body); }
+  approveEsTarget(id, note) { return this.post(`/esg/targets/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  rejectEsTarget(id, reason) { return this.post(`/esg/targets/${encodeURIComponent(id)}/reject`, { reason: reason || "" }); }
+  icOverview() { return this.get("/insurance/overview"); }
+  icOptions() { return this.get("/insurance/options"); }
+  setIcSetting(body) { return this.put("/insurance/setting", body); }
+  icPolicies() { return this.get("/insurance/policies"); }
+  icPolicy(id) { return this.get(`/insurance/policies/${encodeURIComponent(id)}`); }
+  addIcPolicy(body) { return this.post("/insurance/policies", body); }
+  cancelIcPolicy(id, reason) { return this.post(`/insurance/policies/${encodeURIComponent(id)}/cancel`, { reason: reason || "" }); }
+  addIcClaim(id, body) { return this.post(`/insurance/policies/${encodeURIComponent(id)}/claims`, body); }
+  icClaims() { return this.get("/insurance/claims"); }
+  icClaim(id) { return this.get(`/insurance/claims/${encodeURIComponent(id)}`); }
+  proposeIcOutcome(id, body) { return this.post(`/insurance/claims/${encodeURIComponent(id)}/proposals`, body); }
+  approveIcOutcome(id, no, note) { return this.post(`/insurance/claims/${encodeURIComponent(id)}/proposals/${encodeURIComponent(no)}/approve`, { note: note || "" }); }
+  rejectIcOutcome(id, no, reason) { return this.post(`/insurance/claims/${encodeURIComponent(id)}/proposals/${encodeURIComponent(no)}/reject`, { reason: reason || "" }); }
+  recordIcReceipt(id, body) { return this.post(`/insurance/claims/${encodeURIComponent(id)}/receipts`, body); }
+  vlOverview() { return this.get("/valuation/overview"); }
+  vlOptions() { return this.get("/valuation/options"); }
+  setVlPolicy(body) { return this.put("/valuation/policy", body); }
+  vlCases() { return this.get("/valuation/cases"); }
+  vlCase(id) { return this.get(`/valuation/cases/${encodeURIComponent(id)}`); }
+  createVlCase(body) { return this.post("/valuation/cases", body); }
+  vlSensitivity(id, no) { return this.get(`/valuation/cases/${encodeURIComponent(id)}/methods/${encodeURIComponent(no)}/sensitivity`); }
+  addVlMethod(id, body) { return this.post(`/valuation/cases/${encodeURIComponent(id)}/methods`, body); }
+  removeVlMethod(id, no, reason) { return this.post(`/valuation/cases/${encodeURIComponent(id)}/methods/${encodeURIComponent(no)}/remove`, { reason: reason || "" }); }
+  submitVl(id, rationale) { return this.post(`/valuation/cases/${encodeURIComponent(id)}/submit`, { rationale: rationale || "" }); }
+  withdrawVl(id, reason) { return this.post(`/valuation/cases/${encodeURIComponent(id)}/withdraw`, { reason: reason || "" }); }
+  approveVl(id, note) { return this.post(`/valuation/cases/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  returnVl(id, reason) { return this.post(`/valuation/cases/${encodeURIComponent(id)}/return`, { reason: reason || "" }); }
   rsOverview() { return this.get("/resilience/overview"); }
   setRsPolicy(body) { return this.put("/resilience/policy", body); }
   rsKris() { return this.get("/resilience/kris"); }
