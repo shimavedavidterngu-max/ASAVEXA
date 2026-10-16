@@ -265,6 +265,7 @@ class RouteRegistrationTestCase(unittest.TestCase):
         "insurance.router": "/insurance",
         "esg.router": "/esg",
         "payroll.router": "/payroll",
+        "projects.router": "/projects",
         "pubfin.router": "/pubfin",
         "bizdev.router": "/bizdev",
         "cyber.router": "/cyber",

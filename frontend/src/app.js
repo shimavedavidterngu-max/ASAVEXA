@@ -100,6 +100,8 @@ import { Esg } from "./pages/Esg.js";
 import * as ES from "./lib/esg.js";
 import { Payroll } from "./pages/Payroll.js";
 import * as PW from "./lib/payroll.js";
+import { Projects } from "./pages/Projects.js";
+import * as PJ from "./lib/projects.js";
 import * as IA from "./lib/itaudit.js";
 import * as FX from "./lib/fincrime.js";
 import * as CY from "./lib/cyber.js";
@@ -187,6 +189,7 @@ const NAV_ITEMS = [
   { path: "/insurance", label: "Insurance and claims", permission: PERMISSIONS.AUDIT_READ },
   { path: "/esg", label: "ESG and carbon", permission: PERMISSIONS.AUDIT_READ },
   { path: "/payroll", label: "Payroll and workforce cost", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/projects", label: "Projects and grants", permission: PERMISSIONS.AUDIT_READ },
   { path: "/health", label: "Health Centre", permission: PERMISSIONS.HEALTH_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
@@ -252,6 +255,7 @@ const routes = [
   { path: "/insurance", name: "insurance" },
   { path: "/esg", name: "esg" },
   { path: "/payroll", name: "payroll" },
+  { path: "/projects", name: "projects" },
   { path: "/health", name: "health" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
@@ -845,6 +849,7 @@ function renderPage(matched, authState) {
   if (name === "insurance") return renderInsurancePage(authState);
   if (name === "esg") return renderEsgPage(authState);
   if (name === "payroll") return renderPayrollPage(authState);
+  if (name === "projects") return renderProjectsPage(authState);
   if (name === "health") return renderHealthPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
@@ -1195,7 +1200,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading"); uiState.ql = null; loadedOnce.delete("qlLoading"); uiState.cs = null; loadedOnce.delete("csLoading"); uiState.fa = null; loadedOnce.delete("faLoading"); uiState.iv = null; loadedOnce.delete("ivLoading"); uiState.im = null; loadedOnce.delete("imLoading"); uiState.vl = null; loadedOnce.delete("vlLoading"); uiState.ic = null; loadedOnce.delete("icLoading"); uiState.es = null; loadedOnce.delete("esLoading"); uiState.pw = null; loadedOnce.delete("pwLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading"); uiState.ql = null; loadedOnce.delete("qlLoading"); uiState.cs = null; loadedOnce.delete("csLoading"); uiState.fa = null; loadedOnce.delete("faLoading"); uiState.iv = null; loadedOnce.delete("ivLoading"); uiState.im = null; loadedOnce.delete("imLoading"); uiState.vl = null; loadedOnce.delete("vlLoading"); uiState.ic = null; loadedOnce.delete("icLoading"); uiState.es = null; loadedOnce.delete("esLoading"); uiState.pw = null; loadedOnce.delete("pwLoading"); uiState.pj = null; loadedOnce.delete("pjLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -5338,6 +5343,61 @@ function payrollActions() {
     withdraw: (id) => { const p = PW.noteProblem(note(`wd-${id}`), "A reason", PW.minNote.withdraw); if (p) return fail(p); return run(async () => { await api.withdrawPw(id, note(`wd-${id}`)); pw.notes = {}; await refresh(); }, "Run withdrawn. The reason is kept."); },
     approve: (id) => { const n = note(`dec-${id}`); if (n) { const p = PW.noteProblem(n, "An approval note", 10); if (p) return fail(p); } return run(async () => { await api.approvePw(id, n); pw.notes = {}; await refresh(); }, "Run approved."); },
     returnRun: (id) => { const p = PW.noteProblem(note(`dec-${id}`), "A reason", PW.minNote.return); if (p) return fail(p); return run(async () => { await api.returnPw(id, note(`dec-${id}`)); pw.notes = {}; await refresh(); }, "Run returned. The reason is kept."); },
+  };
+}
+
+// ----------------------------------------------------------------------
+// Projects and grants (Stage 32): typed award, budget lines, spending and receipts decided by a different person; moves no money
+// ----------------------------------------------------------------------
+function newPj() {
+  return { tab: "overview", ov: null, projects: [], sel: { project: null }, forms: { ...JSON.parse(JSON.stringify(PJ.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderProjectsPage(authState) {
+  if (!uiState.pj) uiState.pj = newPj();
+  once("pjLoading", () => loadProjects());
+  return Projects({ pj: uiState.pj, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.pjLoading, onRetry: () => { loadedOnce.delete("pjLoading"); render(); }, actions: projectsActions() });
+}
+
+async function projectsRefresh(pj) {
+  [pj.ov, pj.projects] = await Promise.all([api.pjOverview(), api.pjProjects()]);
+  pj.forms.setting = { ending_soon_days: String(pj.ov.setting.ending_soon_days) };
+  if (pj.sel.project) pj.sel.project = await api.pjProject(pj.sel.project.id).catch(() => null);
+}
+async function loadProjects() {
+  const pj = uiState.pj || (uiState.pj = newPj());
+  pj.error = null;
+  try { await projectsRefresh(pj); } catch (err) { pj.error = err.message || "Projects could not be loaded."; }
+  render();
+}
+
+function projectsActions() {
+  const pj = uiState.pj;
+  const run = async (fn, ok) => { pj.error = null; pj.notice = null; pj.formError = null; pj.busy = true; render(); try { await fn(); if (ok) pj.notice = ok; } catch (err) { pj.error = err.message || "That did not work."; } pj.busy = false; render(); };
+  const problem = (form, text) => { pj.formError = { form, text }; pj.notice = null; pj.error = null; render(); };
+  const fail = (text) => { pj.formError = null; pj.notice = null; pj.error = text; render(); };
+  const refresh = () => projectsRefresh(pj);
+  const reset = (name) => { pj.forms[name] = JSON.parse(JSON.stringify(PJ.EMPTY[name])); };
+  const note = (k) => (pj.notes[k] || "").trim();
+  const act = (form, errForm, build, call, ok, after) => { const r = build(pj.forms[form], pj.sel.project); if (r.problem) return problem(errForm, r.problem); return run(async () => { const x = await call(r.body); if (after) after(x); await refresh(); }, ok); };
+  const needNote = (key, what, min, call, ok) => { const p = PJ.noteProblem(note(key), what, min); if (p) return fail(p); return run(async () => { await call(note(key)); pj.notes = {}; await refresh(); }, ok); };
+  return {
+    setTab: (t) => run(async () => { pj.tab = t; pj.formError = null; await refresh(); }),
+    setForm: (name, k, v, rerender) => { pj.forms[name] = { ...(pj.forms[name] || {}), [k]: v }; pj.formError = null; if (rerender) render(); },
+    setNote: (k, v) => { pj.notes[k] = v; },
+    saveSetting: () => { const r = PJ.settingPayload(pj.forms.setting.ending_soon_days); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setPjSetting(r.body); await refresh(); }, "Settings saved. They apply from now on."); },
+    selectProject: (id) => run(async () => { pj.sel.project = id ? await api.pjProject(id) : null; pj.notes = {}; reset("budget"); reset("entry"); reset("submit"); }),
+    createProject: () => act("project", "project", PJ.projectPayload, (b) => api.createPjProject(b), null, (x) => { reset("project"); pj.notice = `${x.ref} started.`; }),
+    addBudget: (id) => act("budget", "budget", PJ.budgetPayload, (b) => api.addPjBudget(id, b), "Budget line added.", () => { reset("budget"); }),
+    removeBudget: (id, no) => needNote(`rm-${id}-${no}`, "A reason", PJ.minNote.remove, (n) => api.removePjBudget(id, no, n), "Budget line removed. The reason is kept."),
+    submit: (id) => act("submit", "submit", PJ.submitPayload, (b) => api.submitPj(id, b.note), "Submitted. A different person must review it.", () => { reset("submit"); }),
+    withdraw: (id) => needNote(`wd-${id}`, "A reason", PJ.minNote.withdraw, (n) => api.withdrawPj(id, n), "Project withdrawn. The reason is kept."),
+    approve: (id) => { const n = note(`dec-${id}`); if (n) { const p = PJ.noteProblem(n, "An approval note", 10); if (p) return fail(p); } return run(async () => { await api.approvePj(id, n); pj.notes = {}; await refresh(); }, "Project approved. Spending can now be proposed."); },
+    returnProject: (id) => needNote(`dec-${id}`, "A reason", PJ.minNote.return, (n) => api.returnPj(id, n), "Project returned. The reason is kept."),
+    close: (id) => needNote(`cl-${id}`, "A closing note", PJ.minNote.close, (n) => api.closePj(id, n), "Project closed."),
+    addEntry: (id) => act("entry", "entry", PJ.entryPayload, (b) => api.addPjEntry(id, b), "Entry proposed. A different person must decide it.", () => { reset("entry"); }),
+    approveEntry: (id, no) => { const n = note(`en-${id}-${no}`); if (n) { const p = PJ.noteProblem(n, "An approval note", 10); if (p) return fail(p); } return run(async () => { await api.approvePjEntry(id, no, n); pj.notes = {}; await refresh(); }, "Entry approved."); },
+    rejectEntry: (id, no) => needNote(`en-${id}-${no}`, "A reason", PJ.minNote.reject, (n) => api.rejectPjEntry(id, no, n), "Entry rejected. The reason is kept."),
   };
 }
 

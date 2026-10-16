@@ -809,6 +809,22 @@ export class ApiClient {
   approveImSell(id, no, note) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/sells/${encodeURIComponent(no)}/approve`, { note: note || "" }); }
   rejectImSell(id, no, reason) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/sells/${encodeURIComponent(no)}/reject`, { reason: reason || "" }); }
   recordImMark(id, body) { return this.post(`/investments/holdings/${encodeURIComponent(id)}/marks`, body); }
+  pjOverview() { return this.get("/projects/overview"); }
+  pjOptions() { return this.get("/projects/options"); }
+  setPjSetting(body) { return this.put("/projects/setting", body); }
+  pjProjects() { return this.get("/projects/projects"); }
+  pjProject(id) { return this.get(`/projects/projects/${encodeURIComponent(id)}`); }
+  createPjProject(body) { return this.post("/projects/projects", body); }
+  addPjBudget(id, body) { return this.post(`/projects/projects/${encodeURIComponent(id)}/budget`, body); }
+  removePjBudget(id, no, reason) { return this.post(`/projects/projects/${encodeURIComponent(id)}/budget/${encodeURIComponent(no)}/remove`, { reason: reason || "" }); }
+  submitPj(id, note) { return this.post(`/projects/projects/${encodeURIComponent(id)}/submit`, { note: note || "" }); }
+  withdrawPj(id, reason) { return this.post(`/projects/projects/${encodeURIComponent(id)}/withdraw`, { reason: reason || "" }); }
+  approvePj(id, note) { return this.post(`/projects/projects/${encodeURIComponent(id)}/approve`, { note: note || "" }); }
+  returnPj(id, reason) { return this.post(`/projects/projects/${encodeURIComponent(id)}/return`, { reason: reason || "" }); }
+  closePj(id, reason) { return this.post(`/projects/projects/${encodeURIComponent(id)}/close`, { reason: reason || "" }); }
+  addPjEntry(id, body) { return this.post(`/projects/projects/${encodeURIComponent(id)}/entries`, body); }
+  approvePjEntry(id, no, note) { return this.post(`/projects/projects/${encodeURIComponent(id)}/entries/${encodeURIComponent(no)}/approve`, { note: note || "" }); }
+  rejectPjEntry(id, no, reason) { return this.post(`/projects/projects/${encodeURIComponent(id)}/entries/${encodeURIComponent(no)}/reject`, { reason: reason || "" }); }
   pwOverview() { return this.get("/payroll/overview"); }
   pwOptions() { return this.get("/payroll/options"); }
   setPwSetting(body) { return this.put("/payroll/setting", body); }

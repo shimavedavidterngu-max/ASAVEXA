@@ -38,7 +38,7 @@ from asavexa.evidence.domain.enums import EvidenceType  # noqa: E402
 from asavexa.evidencereview.service import EvidenceReviewService  # noqa: E402
 from asavexa.identity.domain.errors import AsavexaIdentityError, PermissionDeniedError  # noqa: E402
 from asavexa.identity.domain.permissions import (AUDIT_READ, FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, GRC_APPROVE, GRC_PREPARE,  # noqa: E402
-                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, QUAL_APPROVE, QUAL_PREPARE, SEC_APPROVE, SEC_PREPARE, FIX_APPROVE, FIX_PREPARE, INV_APPROVE, INV_PREPARE, INVEST_APPROVE, INVEST_PREPARE, VAL_APPROVE, VAL_PREPARE, INS_APPROVE, INS_PREPARE, ESG_APPROVE, ESG_PREPARE, PAY_APPROVE, PAY_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
+                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, QUAL_APPROVE, QUAL_PREPARE, SEC_APPROVE, SEC_PREPARE, FIX_APPROVE, FIX_PREPARE, INV_APPROVE, INV_PREPARE, INVEST_APPROVE, INVEST_PREPARE, VAL_APPROVE, VAL_PREPARE, INS_APPROVE, INS_PREPARE, ESG_APPROVE, ESG_PREPARE, PAY_APPROVE, PAY_PREPARE, PROJ_APPROVE, PROJ_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
 from asavexa.reporting.services.service import ReportingService  # noqa: E402
 from asavexa.security import crypto  # noqa: E402
 from asavexa.security.auditchain import ChainedAuditRepository  # noqa: E402
@@ -75,6 +75,7 @@ vlr = importlib.import_module("asavexa.api.routers.valuation")
 icr = importlib.import_module("asavexa.api.routers.insurance")
 esr = importlib.import_module("asavexa.api.routers.esg")
 pwr = importlib.import_module("asavexa.api.routers.payroll")
+pjr = importlib.import_module("asavexa.api.routers.projects")
 ratelimit.LOGIN.limit = ratelimit.MFA.limit = 10000
 
 store = SqliteDocStore(w.conn)
@@ -161,6 +162,8 @@ from asavexa.esg.service import EsgService  # noqa: E402
 ess = EsgService(store, w.vault, log=log_for("Esg"))
 from asavexa.payroll.service import PayrollService  # noqa: E402
 pws = PayrollService(store, w.vault, log=log_for("Payroll"))
+from asavexa.projects.service import ProjectsService  # noqa: E402
+pjs = ProjectsService(store, w.vault, log=log_for("Projects"))
 _fpa_shift = {"days": 0}      # test-only: lets a journey move the Planning and KPIs clock forward so a forecast period can end
 fps = FpaService(store, w.vault, is_member=_fpa_member, can_record=_fpa_can_record, log=log_for("Fpa"),
                  now=lambda: datetime.now(timezone.utc) + timedelta(days=_fpa_shift["days"]))
@@ -627,6 +630,36 @@ class Handler(BaseHTTPRequestHandler):
             if mm: need(A_); return pwr.approve(mm.group(1), pwr.NoteBody(**b), org, a, pws)
             mm = re.match(r"/runs/([^/]+)/return$", sub)
             if mm: need(A_); return pwr.return_run(mm.group(1), pwr.ReasonBody(**b), org, a, pws)
+        if path.startswith("/projects"):
+            need(AUDIT_READ); sub = path[len("/projects"):]; P, A_ = PROJ_PREPARE, PROJ_APPROVE
+            if sub == "/options": return pjr.options(org, pjs)
+            if sub == "/overview": return pjr.overview(org, pjs)
+            if sub == "/setting" and m == "GET": return pjr.setting(org, pjs)
+            if sub == "/setting" and m == "PUT": need(A_); return pjr.set_setting(pjr.SettingBody(**b), org, a, pjs)
+            if sub == "/projects" and m == "GET": return pjr.projects(qs.get("status"), org, pjs)
+            if sub == "/projects" and m == "POST": need(P); return (201, pjr.create_project(pjr.ProjectBody(**b), org, a, pjs))
+            mm = re.match(r"/projects/([^/]+)$", sub)
+            if mm and m == "GET": return pjr.get_project(mm.group(1), org, pjs)
+            mm = re.match(r"/projects/([^/]+)/budget$", sub)
+            if mm and m == "POST": need(P); return pjr.add_budget(mm.group(1), pjr.BudgetBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/budget/(\d+)/remove$", sub)
+            if mm: need(P); return pjr.remove_budget(mm.group(1), int(mm.group(2)), pjr.ReasonBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/submit$", sub)
+            if mm: need(P); return pjr.submit(mm.group(1), pjr.NoteBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/withdraw$", sub)
+            if mm: need(P); return pjr.withdraw(mm.group(1), pjr.ReasonBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/approve$", sub)
+            if mm: need(A_); return pjr.approve(mm.group(1), pjr.NoteBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/return$", sub)
+            if mm: need(A_); return pjr.return_project(mm.group(1), pjr.ReasonBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/close$", sub)
+            if mm: need(A_); return pjr.close_project(mm.group(1), pjr.ReasonBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/entries$", sub)
+            if mm and m == "POST": need(P); return pjr.add_entry(mm.group(1), pjr.EntryBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/entries/(\d+)/approve$", sub)
+            if mm: need(A_); return pjr.approve_entry(mm.group(1), int(mm.group(2)), pjr.NoteBody(**b), org, a, pjs)
+            mm = re.match(r"/projects/([^/]+)/entries/(\d+)/reject$", sub)
+            if mm: need(A_); return pjr.reject_entry(mm.group(1), int(mm.group(2)), pjr.ReasonBody(**b), org, a, pjs)
         if path.startswith("/fpa"):
             need(REPORTING_READ); sub = path[len("/fpa"):]; P, A_ = FPA_PREPARE, FPA_APPROVE
             if sub == "/options": return fpr.options(org, fps)

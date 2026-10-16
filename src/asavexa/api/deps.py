@@ -390,6 +390,15 @@ def get_esg(security: SecurityContext = Depends(get_security), session=Depends(g
     return EsgService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
 
 
+def get_projects(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Projects and grants service: projects, budget lines, spending and receipts in the shared document store; moves no money; every action is audited."""
+    from ..projects.service import ProjectsService
+    from ..projects.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ProjectsService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
 def get_payroll(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Payroll service: payroll runs and typed pay lines in the shared document store; calculates no tax or statutory amount and pays nobody; every action is audited."""
     from ..payroll.service import PayrollService

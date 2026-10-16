@@ -114,7 +114,7 @@ def no_secrets():
 
 def docs_present():
     need = ["DEPLOYMENT.md", "docs/stage1-migrations.md", "docs/evidence-review.md", "docs/stage5-ai-evaluation.md", "docs/stage6-standards-registry.md",
-            "docs/stage7-agents.md", "docs/stage9-rate-limiting.md", "docs/stage10-14.md", "docs/stage15-entity-config.md", "docs/stage16-treasury.md", "docs/stage17-procurement.md", "docs/stage18-fpa.md", "docs/stage22-aigov.md", "docs/stage24-secretarial.md", "docs/stage25-fixedassets.md", "docs/stage26-inventory.md", "docs/stage27-investments.md", "docs/stage28-valuation.md", "docs/stage29-insurance.md", "docs/stage30-esg.md", "docs/stage31-payroll.md", "docs/stage23-quality.md", "docs/stage19-fincrime.md", "docs/stage20-itaudit.md", "docs/stage21-resilience.md", "docs/stage8-release.md", ".github/workflows/ci.yml"]
+            "docs/stage7-agents.md", "docs/stage9-rate-limiting.md", "docs/stage10-14.md", "docs/stage15-entity-config.md", "docs/stage16-treasury.md", "docs/stage17-procurement.md", "docs/stage18-fpa.md", "docs/stage22-aigov.md", "docs/stage24-secretarial.md", "docs/stage25-fixedassets.md", "docs/stage26-inventory.md", "docs/stage27-investments.md", "docs/stage28-valuation.md", "docs/stage29-insurance.md", "docs/stage30-esg.md", "docs/stage31-payroll.md", "docs/stage32-projects.md", "docs/stage23-quality.md", "docs/stage19-fincrime.md", "docs/stage20-itaudit.md", "docs/stage21-resilience.md", "docs/stage8-release.md", ".github/workflows/ci.yml"]
     missing = [n for n in need if not os.path.exists(os.path.join(ROOT, n))]
     add(not missing, "release documents and CI workflow are present", ", ".join(missing))
 
