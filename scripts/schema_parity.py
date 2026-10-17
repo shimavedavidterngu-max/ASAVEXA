@@ -48,7 +48,7 @@ def main():
         plain = re.sub(r"^postgresql\+\w+", "postgresql", scratch_url)
         subprocess.run(["psql", plain, "-v", "ON_ERROR_STOP=1", "-q", "-f", os.path.join(ROOT, "schema.sql")], check=True)
         from asavexa.api.db.base import Base
-        from asavexa.api.db import passport_models, profile_models, security_models, standards_models  # noqa: F401
+        from asavexa.api.db import identity_models, passport_models, profile_models, security_models, standards_models  # noqa: F401
         old_way = create_engine(scratch_url)
         Base.metadata.create_all(old_way, tables=[Base.metadata.tables[t] for t in LATE], checkfirst=True)
         a, b = signature(create_engine(migrated_url)), signature(old_way)
