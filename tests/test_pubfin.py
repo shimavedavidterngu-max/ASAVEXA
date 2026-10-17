@@ -444,3 +444,14 @@ class GrantProgramme(Base):
     def test_other_company_cannot_set(self):
         g = self.g()
         with self.assertRaises(PubFinNotFoundError): self.svc.set_grant_programme(OTHER, g["id"], "WASH-01", U1)
+
+
+class OverviewLinks(Base):
+    def test_attention_items_carry_ids_so_the_page_can_open_the_proof(self):
+        b = self.approved(rent="1000")   # posted rent is already above this, so the line is overspent
+        x = next(e for e in self.svc.overview(ORG)["overspent_lines"] if e["code"] == "5100")
+        self.assertEqual((x["budget_id"], x["account_id"]), (b["id"], self.a["5100"].id))
+
+    def test_expired_and_overspent_grants_carry_their_id(self):
+        g = self.svc.create_grant(ORG, dict(title="Old", donor="Donor", amount="1000", currency="USD", start="2025-01-01", end="2025-12-31"), U1)
+        self.assertEqual([e["id"] for e in self.svc.overview(ORG)["grants_expired"]], [g["id"]])

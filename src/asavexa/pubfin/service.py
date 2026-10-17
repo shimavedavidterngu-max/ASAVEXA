@@ -560,15 +560,15 @@ class PubFinService:
         for b in bs:
             if b["status"] == "APPROVED":
                 ex = self.execution(org, b["id"])
-                over += [{"budget_ref": b["ref"], "code": r["code"], "name": r["name"], "available": r["available"]} for r in ex["rows"] if r["overspent"]]
+                over += [{"budget_id": b["id"], "account_id": r["account_id"], "budget_ref": b["ref"], "code": r["code"], "name": r["name"], "available": r["available"]} for r in ex["rows"] if r["overspent"]]
         return {"as_of": self.today().isoformat(), "policy": self.get_policy(org),
                 "counts": {"budgets": len(bs), "budgets_approved": sum(1 for b in bs if b["status"] == "APPROVED"), "budgets_waiting": sum(1 for b in bs if b["status"] == "SUBMITTED"),
                            "commitments_open": sum(1 for c in cs if c["status"] == "OPEN"), "procurements_open": sum(1 for p in ps if p["status"] in ("OPEN", "AWARD_PROPOSED")),
                            "awards_waiting": sum(1 for p in ps if p["status"] == "AWARD_PROPOSED"), "grants_active": sum(1 for g in gs if g["status"] == "ACTIVE"),
                            "spend_waiting": sum(1 for g in gs for s in g["spend"] if s["status"] == "PROPOSED"),
                            "virements_waiting": sum(1 for b in bs for v in b["virements"] if v["status"] == "PROPOSED")},
-                "overspent_lines": over, "grants_expired": [{"ref": g["ref"], "title": g["title"], "end": g["end"], "remaining": g["remaining"]} for g in gs if g["expired"]],
-                "grants_overspent_vs_received": [{"ref": g["ref"], "title": g["title"], "spent": g["spent"], "received": g["received"]} for g in gs if g["overspent_vs_received"]], "limitations": LIMITATIONS}
+                "overspent_lines": over, "grants_expired": [{"id": g["id"], "ref": g["ref"], "title": g["title"], "end": g["end"], "remaining": g["remaining"]} for g in gs if g["expired"]],
+                "grants_overspent_vs_received": [{"id": g["id"], "ref": g["ref"], "title": g["title"], "spent": g["spent"], "received": g["received"]} for g in gs if g["overspent_vs_received"]], "limitations": LIMITATIONS}
 
     # ------------------------------------------------------------------ reports
     def _report(self, org, rid, for_update=False) -> dict: return self._get("pf_report", org, rid, "Report", for_update)

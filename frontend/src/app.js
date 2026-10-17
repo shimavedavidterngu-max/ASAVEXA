@@ -4240,6 +4240,8 @@ function pubfinActions() {
   const decide = (needNote, label, f) => (ok, id) => { if (!ok) { const p = PF.noteProblem(needNote(), label, 3); if (p) return fail(p); } return f(ok, id); };
   return {
     setTab: (t) => run(async () => { pf.tab = t; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); await refresh(); if (t === "spend") await pubfinSpendLoad(pf, null); if (t === "follow") await pubfinProgrammeLoad(pf); }),
+    openSpend: (budgetId, accountId) => run(async () => { pf.tab = "spend"; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); await refresh(); await pubfinSpendLoad(pf, budgetId); if (pf.spend && pf.spend.detail) pf.spend.line = accountId; }),
+    openFollow: (grantId) => run(async () => { pf.tab = "follow"; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); pf.followId = grantId; await refresh(); await pubfinProgrammeLoad(pf); }),
     spendBudget: (id) => run(async () => { await pubfinSpendLoad(pf, id); }),
     followGrant: (id) => run(async () => { pf.followId = id; await pubfinProgrammeLoad(pf); }),
     progChange: (id, v) => { pf.progForm = { id, value: v }; },
