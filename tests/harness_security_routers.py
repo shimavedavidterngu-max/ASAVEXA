@@ -1,7 +1,8 @@
 """Runs the REAL auth + security + evidence routers' functions with stand-ins for fastapi only (not installable here).
 Real pydantic schemas, real SecurityContext, real SQLite repositories."""
 import sys, types, json
-sys.path.insert(0, "/home/claude/asavexa/src"); sys.path.insert(0, "/home/claude/asavexa/tests")
+import os as _os; _ROOT = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), ".."))   # works wherever the repository is checked out
+sys.path.insert(0, _ROOT + "/src"); sys.path.insert(0, _ROOT + "/tests")
 def mod(name, **attrs):
     m = types.ModuleType(name); m.__dict__.update(attrs); sys.modules[name] = m; return m
 class APIRouter:
@@ -23,7 +24,7 @@ mod("fastapi.responses", JSONResponse=JSONResponse)
 import asavexa, pydantic
 pydantic.EmailStr = str   # email-validator is not installable here; only affects this harness
 for pkg, path in [("asavexa.api","api"),("asavexa.api.routers","api/routers"),("asavexa.api.schemas","api/schemas")]:
-    m = types.ModuleType(pkg); m.__path__ = ["/home/claude/asavexa/src/asavexa/"+path]; sys.modules[pkg] = m
+    m = types.ModuleType(pkg); m.__path__ = [_ROOT + "/src/asavexa/"+path]; sys.modules[pkg] = m
 mod("asavexa.api.deps", **{n: (lambda: None) for n in ["get_bearer_token","get_current_actor","get_identity_service","get_security","get_current_org","get_current_session","get_evidence_vault","get_evidence_review","get_standards_registry","get_agent_registry","get_assurance","get_proof_links","get_entity_config","get_treasury","get_procurement","get_fpa","get_fincrime","get_itaudit","get_resilience","get_aigov","get_quality","get_secretarial","get_fixedassets","get_inventory","get_investments","get_valuation","get_insurance","get_esg","get_payroll","get_projects","get_datagov","get_oprs","get_impact","get_insolvency","get_pension","get_franchise","get_mergers","get_approvals"]},
     require_permission=lambda p: ("perm", p))
 import importlib

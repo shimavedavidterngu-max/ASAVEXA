@@ -6,7 +6,7 @@
 CREATE TABLE IF NOT EXISTS organisation_profiles (
     org_id      UUID NOT NULL,
     data        JSONB NOT NULL,
-    updated_at  TIMESTAMP WITH TIME ZONE,
+    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_by  VARCHAR NOT NULL,
     PRIMARY KEY (org_id),
     FOREIGN KEY (org_id) REFERENCES organisations (id)
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS organisation_profiles (
 CREATE TABLE IF NOT EXISTS organisation_standards (
     org_id      UUID NOT NULL,
     data        JSONB NOT NULL,
-    updated_at  TIMESTAMP WITH TIME ZONE,
+    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_by  VARCHAR NOT NULL,
     PRIMARY KEY (org_id),
     FOREIGN KEY (org_id) REFERENCES organisations (id)
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS organisation_standards (
 CREATE TABLE IF NOT EXISTS organisation_structures (
     org_id      UUID NOT NULL,
     data        JSONB NOT NULL,
-    updated_at  TIMESTAMP WITH TIME ZONE,
+    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_by  VARCHAR NOT NULL,
     PRIMARY KEY (org_id),
     FOREIGN KEY (org_id) REFERENCES organisations (id)
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS security_docs (
     key         VARCHAR NOT NULL,
     org_id      VARCHAR,
     data        JSONB NOT NULL,
-    updated_at  TIMESTAMP WITH TIME ZONE,
+    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL,
     PRIMARY KEY (kind, key)
 );
 CREATE INDEX IF NOT EXISTS ix_security_docs_kind_org ON security_docs (kind, org_id);

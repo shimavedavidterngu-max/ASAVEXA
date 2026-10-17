@@ -1,7 +1,8 @@
 """Runs the REAL analysis router functions (fastapi stubbed) over the real accounting engine, evidence vault and analysis service on one SQLite connection.
 Also checks, from the router source itself, which permission guards every endpoint carries."""
 import ast, os, sys, types
-sys.path.insert(0, "/home/claude/asavexa/src"); sys.path.insert(0, "/home/claude/asavexa/tests")
+import os as _os; _ROOT = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), ".."))   # works wherever the repository is checked out
+sys.path.insert(0, _ROOT + "/src"); sys.path.insert(0, _ROOT + "/tests")
 def mod(name, **attrs):
     m = types.ModuleType(name); m.__dict__.update(attrs); sys.modules[name] = m; return m
 class APIRouter:
@@ -13,7 +14,7 @@ class Response:
 mod("fastapi", APIRouter=APIRouter, Depends=lambda x=None: ("dep", x), Response=Response)
 import asavexa
 for pkg, path in [("asavexa.api", "api"), ("asavexa.api.routers", "api/routers"), ("asavexa.api.schemas", "api/schemas")]:
-    m = types.ModuleType(pkg); m.__path__ = ["/home/claude/asavexa/src/asavexa/" + path]; sys.modules[pkg] = m
+    m = types.ModuleType(pkg); m.__path__ = [_ROOT + "/src/asavexa/" + path]; sys.modules[pkg] = m
 mod("asavexa.api.deps", **{n: (lambda: None) for n in ["get_pubfin", "get_evidence_vault", "get_current_actor", "get_current_org"]}, require_permission=lambda p: ("perm", p))
 import importlib, unittest
 fr = importlib.import_module("asavexa.api.routers.pubfin")
@@ -21,7 +22,7 @@ from analysis_fixture import ORG, OTHER, PREP, REVIEWER, World
 from asavexa.pubfin.service import PubFinService
 from asavexa.pubfin.errors import PubFinForbiddenError
 
-ROUTER_SRC = "/home/claude/asavexa/src/asavexa/api/routers/pubfin.py"
+ROUTER_SRC = _ROOT + "/src/asavexa/api/routers/pubfin.py"
 
 
 def guards():

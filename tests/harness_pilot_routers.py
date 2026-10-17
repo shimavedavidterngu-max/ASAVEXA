@@ -1,7 +1,8 @@
 """Runs the REAL pilot router functions (fastapi stubbed: not installable here) over real identity, a real SecurityContext (so the audit chain is
 exercised) and the real pilot service on one SQLite connection. The firm is 'Other Ltd'; the client is 'Meridian Textiles' (which has real data)."""
 import sys, types
-sys.path.insert(0, "/home/claude/asavexa/src"); sys.path.insert(0, "/home/claude/asavexa/tests")
+import os as _os; _ROOT = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), ".."))   # works wherever the repository is checked out
+sys.path.insert(0, _ROOT + "/src"); sys.path.insert(0, _ROOT + "/tests")
 def mod(name, **attrs):
     m = types.ModuleType(name); m.__dict__.update(attrs); sys.modules[name] = m; return m
 class APIRouter:
@@ -11,7 +12,7 @@ class APIRouter:
 mod("fastapi", APIRouter=APIRouter, Depends=lambda x=None: ("dep", x))
 import asavexa
 for pkg, path in [("asavexa.api","api"),("asavexa.api.routers","api/routers"),("asavexa.api.schemas","api/schemas"),("asavexa.api.db","api/db")]:
-    m = types.ModuleType(pkg); m.__path__ = ["/home/claude/asavexa/src/asavexa/"+path]; sys.modules[pkg] = m
+    m = types.ModuleType(pkg); m.__path__ = [_ROOT + "/src/asavexa/"+path]; sys.modules[pkg] = m
 mod("asavexa.api.deps", **{n: (lambda: None) for n in ["get_audit_repository","get_current_actor","get_current_org","get_identity_service","get_pilot","get_session"]},
     require_permission=lambda p: ("perm", p))
 # the two SQLAlchemy-backed readers the router imports lazily, replaced by the SQLite equivalents the passport tests already use

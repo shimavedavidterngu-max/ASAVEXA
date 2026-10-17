@@ -1,6 +1,7 @@
 """Runs the REAL health router functions (fastapi stubbed) over the real service, and checks from the router source which permission guards every endpoint carries."""
 import ast, sys, types
-sys.path.insert(0, "/home/claude/asavexa/src"); sys.path.insert(0, "/home/claude/asavexa/tests")
+import os as _os; _ROOT = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), ".."))   # works wherever the repository is checked out
+sys.path.insert(0, _ROOT + "/src"); sys.path.insert(0, _ROOT + "/tests")
 def mod(name, **attrs):
     m = types.ModuleType(name); m.__dict__.update(attrs); sys.modules[name] = m; return m
 class APIRouter:
@@ -13,7 +14,7 @@ class HTTPException(Exception):
     def __init__(self, status_code, detail): self.status_code, self.detail = status_code, detail
 mod("fastapi", APIRouter=APIRouter, Depends=lambda x=None: ("dep", x), Response=Response, HTTPException=HTTPException)
 for pkg, path in [("asavexa.api", "api"), ("asavexa.api.routers", "api/routers"), ("asavexa.api.schemas", "api/schemas")]:
-    m = types.ModuleType(pkg); m.__path__ = ["/home/claude/asavexa/src/asavexa/" + path]; sys.modules[pkg] = m
+    m = types.ModuleType(pkg); m.__path__ = [_ROOT + "/src/asavexa/" + path]; sys.modules[pkg] = m
 mod("asavexa.api.deps", **{n: (lambda: None) for n in ["get_health", "get_current_actor", "get_current_org"]}, require_permission=lambda p: ("perm", p))
 import importlib, unittest
 hr = importlib.import_module("asavexa.api.routers.health")
@@ -23,7 +24,7 @@ from asavexa.health.errors import HealthForbiddenError, HealthNotFoundError
 from asavexa.identity.domain.enums import Role
 from asavexa.identity.domain.permissions import ROLE_PERMISSIONS
 
-SRC = "/home/claude/asavexa/src/asavexa/api/routers/health.py"
+SRC = _ROOT + "/src/asavexa/api/routers/health.py"
 ALIAS = {"_prepare": {"PREPARE"}, "_approve": {"APPROVE"}, "_admin": {"ADMIN"}, "_claims": {"CLAIMS"}, "_claims_prepare": {"CLAIMS", "PREPARE"}, "_claims_approve": {"CLAIMS", "APPROVE"}, "_staff": {"STAFFING"}, "_staff_approve": {"STAFFING", "APPROVE"}}
 
 
