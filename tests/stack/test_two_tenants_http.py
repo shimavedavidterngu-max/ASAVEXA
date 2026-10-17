@@ -51,7 +51,7 @@ class RealStack(unittest.TestCase):
         cls.routes = [(m, r.path) for r in app.routes if isinstance(r, APIRoute) for m in sorted(r.methods or []) if m in ("GET", "POST", "PUT", "PATCH", "DELETE")]
 
     def signup(self, tag):
-        email = f"{tag}-{uuid.uuid4().hex[:8]}@stack.test"
+        email = f"{tag}-{uuid.uuid4().hex[:8]}@stack-check.com"
         r = self.client.post("/auth/register", json={"email": email, "password": PW, "confirm_password": PW})
         self.assertEqual(r.status_code, 201, r.text)
         r = self.client.post("/auth/login", json={"email": email, "password": PW})
