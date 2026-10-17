@@ -105,3 +105,24 @@ describe("wiring", () => {
   });
   test("the page is in the menu group for trust", () => assert.ok(NAV_GROUPS.some((g) => g.paths.includes("/proof-links"))));
 });
+
+describe("superseding", () => {
+  const l2 = (o = {}) => link({ id: "l2", to: { type: "finding", id: "f2", label: "Finding two" }, ...o });
+  test("replacements are other active links from the same record", () => {
+    assert.deepEqual(P.supersedeCandidates(link(), [link(), l2()]).map((x) => x.id), ["l2"]);
+    assert.deepEqual(P.supersedeCandidates(link(), [link(), l2({ status: "RETIRED" })]), []);
+    assert.deepEqual(P.supersedeCandidates(link(), [link(), l2({ from: { type: "evidence", id: "e9", label: "z" } })]), []);
+    assert.deepEqual(P.supersedeCandidates(link({ status: "RETIRED" }), [link(), l2()]), []); assert.deepEqual(P.supersedeCandidates(null, [l2()]), []);
+  });
+  test("the button appears only when there is a replacement, and a superseded link offers nothing", () => {
+    assert.deepEqual(P.linkActions(link(), "u1", true, true, 1), ["dispute", "supersede", "retire"]);
+    assert.deepEqual(P.linkActions(link(), "u1", true, true, 0), ["dispute", "retire"]);
+    assert.deepEqual(P.linkActions(link({ status: "DISPUTED", disputed_by: "u2" }), "u2", true, true, 1), ["supersede", "retire"]);
+    assert.deepEqual(P.linkActions(link({ status: "SUPERSEDED" }), "u3", true, true, 1), []); assert.deepEqual(P.linkActions(link(), "u1", false, true, 1), []);
+    assert.equal(P.linkStatus("SUPERSEDED").label, "Superseded");
+  });
+  test("the page offers a choice of replacement and shows the status", () => {
+    const t = text(page({ graph: graph({ links: [link(), l2()] }) }, "OWNER", "u1")); for (const s of ["pl-replace-l1", "Replace with newer link", "Replace with…"]) assert.ok(t.includes(s), s);
+    const t2 = text(page({ graph: graph({ links: [link({ status: "SUPERSEDED" }), l2()] }) }, "OWNER", "u1")); assert.ok(t2.includes("Superseded")); assert.ok(!t2.includes("pl-replace-l1"));
+  });
+});

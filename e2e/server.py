@@ -38,7 +38,7 @@ from asavexa.evidence.domain.enums import EvidenceType  # noqa: E402
 from asavexa.evidencereview.service import EvidenceReviewService  # noqa: E402
 from asavexa.identity.domain.errors import AsavexaIdentityError, PermissionDeniedError  # noqa: E402
 from asavexa.identity.domain.permissions import (AUDIT_READ, FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, GRC_APPROVE, GRC_PREPARE,  # noqa: E402
-                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, QUAL_APPROVE, QUAL_PREPARE, SEC_APPROVE, SEC_PREPARE, FIX_APPROVE, FIX_PREPARE, INV_APPROVE, INV_PREPARE, INVEST_APPROVE, INVEST_PREPARE, VAL_APPROVE, VAL_PREPARE, INS_APPROVE, INS_PREPARE, ESG_APPROVE, ESG_PREPARE, PAY_APPROVE, PAY_PREPARE, PROJ_APPROVE, PROJ_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
+                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, QUAL_APPROVE, QUAL_PREPARE, SEC_APPROVE, SEC_PREPARE, FIX_APPROVE, FIX_PREPARE, INV_APPROVE, INV_PREPARE, INVEST_APPROVE, INVEST_PREPARE, VAL_APPROVE, VAL_PREPARE, INS_APPROVE, INS_PREPARE, ESG_APPROVE, ESG_PREPARE, PAY_APPROVE, PAY_PREPARE, PROJ_APPROVE, PROJ_PREPARE, DG_APPROVE, DG_PREPARE, OPR_APPROVE, OPR_PREPARE, IMP_APPROVE, IMP_PREPARE, ISV_APPROVE, ISV_PREPARE, PEN_APPROVE, PEN_PREPARE, FCH_APPROVE, FCH_PREPARE, MNA_APPROVE, MNA_PREPARE, APW_APPROVE, APW_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
 from asavexa.reporting.services.service import ReportingService  # noqa: E402
 from asavexa.security import crypto  # noqa: E402
 from asavexa.security.auditchain import ChainedAuditRepository  # noqa: E402
@@ -76,6 +76,14 @@ icr = importlib.import_module("asavexa.api.routers.insurance")
 esr = importlib.import_module("asavexa.api.routers.esg")
 pwr = importlib.import_module("asavexa.api.routers.payroll")
 pjr = importlib.import_module("asavexa.api.routers.projects")
+dgr = importlib.import_module("asavexa.api.routers.datagov")
+opr = importlib.import_module("asavexa.api.routers.oprs")
+impr = importlib.import_module("asavexa.api.routers.impact")
+isvr = importlib.import_module("asavexa.api.routers.insolvency")
+penr = importlib.import_module("asavexa.api.routers.pension")
+fchr = importlib.import_module("asavexa.api.routers.franchise")
+mar = importlib.import_module("asavexa.api.routers.mergers")
+apwr = importlib.import_module("asavexa.api.routers.approvals")
 ratelimit.LOGIN.limit = ratelimit.MFA.limit = 10000
 
 store = SqliteDocStore(w.conn)
@@ -164,9 +172,195 @@ from asavexa.payroll.service import PayrollService  # noqa: E402
 pws = PayrollService(store, w.vault, log=log_for("Payroll"))
 from asavexa.projects.service import ProjectsService  # noqa: E402
 pjs = ProjectsService(store, w.vault, log=log_for("Projects"))
+from asavexa.datagov.service import DatagovService  # noqa: E402
+dgs = DatagovService(store, w.vault, log=log_for("Datagov"))
+DG_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/setting$', '', 'setting', '', False, False),
+    ('PUT', '^/setting$', 'A', 'set_setting', 'SettingBody', False, False),
+    ('GET', '^/assets$', '', 'assets', '', True, False),
+    ('POST', '^/assets$', 'P', 'add_asset', 'AssetBody', False, True),
+    ('GET', '^/assets/([^/]+)$', '', 'get_asset', '', False, False),
+    ('POST', '^/assets/([^/]+)/approve$', 'A', 'approve_asset', 'NoteBody', False, False),
+    ('POST', '^/assets/([^/]+)/reject$', 'A', 'reject_asset', 'ReasonBody', False, False),
+    ('POST', '^/assets/([^/]+)/retire$', 'A', 'retire_asset', 'ReasonBody', False, False),
+    ('POST', '^/assets/([^/]+)/reviews$', 'P', 'add_review', 'ReviewBody', False, False),
+    ('POST', '^/assets/([^/]+)/reviews/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_review', 'NoteBody', False, False),
+    ('POST', '^/assets/([^/]+)/reviews/(?P<n_no>\\d+)/reject$', 'A', 'reject_review', 'ReasonBody', False, False),
+    ('POST', '^/assets/([^/]+)/grants$', 'P', 'add_grant', 'GrantBody', False, False),
+    ('POST', '^/assets/([^/]+)/grants/(?P<n_no>\\d+)/approve$', 'A', 'approve_grant', 'NoteBody', False, False),
+    ('POST', '^/assets/([^/]+)/grants/(?P<n_no>\\d+)/reject$', 'A', 'reject_grant', 'ReasonBody', False, False),
+    ('POST', '^/assets/([^/]+)/grants/(?P<n_no>\\d+)/revoke$', 'A', 'revoke_grant', 'ReasonBody', False, False),
+]
+from asavexa.oprs.service import OprsService  # noqa: E402
+ops = OprsService(store, w.vault, log=log_for("Oprs"))
+OPR_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/analyses$', '', 'analyses', '', True, False),
+    ('POST', '^/analyses$', 'P', 'add_analysis', 'AnalysisBody', False, True),
+    ('GET', '^/analyses/([^/]+)$', '', 'get_analysis', '', False, False),
+    ('POST', '^/analyses/([^/]+)/options$', 'P', 'add_option', 'OptionBody', False, False),
+    ('POST', '^/analyses/([^/]+)/options/(?P<n_no>\\d+)/remove$', 'P', 'remove_option', 'ReasonBody', False, False),
+    ('POST', '^/analyses/([^/]+)/submit$', 'P', 'submit_analysis', 'NoteBody', False, False),
+    ('POST', '^/analyses/([^/]+)/withdraw$', 'P', 'withdraw_analysis', 'ReasonBody', False, False),
+    ('POST', '^/analyses/([^/]+)/approve$', 'A', 'approve_analysis', 'NoteBody', False, False),
+    ('POST', '^/analyses/([^/]+)/return$', 'A', 'return_analysis', 'ReasonBody', False, False),
+    ('POST', '^/analyses/([^/]+)/decision$', 'A', 'record_decision', 'DecisionBody', False, False),
+]
+from asavexa.impact.service import ImpactService  # noqa: E402
+imps = ImpactService(store, w.vault, log=log_for("Impact"))
+IMP_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/setting$', '', 'setting', '', False, False),
+    ('PUT', '^/setting$', 'A', 'set_setting', 'SettingBody', False, False),
+    ('GET', '^/indicators$', '', 'indicators', '', True, False),
+    ('POST', '^/indicators$', 'P', 'add_indicator', 'IndicatorBody', False, True),
+    ('GET', '^/indicators/([^/]+)$', '', 'get_indicator', '', False, False),
+    ('POST', '^/indicators/([^/]+)/approve$', 'A', 'approve_indicator', 'NoteBody', False, False),
+    ('POST', '^/indicators/([^/]+)/reject$', 'A', 'reject_indicator', 'ReasonBody', False, False),
+    ('POST', '^/indicators/([^/]+)/close$', 'A', 'close_indicator', 'ReasonBody', False, False),
+    ('POST', '^/indicators/([^/]+)/readings$', 'P', 'add_reading', 'ReadingBody', False, False),
+    ('POST', '^/indicators/([^/]+)/readings/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_reading', 'NoteBody', False, False),
+    ('POST', '^/indicators/([^/]+)/readings/(?P<n_no>\\d+)/reject$', 'A', 'reject_reading', 'ReasonBody', False, False),
+]
+from asavexa.insolvency.service import InsolvencyService  # noqa: E402
+isvs = InsolvencyService(store, w.vault, log=log_for("Insolvency"))
+ISV_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/cases$', '', 'cases', '', True, False),
+    ('POST', '^/cases$', 'P', 'add_case', 'CaseBody', False, True),
+    ('GET', '^/cases/([^/]+)$', '', 'get_case', '', False, False),
+    ('POST', '^/cases/([^/]+)/approve$', 'A', 'approve_case', 'NoteBody', False, False),
+    ('POST', '^/cases/([^/]+)/reject$', 'A', 'reject_case', 'ReasonBody', False, False),
+    ('POST', '^/cases/([^/]+)/close$', 'A', 'close_case', 'ReasonBody', False, False),
+    ('POST', '^/cases/([^/]+)/claims$', 'P', 'add_claim', 'ClaimBody', False, False),
+    ('POST', '^/cases/([^/]+)/claims/(?P<n_no>\\d+)/admit$', 'A', 'admit_claim', 'AdmitBody', False, False),
+    ('POST', '^/cases/([^/]+)/claims/(?P<n_no>\\d+)/reject$', 'A', 'reject_claim', 'ReasonBody', False, False),
+    ('POST', '^/cases/([^/]+)/entries$', 'P', 'add_entry', 'EntryBody', False, False),
+    ('POST', '^/cases/([^/]+)/entries/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_entry', 'NoteBody', False, False),
+    ('POST', '^/cases/([^/]+)/entries/(?P<n_no>\\d+)/reject$', 'A', 'reject_entry', 'ReasonBody', False, False),
+    ('POST', '^/cases/([^/]+)/distribution$', 'A', 'record_distribution', 'NoteBody', False, False),
+]
+from asavexa.pension.service import PensionService  # noqa: E402
+pens = PensionService(store, w.vault, log=log_for("Pension"))
+PEN_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/setting$', '', 'setting', '', False, False),
+    ('PUT', '^/setting$', 'A', 'set_setting', 'SettingBody', False, False),
+    ('GET', '^/schemes$', '', 'schemes', '', True, False),
+    ('POST', '^/schemes$', 'P', 'add_scheme', 'SchemeBody', False, True),
+    ('GET', '^/schemes/([^/]+)$', '', 'get_scheme', '', False, False),
+    ('POST', '^/schemes/([^/]+)/approve$', 'A', 'approve_scheme', 'NoteBody', False, False),
+    ('POST', '^/schemes/([^/]+)/reject$', 'A', 'reject_scheme', 'ReasonBody', False, False),
+    ('POST', '^/schemes/([^/]+)/close$', 'A', 'close_scheme', 'ReasonBody', False, False),
+    ('POST', '^/schemes/([^/]+)/contributions$', 'P', 'add_contribution', 'ContributionBody', False, False),
+    ('POST', '^/schemes/([^/]+)/contributions/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_contribution', 'NoteBody', False, False),
+    ('POST', '^/schemes/([^/]+)/contributions/(?P<n_no>\\d+)/reject$', 'A', 'reject_contribution', 'ReasonBody', False, False),
+    ('POST', '^/schemes/([^/]+)/valuations$', 'P', 'add_valuation', 'ValuationBody', False, False),
+    ('POST', '^/schemes/([^/]+)/valuations/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_valuation', 'NoteBody', False, False),
+    ('POST', '^/schemes/([^/]+)/valuations/(?P<n_no>\\d+)/reject$', 'A', 'reject_valuation', 'ReasonBody', False, False),
+    ('POST', '^/schemes/([^/]+)/obligations$', 'P', 'add_obligation', 'ObligationBody', False, False),
+    ('POST', '^/schemes/([^/]+)/obligations/(?P<n_no>\\d+)/complete$', 'P', 'complete_obligation', 'CompleteBody', False, False),
+    ('POST', '^/schemes/([^/]+)/obligations/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_obligation', 'NoteBody', False, False),
+    ('POST', '^/schemes/([^/]+)/obligations/(?P<n_no>\\d+)/reject$', 'A', 'reject_obligation', 'ReasonBody', False, False),
+    ('POST', '^/schemes/([^/]+)/conflicts$', 'P', 'add_conflict', 'ConflictBody', False, False),
+    ('POST', '^/schemes/([^/]+)/conflicts/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_conflict', 'NoteBody', False, False),
+    ('POST', '^/schemes/([^/]+)/conflicts/(?P<n_no>\\d+)/reject$', 'A', 'reject_conflict', 'ReasonBody', False, False),
+]
+from asavexa.franchise.service import FranchiseService  # noqa: E402
+fchs = FranchiseService(store, w.vault, log=log_for("Franchise"))
+FCH_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/setting$', '', 'setting', '', False, False),
+    ('PUT', '^/setting$', 'A', 'set_setting', 'SettingBody', False, False),
+    ('GET', '^/locations$', '', 'locations', '', True, False),
+    ('POST', '^/locations$', 'P', 'add_location', 'LocationBody', False, True),
+    ('GET', '^/locations/([^/]+)$', '', 'get_location', '', False, False),
+    ('POST', '^/locations/([^/]+)/approve$', 'A', 'approve_location', 'NoteBody', False, False),
+    ('POST', '^/locations/([^/]+)/reject$', 'A', 'reject_location', 'ReasonBody', False, False),
+    ('POST', '^/locations/([^/]+)/close$', 'A', 'close_location', 'ReasonBody', False, False),
+    ('POST', '^/locations/([^/]+)/reports$', 'P', 'add_report', 'ReportBody', False, False),
+    ('POST', '^/locations/([^/]+)/reports/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_report', 'NoteBody', False, False),
+    ('POST', '^/locations/([^/]+)/reports/(?P<n_no>\\d+)/reject$', 'A', 'reject_report', 'ReasonBody', False, False),
+    ('POST', '^/locations/([^/]+)/payments$', 'P', 'add_payment', 'PaymentBody', False, False),
+    ('POST', '^/locations/([^/]+)/payments/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_payment', 'NoteBody', False, False),
+    ('POST', '^/locations/([^/]+)/payments/(?P<n_no>\\d+)/reject$', 'A', 'reject_payment', 'ReasonBody', False, False),
+]
+from asavexa.mergers.service import MergersService  # noqa: E402
+mas = MergersService(store, w.vault, log=log_for("Mergers"))
+MNA_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/setting$', '', 'setting', '', False, False),
+    ('PUT', '^/setting$', 'A', 'set_setting', 'SettingBody', False, False),
+    ('GET', '^/deals$', '', 'deals', '', True, False),
+    ('POST', '^/deals$', 'P', 'add_deal', 'DealBody', False, True),
+    ('GET', '^/deals/([^/]+)$', '', 'get_deal', '', False, False),
+    ('POST', '^/deals/([^/]+)/approve$', 'A', 'approve_deal', 'NoteBody', False, False),
+    ('POST', '^/deals/([^/]+)/reject$', 'A', 'reject_deal', 'ReasonBody', False, False),
+    ('POST', '^/deals/([^/]+)/close$', 'A', 'close_deal', 'CloseBody', False, False),
+    ('POST', '^/deals/([^/]+)/checklist$', 'P', 'add_checklist', 'ChecklistBody', False, False),
+    ('POST', '^/deals/([^/]+)/checklist/(?P<n_no>\\d+)/provide$', 'P', 'provide_checklist', 'DoneBody', False, False),
+    ('POST', '^/deals/([^/]+)/checklist/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_checklist', 'NoteBody', False, False),
+    ('POST', '^/deals/([^/]+)/checklist/(?P<n_no>\\d+)/reject$', 'A', 'reject_checklist', 'ReasonBody', False, False),
+    ('POST', '^/deals/([^/]+)/conditions$', 'P', 'add_condition', 'ConditionBody', False, False),
+    ('POST', '^/deals/([^/]+)/conditions/(?P<n_no>\\d+)/meet$', 'P', 'meet_condition', 'DoneBody', False, False),
+    ('POST', '^/deals/([^/]+)/conditions/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_condition', 'NoteBody', False, False),
+    ('POST', '^/deals/([^/]+)/conditions/(?P<n_no>\\d+)/reject$', 'A', 'reject_condition', 'ReasonBody', False, False),
+    ('POST', '^/deals/([^/]+)/adjustments$', 'P', 'add_adjustment', 'AdjustmentBody', False, False),
+    ('POST', '^/deals/([^/]+)/adjustments/(?P<n_no>\\d+)/confirm$', 'A', 'confirm_adjustment', 'NoteBody', False, False),
+    ('POST', '^/deals/([^/]+)/adjustments/(?P<n_no>\\d+)/reject$', 'A', 'reject_adjustment', 'ReasonBody', False, False),
+]
+from asavexa.approvals.service import ApprovalsService  # noqa: E402
+apws = ApprovalsService(store, w.vault, log=log_for("Approvals"))
+APW_ROUTES = [
+    ('GET', '^/options$', '', 'options', '', False, False),
+    ('GET', '^/overview$', '', 'overview', '', False, False),
+    ('GET', '^/setting$', '', 'setting', '', False, False),
+    ('PUT', '^/setting$', 'A', 'set_setting', 'SettingBody', False, False),
+    ('GET', '^/policies$', '', 'policies', '', True, False),
+    ('POST', '^/policies$', 'P', 'add_policy', 'PolicyBody', False, True),
+    ('GET', '^/policies/([^/]+)$', '', 'get_policy', '', False, False),
+    ('POST', '^/policies/([^/]+)/activate$', 'A', 'activate_policy', 'NoteBody', False, False),
+    ('POST', '^/policies/([^/]+)/reject$', 'A', 'reject_policy', 'ReasonBody', False, False),
+    ('POST', '^/policies/([^/]+)/retire$', 'A', 'retire_policy', 'ReasonBody', False, False),
+    ('GET', '^/requests$', '', 'requests', '', True, False),
+    ('POST', '^/requests$', 'P', 'submit_request', 'RequestBody', False, True),
+    ('GET', '^/requests/([^/]+)$', '', 'get_request', '', False, False),
+    ('POST', '^/requests/([^/]+)/approve$', 'A', 'approve_request', 'NoteBody', False, False),
+    ('POST', '^/requests/([^/]+)/reject$', 'A', 'reject_request', 'ReasonBody', False, False),
+    ('POST', '^/requests/([^/]+)/withdraw$', 'P', 'withdraw_request', 'ReasonBody', False, False),
+]
 _fpa_shift = {"days": 0}      # test-only: lets a journey move the Planning and KPIs clock forward so a forecast period can end
 fps = FpaService(store, w.vault, is_member=_fpa_member, can_record=_fpa_can_record, log=log_for("Fpa"),
                  now=lambda: datetime.now(timezone.utc) + timedelta(days=_fpa_shift["days"]))
+
+
+_NO = object()
+
+
+def _ws(mod, svc, sub, m, b, org, a, qs, table, P, A_, need):
+    """Generic dispatch for the Stage 33+ workspaces: the table is generated from the router itself (method, regex, guard, function, body class, takes a status filter, answers 201)."""
+    for (meth, rx, guard, fname, body, wants_status, created) in table:
+        if meth != m: continue
+        mm = re.match(rx, sub)
+        if not mm: continue
+        if guard == "P": need(P)
+        if guard == "A": need(A_)
+        names = {i_: n_ for n_, i_ in mm.re.groupindex.items()}
+        args = [int(v) if names.get(i_, "").startswith("n_") else v for i_, v in enumerate(mm.groups(), start=1)]
+        if body: args.append(getattr(mod, body)(**b))
+        if wants_status: args.append(qs.get("status"))
+        args += [org] + ([a] if m != "GET" else []) + [svc]
+        out = getattr(mod, fname)(*args)
+        return (201, out) if created else out
+    return _NO
 
 
 def j(o):
@@ -660,6 +854,30 @@ class Handler(BaseHTTPRequestHandler):
             if mm: need(A_); return pjr.approve_entry(mm.group(1), int(mm.group(2)), pjr.NoteBody(**b), org, a, pjs)
             mm = re.match(r"/projects/([^/]+)/entries/(\d+)/reject$", sub)
             if mm: need(A_); return pjr.reject_entry(mm.group(1), int(mm.group(2)), pjr.ReasonBody(**b), org, a, pjs)
+        if path.startswith("/datagov"):
+            need(AUDIT_READ); r_ = _ws(dgr, dgs, path[len("/datagov"):], m, b, org, a, qs, DG_ROUTES, DG_PREPARE, DG_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/oprs"):
+            need(AUDIT_READ); r_ = _ws(opr, ops, path[len("/oprs"):], m, b, org, a, qs, OPR_ROUTES, OPR_PREPARE, OPR_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/impact"):
+            need(AUDIT_READ); r_ = _ws(impr, imps, path[len("/impact"):], m, b, org, a, qs, IMP_ROUTES, IMP_PREPARE, IMP_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/insolvency"):
+            need(AUDIT_READ); r_ = _ws(isvr, isvs, path[len("/insolvency"):], m, b, org, a, qs, ISV_ROUTES, ISV_PREPARE, ISV_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/pension"):
+            need(AUDIT_READ); r_ = _ws(penr, pens, path[len("/pension"):], m, b, org, a, qs, PEN_ROUTES, PEN_PREPARE, PEN_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/franchise"):
+            need(AUDIT_READ); r_ = _ws(fchr, fchs, path[len("/franchise"):], m, b, org, a, qs, FCH_ROUTES, FCH_PREPARE, FCH_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/mergers"):
+            need(AUDIT_READ); r_ = _ws(mar, mas, path[len("/mergers"):], m, b, org, a, qs, MNA_ROUTES, MNA_PREPARE, MNA_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/approvals"):
+            need(AUDIT_READ); r_ = _ws(apwr, apws, path[len("/approvals"):], m, b, org, a, qs, APW_ROUTES, APW_PREPARE, APW_APPROVE, need)
+            if r_ is not _NO: return r_
         if path.startswith("/fpa"):
             need(REPORTING_READ); sub = path[len("/fpa"):]; P, A_ = FPA_PREPARE, FPA_APPROVE
             if sub == "/options": return fpr.options(org, fps)
@@ -790,6 +1008,8 @@ class Handler(BaseHTTPRequestHandler):
             if mm: need(GRC_APPROVE); return plr.waive(mm.group(1), plr.ReasonBody(**b), org, a, pls)
             mm = re.match(r"/proof-links/([^/]+)$", path)
             if mm and m == "GET": return plr.get_one(mm.group(1), org, pls)
+            mm = re.match(r"/proof-links/([^/]+)/supersede$", path)
+            if mm: need(GRC_PREPARE); return plr.supersede(mm.group(1), plr.SupersedeBody(**b), org, a, pls)
             mm = re.match(r"/proof-links/([^/]+)/(retire|dispute|confirm|reinstate)$", path)
             if mm:
                 lid, act = mm.groups()

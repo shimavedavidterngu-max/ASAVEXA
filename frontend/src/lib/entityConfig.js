@@ -4,7 +4,7 @@
 
 /** Menu path of each workspace in the server's catalogue (workspaces.py). A test pins this to the real catalogue and menu. */
 export const WORKSPACE_PATHS = {
-  analysis: "/analysis", forensic: "/forensic", grc: "/grc", tax: "/tax", public_finance: "/pubfin", health: "/health", cyber: "/cyber", treasury: "/treasury", procurement: "/procurement", fpa: "/fpa", aigov: "/aigov", quality: "/quality", secretarial: "/secretarial", fixedassets: "/fixedassets", inventory: "/inventory", investments: "/investments", valuation: "/valuation", insurance: "/insurance", esg: "/esg", payroll: "/payroll", projects: "/projects", fincrime: "/fincrime", itaudit: "/itaudit", resilience: "/resilience", bizdev: "/bizdev",
+  analysis: "/analysis", forensic: "/forensic", grc: "/grc", tax: "/tax", public_finance: "/pubfin", health: "/health", cyber: "/cyber", treasury: "/treasury", procurement: "/procurement", fpa: "/fpa", aigov: "/aigov", quality: "/quality", secretarial: "/secretarial", fixedassets: "/fixedassets", inventory: "/inventory", investments: "/investments", valuation: "/valuation", insurance: "/insurance", esg: "/esg", payroll: "/payroll", projects: "/projects", datagov: "/datagov", oprs: "/oprs", impact: "/impact", insolvency: "/insolvency", pension: "/pension", franchise: "/franchise", mergers: "/mergers", approvals: "/approvals", fincrime: "/fincrime", itaudit: "/itaudit", resilience: "/resilience", bizdev: "/bizdev",
 };
 const PATH_TO_WS = Object.fromEntries(Object.entries(WORKSPACE_PATHS).map(([id, p]) => [p, id]));
 

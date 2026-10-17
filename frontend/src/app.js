@@ -100,8 +100,25 @@ import { Esg } from "./pages/Esg.js";
 import * as ES from "./lib/esg.js";
 import { Payroll } from "./pages/Payroll.js";
 import * as PW from "./lib/payroll.js";
+import { actionsKit } from "./lib/wsKit.js";
 import { Projects } from "./pages/Projects.js";
 import * as PJ from "./lib/projects.js";
+import { Datagov } from "./pages/Datagov.js";
+import * as DG from "./lib/datagov.js";
+import { Oprs } from "./pages/Oprs.js";
+import * as OP from "./lib/oprs.js";
+import { Impact } from "./pages/Impact.js";
+import * as IMP from "./lib/impact.js";
+import { Insolvency } from "./pages/Insolvency.js";
+import * as ISV from "./lib/insolvency.js";
+import { Pension } from "./pages/Pension.js";
+import * as PEN from "./lib/pension.js";
+import { Franchise } from "./pages/Franchise.js";
+import * as FCH from "./lib/franchise.js";
+import { Mergers } from "./pages/Mergers.js";
+import * as MA from "./lib/mergers.js";
+import { Approvals } from "./pages/Approvals.js";
+import * as APW from "./lib/approvals.js";
 import * as IA from "./lib/itaudit.js";
 import * as FX from "./lib/fincrime.js";
 import * as CY from "./lib/cyber.js";
@@ -190,6 +207,14 @@ const NAV_ITEMS = [
   { path: "/esg", label: "ESG and carbon", permission: PERMISSIONS.AUDIT_READ },
   { path: "/payroll", label: "Payroll and workforce cost", permission: PERMISSIONS.AUDIT_READ },
   { path: "/projects", label: "Projects and grants", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/datagov", label: "Data governance", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/oprs", label: "Operations research", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/impact", label: "Impact measurement", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/insolvency", label: "Insolvency", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/pension", label: "Pension and fiduciary", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/franchise", label: "Franchise and multi-location", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/mergers", label: "Mergers and acquisitions", permission: PERMISSIONS.AUDIT_READ },
+  { path: "/approvals", label: "Approval workflows", permission: PERMISSIONS.AUDIT_READ },
   { path: "/health", label: "Health Centre", permission: PERMISSIONS.HEALTH_READ },
   { path: "/period-close", label: "Period Close", permission: PERMISSIONS.PERIOD_CLOSE_READ },
   { path: "/compliance", label: "Controls & Compliance", permission: PERMISSIONS.CONTROL_READ },
@@ -256,6 +281,14 @@ const routes = [
   { path: "/esg", name: "esg" },
   { path: "/payroll", name: "payroll" },
   { path: "/projects", name: "projects" },
+  { path: "/datagov", name: "datagov" },
+  { path: "/oprs", name: "oprs" },
+  { path: "/impact", name: "impact" },
+  { path: "/insolvency", name: "insolvency" },
+  { path: "/pension", name: "pension" },
+  { path: "/franchise", name: "franchise" },
+  { path: "/mergers", name: "mergers" },
+  { path: "/approvals", name: "approvals" },
   { path: "/health", name: "health" },
   { path: "/period-close", name: "period-close" },
   { path: "/compliance/findings/:id", name: "compliance-finding-detail" },
@@ -850,6 +883,14 @@ function renderPage(matched, authState) {
   if (name === "esg") return renderEsgPage(authState);
   if (name === "payroll") return renderPayrollPage(authState);
   if (name === "projects") return renderProjectsPage(authState);
+  if (name === "datagov") return renderDatagovPage(authState);
+  if (name === "oprs") return renderOprsPage(authState);
+  if (name === "impact") return renderImpactPage(authState);
+  if (name === "insolvency") return renderInsolvencyPage(authState);
+  if (name === "pension") return renderPensionPage(authState);
+  if (name === "franchise") return renderFranchisePage(authState);
+  if (name === "mergers") return renderMergersPage(authState);
+  if (name === "approvals") return renderApprovalsPage(authState);
   if (name === "health") return renderHealthPage(authState);
 
   return h("div", { className: "empty-state card" }, h("h3", {}, "Page not found"));
@@ -1200,7 +1241,7 @@ function resetSecurityState() {
   uiState.val = null; loadedOnce.delete("valLoading");
   uiState.pilot = null; loadedOnce.delete("pilotLoading");
   uiState.net = null; loadedOnce.delete("netLoading");
-  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading"); uiState.ql = null; loadedOnce.delete("qlLoading"); uiState.cs = null; loadedOnce.delete("csLoading"); uiState.fa = null; loadedOnce.delete("faLoading"); uiState.iv = null; loadedOnce.delete("ivLoading"); uiState.im = null; loadedOnce.delete("imLoading"); uiState.vl = null; loadedOnce.delete("vlLoading"); uiState.ic = null; loadedOnce.delete("icLoading"); uiState.es = null; loadedOnce.delete("esLoading"); uiState.pw = null; loadedOnce.delete("pwLoading"); uiState.pj = null; loadedOnce.delete("pjLoading");
+  uiState.proof = null; loadedOnce.delete("proofLoading"); uiState.er = null; loadedOnce.delete("erLoading"); uiState.sr = null; loadedOnce.delete("srLoading"); uiState.ag = null; loadedOnce.delete("agLoading"); uiState.as = null; loadedOnce.delete("asLoading"); uiState.pl = null; loadedOnce.delete("plLoading"); uiState.entity = null; uiState.ec = null; loadedOnce.delete("ecLoading"); uiState.tr = null; loadedOnce.delete("trLoading"); uiState.pc = null; loadedOnce.delete("pcLoading"); uiState.fp = null; loadedOnce.delete("fpLoading"); uiState.fx = null; loadedOnce.delete("fxLoading"); uiState.ia = null; loadedOnce.delete("iaLoading"); uiState.rs = null; loadedOnce.delete("rsLoading"); uiState.gv = null; loadedOnce.delete("gvLoading"); uiState.ql = null; loadedOnce.delete("qlLoading"); uiState.cs = null; loadedOnce.delete("csLoading"); uiState.fa = null; loadedOnce.delete("faLoading"); uiState.iv = null; loadedOnce.delete("ivLoading"); uiState.im = null; loadedOnce.delete("imLoading"); uiState.vl = null; loadedOnce.delete("vlLoading"); uiState.ic = null; loadedOnce.delete("icLoading"); uiState.es = null; loadedOnce.delete("esLoading"); uiState.pw = null; loadedOnce.delete("pwLoading"); uiState.pj = null; loadedOnce.delete("pjLoading"); uiState.dg = null; loadedOnce.delete("dgLoading"); uiState.op = null; loadedOnce.delete("opLoading"); uiState.imp = null; loadedOnce.delete("impLoading"); uiState.isv = null; loadedOnce.delete("isvLoading"); uiState.pen = null; loadedOnce.delete("penLoading"); uiState.fch = null; loadedOnce.delete("fchLoading"); uiState.ma = null; loadedOnce.delete("maLoading"); uiState.apw = null; loadedOnce.delete("apwLoading");
   uiState.ws = null; loadedOnce.delete("wsLoading");
   uiState.an = null; loadedOnce.delete("anLoading");
   uiState.tx = null; loadedOnce.delete("txLoading");
@@ -3558,7 +3599,7 @@ function ecActions(authState) {
 // Proof Links (Stage 13): stored links between records
 // ----------------------------------------------------------------------
 function newPl() {
-  return { vocabulary: null, choices: {}, find: { type: "", id: "", depth: 1 }, graph: null, form: { ...EMPTY_LINK }, gap: { ...EMPTY_GAP }, reasons: {}, formError: null, gapError: null, busy: false, error: null, notice: null };
+  return { vocabulary: null, choices: {}, find: { type: "", id: "", depth: 1 }, graph: null, form: { ...EMPTY_LINK }, gap: { ...EMPTY_GAP }, reasons: {}, replace: {}, formError: null, gapError: null, busy: false, error: null, notice: null };
 }
 
 function renderProofLinksPage(authState) {
@@ -3596,10 +3637,12 @@ function plActions() {
       return run(async () => { await api.addProofLink(r.body); pl.form = { ...EMPTY_LINK }; pl.formError = null; await reload(); }, "Link recorded. A different person can now confirm it.");
     },
     setReason: (id, v) => { pl.reasons[id] = v; },
+    setReplacement: (id, v) => { pl.replace[id] = v; },
     act: (id, kind) => {
       const reason = (pl.reasons[id] || "").trim();
       if (needsReason(kind) && !reason) { pl.error = "Give a reason first."; render(); return; }
-      return run(async () => { await api.proofLinkAction(id, kind, kind === "confirm" ? { note: reason } : { reason }); pl.reasons[id] = ""; await reload(); }, ACTION_NOTICE[kind]);
+      if (kind === "supersede" && !pl.replace[id]) { pl.error = "Choose the newer link that replaces this one."; render(); return; }
+      return run(async () => { await api.proofLinkAction(id, kind, kind === "confirm" ? { note: reason } : kind === "supersede" ? { reason, replacement_id: pl.replace[id] } : { reason }); pl.reasons[id] = ""; pl.replace[id] = ""; await reload(); }, ACTION_NOTICE[kind]);
     },
     setGap: (k, v) => { pl.gap = { ...pl.gap, [k]: v }; pl.gapError = null; if (k === "relation") pl.gap.expected_type = ""; if (k !== "note") render(); },
     addGap: () => {
@@ -5398,6 +5441,353 @@ function projectsActions() {
     addEntry: (id) => act("entry", "entry", PJ.entryPayload, (b) => api.addPjEntry(id, b), "Entry proposed. A different person must decide it.", () => { reset("entry"); }),
     approveEntry: (id, no) => { const n = note(`en-${id}-${no}`); if (n) { const p = PJ.noteProblem(n, "An approval note", 10); if (p) return fail(p); } return run(async () => { await api.approvePjEntry(id, no, n); pj.notes = {}; await refresh(); }, "Entry approved."); },
     rejectEntry: (id, no) => needNote(`en-${id}-${no}`, "A reason", PJ.minNote.reject, (n) => api.rejectPjEntry(id, no, n), "Entry rejected. The reason is kept."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Data governance (Stage 33): a register of data assets, reviews and time-limited access grants; holds no data and enforces no access
+// ----------------------------------------------------------------------
+function newDg() {
+  return { tab: "overview", ov: null, assets: [], sel: { asset: null }, forms: { ...JSON.parse(JSON.stringify(DG.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderDatagovPage(authState) {
+  if (!uiState.dg) uiState.dg = newDg();
+  once("dgLoading", () => loadDatagov());
+  return Datagov({ st: uiState.dg, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.dgLoading, onRetry: () => { loadedOnce.delete("dgLoading"); render(); }, actions: datagovActions() });
+}
+
+async function dgRefresh(st) {
+  [st.ov, st.assets] = await Promise.all([api.dgOverview(), api.dgAssets()]);
+  st.forms.setting = { expiry_warning_days: String(st.ov.setting.expiry_warning_days), max_restricted_grants: String(st.ov.setting.max_restricted_grants) };
+  if (st.sel.asset) st.sel.asset = await api.dgAsset(st.sel.asset.id).catch(() => null);
+}
+async function loadDatagov() {
+  const st = uiState.dg || (uiState.dg = newDg());
+  st.error = null;
+  try { await dgRefresh(st); } catch (err) { st.error = err.message || "Data governance could not be loaded."; }
+  render();
+}
+
+function datagovActions() {
+  const st = uiState.dg; const K = actionsKit(st, render, () => dgRefresh(st), DG.EMPTY); const { run, problem, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    saveSetting: () => { const r = DG.settingPayload(st.forms.setting); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setDgSetting(r.body); await dgRefresh(st); }, "Settings saved. They apply from now on."); },
+    selectAsset: (id) => run(async () => { st.sel.asset = id ? await api.dgAsset(id) : null; st.notes = {}; reset("review"); reset("grant"); }),
+    createAsset: () => act("asset", "asset", DG.assetPayload, (b) => api.createDgAsset(b), null, (x) => { reset("asset"); st.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    approveAsset: (id) => optNote(`as-${id}`, "An approval note", (n) => api.approveDgAsset(id, n), "Asset approved."),
+    rejectAsset: (id) => needNote(`as-${id}`, "A reason", 10, (n) => api.rejectDgAsset(id, n), "Asset rejected. The reason is kept."),
+    retireAsset: (id) => needNote(`rt-${id}`, "A reason", 10, (n) => api.retireDgAsset(id, n), "Asset retired."),
+    addReview: (id) => act("review", "review", DG.reviewPayload, (b) => api.addDgReview(id, b), "Review recorded. A different person must confirm it.", () => { reset("review"); }),
+    confirmReview: (id, no) => optNote(`rv-${id}-${no}`, "A confirmation note", (n) => api.confirmDgReview(id, no, n), "Review confirmed."),
+    rejectReview: (id, no) => needNote(`rv-${id}-${no}`, "A reason", 10, (n) => api.rejectDgReview(id, no, n), "Review rejected. The reason is kept."),
+    addGrant: (id) => act("grant", "grant", DG.grantPayload, (b) => api.addDgGrant(id, b), "Grant proposed. A different person must decide it.", () => { reset("grant"); }),
+    approveGrant: (id, no) => optNote(`gr-${id}-${no}`, "An approval note", (n) => api.approveDgGrant(id, no, n), "Grant approved."),
+    rejectGrant: (id, no) => needNote(`gr-${id}-${no}`, "A reason", 10, (n) => api.rejectDgGrant(id, no, n), "Grant rejected. The reason is kept."),
+    revokeGrant: (id, no) => needNote(`gr-${id}-${no}`, "A reason", 10, (n) => api.revokeDgGrant(id, no, n), "Grant revoked. The reason is kept."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Operations research (Stage 34): compare options with typed costs and yearly flows; nothing is recommended or paid
+// ----------------------------------------------------------------------
+function newOp() {
+  return { tab: "overview", ov: null, analyses: [], sel: { analysis: null }, forms: JSON.parse(JSON.stringify(OP.EMPTY)), notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderOprsPage(authState) {
+  if (!uiState.op) uiState.op = newOp();
+  once("opLoading", () => loadOprs());
+  return Oprs({ st: uiState.op, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.opLoading, onRetry: () => { loadedOnce.delete("opLoading"); render(); }, actions: oprsActions() });
+}
+
+async function opRefresh(st) {
+  [st.ov, st.analyses] = await Promise.all([api.opOverview(), api.opAnalyses()]);
+  if (st.sel.analysis) st.sel.analysis = await api.opAnalysis(st.sel.analysis.id).catch(() => null);
+}
+async function loadOprs() {
+  const st = uiState.op || (uiState.op = newOp());
+  st.error = null;
+  try { await opRefresh(st); } catch (err) { st.error = err.message || "Operations research could not be loaded."; }
+  render();
+}
+
+function oprsActions() {
+  const st = uiState.op; const K = actionsKit(st, render, () => opRefresh(st), OP.EMPTY); const { run, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    selectAnalysis: (id) => run(async () => { st.sel.analysis = id ? await api.opAnalysis(id) : null; st.notes = {}; reset("option"); reset("decision"); }),
+    createAnalysis: () => act("analysis", "analysis", OP.analysisPayload, (b) => api.createOpAnalysis(b), null, (x) => { reset("analysis"); st.notice = `${x.ref} started. Add at least two options, then submit it.`; }),
+    addOption: (id) => act("option", "option", OP.optionPayload, (b) => api.addOpOption(id, b), "Option added.", () => { reset("option"); }),
+    removeOption: (id, no) => needNote(`ro-${id}-${no}`, "A reason", 10, (n) => api.removeOpOption(id, no, n), "Option removed. The reason is kept."),
+    submit: (id) => optNote(`sb-${id}`, "A note for the approver", (n) => api.submitOpAnalysis(id, n), "Submitted. A different person must review it."),
+    withdraw: (id) => needNote(`wd-${id}`, "A reason", 10, (n) => api.withdrawOpAnalysis(id, n), "Analysis withdrawn. The reason is kept."),
+    approve: (id) => optNote(`dc-${id}`, "An approval note", (n) => api.approveOpAnalysis(id, n), "Analysis approved."),
+    returnIt: (id) => needNote(`dc-${id}`, "A reason", 10, (n) => api.returnOpAnalysis(id, n), "Analysis returned. The reason is kept."),
+    decide: (id) => act("decision", "decision", OP.decisionPayload, (b) => api.decideOpAnalysis(id, b), "Decision recorded.", () => { reset("decision"); }),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Impact measurement (Stage 35): indicators with a baseline and a target, and the readings reported against them; collects and verifies no data
+// ----------------------------------------------------------------------
+function newImp() {
+  return { tab: "overview", ov: null, indicators: [], sel: { indicator: null }, forms: { ...JSON.parse(JSON.stringify(IMP.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderImpactPage(authState) {
+  if (!uiState.imp) uiState.imp = newImp();
+  once("impLoading", () => loadImpact());
+  return Impact({ st: uiState.imp, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.impLoading, onRetry: () => { loadedOnce.delete("impLoading"); render(); }, actions: impactActions() });
+}
+
+async function impRefresh(st) {
+  [st.ov, st.indicators] = await Promise.all([api.impOverview(), api.impIndicators()]);
+  st.forms.setting = { tolerance_points: String(st.ov.setting.tolerance_points), stale_days: String(st.ov.setting.stale_days) };
+  if (st.sel.indicator) st.sel.indicator = await api.impIndicator(st.sel.indicator.id).catch(() => null);
+}
+async function loadImpact() {
+  const st = uiState.imp || (uiState.imp = newImp());
+  st.error = null;
+  try { await impRefresh(st); } catch (err) { st.error = err.message || "Impact measurement could not be loaded."; }
+  render();
+}
+
+function impactActions() {
+  const st = uiState.imp; const K = actionsKit(st, render, () => impRefresh(st), IMP.EMPTY); const { run, problem, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    saveSetting: () => { const r = IMP.settingPayload(st.forms.setting); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setImpSetting(r.body); await impRefresh(st); }, "Settings saved. They apply from now on."); },
+    selectIndicator: (id) => run(async () => { st.sel.indicator = id ? await api.impIndicator(id) : null; st.notes = {}; reset("reading"); }),
+    createIndicator: () => act("indicator", "indicator", IMP.indicatorPayload, (b) => api.createImpIndicator(b), null, (x) => { reset("indicator"); st.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    approveIndicator: (id) => optNote(`in-${id}`, "An approval note", (n) => api.approveImpIndicator(id, n), "Indicator approved."),
+    rejectIndicator: (id) => needNote(`in-${id}`, "A reason", 10, (n) => api.rejectImpIndicator(id, n), "Indicator rejected. The reason is kept."),
+    closeIndicator: (id) => needNote(`cl-${id}`, "A reason", 10, (n) => api.closeImpIndicator(id, n), "Indicator closed."),
+    addReading: (id) => act("reading", "reading", IMP.readingPayload, (b) => api.addImpReading(id, b), "Reading recorded. A different person must confirm it.", () => { reset("reading"); }),
+    confirmReading: (id, no) => optNote(`rd-${id}-${no}`, "A confirmation note", (n) => api.confirmImpReading(id, no, n), "Reading confirmed."),
+    rejectReading: (id, no) => needNote(`rd-${id}-${no}`, "A reason", 10, (n) => api.rejectImpReading(id, no, n), "Reading rejected. The reason is kept."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Insolvency (Stage 36): a case register with creditor claims, realisations, costs and an illustrative distribution; pays no one and applies no law
+// ----------------------------------------------------------------------
+function newIsv() {
+  return { tab: "overview", ov: null, cases: [], sel: { case: null }, forms: JSON.parse(JSON.stringify(ISV.EMPTY)), notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderInsolvencyPage(authState) {
+  if (!uiState.isv) uiState.isv = newIsv();
+  once("isvLoading", () => loadInsolvency());
+  return Insolvency({ st: uiState.isv, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.isvLoading, onRetry: () => { loadedOnce.delete("isvLoading"); render(); }, actions: insolvencyActions() });
+}
+
+async function isvRefresh(st) {
+  [st.ov, st.cases] = await Promise.all([api.isvOverview(), api.isvCases()]);
+  if (st.sel.case) st.sel.case = await api.isvCase(st.sel.case.id).catch(() => null);
+}
+async function loadInsolvency() {
+  const st = uiState.isv || (uiState.isv = newIsv());
+  st.error = null;
+  try { await isvRefresh(st); } catch (err) { st.error = err.message || "Insolvency could not be loaded."; }
+  render();
+}
+
+function insolvencyActions() {
+  const st = uiState.isv; const K = actionsKit(st, render, () => isvRefresh(st), ISV.EMPTY); const { run, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    selectCase: (id) => run(async () => { st.sel.case = id ? await api.isvCase(id) : null; st.notes = {}; reset("claim"); reset("entry"); reset("admit"); }),
+    createCase: () => act("case", "case", ISV.casePayload, (b) => api.createIsvCase(b), null, (x) => { reset("case"); st.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    approveCase: (id) => optNote(`cs-${id}`, "An approval note", (n) => api.approveIsvCase(id, n), "Case approved and open."),
+    rejectCase: (id) => needNote(`cs-${id}`, "A reason", 10, (n) => api.rejectIsvCase(id, n), "Case rejected. The reason is kept."),
+    closeCase: (id) => needNote(`cl-${id}`, "A reason", 10, (n) => api.closeIsvCase(id, n), "Case closed."),
+    addClaim: (id) => act("claim", "claim", ISV.claimPayload, (b) => api.addIsvClaim(id, b), "Claim lodged. A different person must decide it.", () => { reset("claim"); }),
+    admitClaim: (id, no) => { const r = ISV.admitPayload(st.forms.admit[no] || {}); if (r.problem) return K.problem("admit-" + no, r.problem); return run(async () => { await api.admitIsvClaim(id, no, r.body); st.forms.admit = {}; await isvRefresh(st); }, "Claim admitted."); },
+    setAdmit: (no, k, v) => { st.forms.admit = { ...st.forms.admit, [no]: { ...(st.forms.admit[no] || {}), [k]: v } }; st.formError = null; },
+    rejectClaim: (id, no) => needNote(`ck-${id}-${no}`, "A reason", 10, (n) => api.rejectIsvClaim(id, no, n), "Claim rejected. The reason is kept."),
+    addEntry: (id) => act("entry", "entry", ISV.entryPayload, (b) => api.addIsvEntry(id, b), "Entry recorded. A different person must confirm it.", () => { reset("entry"); }),
+    confirmEntry: (id, no) => optNote(`en-${id}-${no}`, "A confirmation note", (n) => api.confirmIsvEntry(id, no, n), "Entry confirmed."),
+    rejectEntry: (id, no) => needNote(`en-${id}-${no}`, "A reason", 10, (n) => api.rejectIsvEntry(id, no, n), "Entry rejected. The reason is kept."),
+    recordDistribution: (id) => optNote(`ds-${id}`, "A note", (n) => api.recordIsvDistribution(id, n), "Distribution recorded. Nobody has been paid by ASAVEXA."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Pension and fiduciary (Stage 37): schemes with contributions, funding valuations, a fiduciary calendar and a conflict register; holds no member data and applies no pension law
+// ----------------------------------------------------------------------
+function newPen() {
+  return { tab: "overview", ov: null, schemes: [], sel: { scheme: null }, forms: { ...JSON.parse(JSON.stringify(PEN.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderPensionPage(authState) {
+  if (!uiState.pen) uiState.pen = newPen();
+  once("penLoading", () => loadPension());
+  return Pension({ st: uiState.pen, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.penLoading, onRetry: () => { loadedOnce.delete("penLoading"); render(); }, actions: pensionActions() });
+}
+
+async function penRefresh(st) {
+  [st.ov, st.schemes] = await Promise.all([api.penOverview(), api.penSchemes()]);
+  st.forms.setting = { funding_floor_pct: String(st.ov.setting.funding_floor_pct), valuation_stale_days: String(st.ov.setting.valuation_stale_days), due_soon_days: String(st.ov.setting.due_soon_days) };
+  if (st.sel.scheme) st.sel.scheme = await api.penScheme(st.sel.scheme.id).catch(() => null);
+}
+async function loadPension() {
+  const st = uiState.pen || (uiState.pen = newPen());
+  st.error = null;
+  try { await penRefresh(st); } catch (err) { st.error = err.message || "Pension and fiduciary could not be loaded."; }
+  render();
+}
+
+function pensionActions() {
+  const st = uiState.pen; const K = actionsKit(st, render, () => penRefresh(st), PEN.EMPTY); const { run, problem, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    saveSetting: () => { const r = PEN.settingPayload(st.forms.setting); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setPenSetting(r.body); await penRefresh(st); }, "Settings saved. They apply from now on."); },
+    selectScheme: (id) => run(async () => { st.sel.scheme = id ? await api.penScheme(id) : null; st.notes = {}; ["contribution", "valuation", "obligation", "conflict", "complete"].forEach(reset); }),
+    createScheme: () => act("scheme", "scheme", PEN.schemePayload, (b) => api.createPenScheme(b), null, (x) => { reset("scheme"); st.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    approveScheme: (id) => optNote(`sc-${id}`, "An approval note", (n) => api.approvePenScheme(id, n), "Scheme approved."),
+    rejectScheme: (id) => needNote(`sc-${id}`, "A reason", 10, (n) => api.rejectPenScheme(id, n), "Scheme rejected. The reason is kept."),
+    closeScheme: (id) => needNote(`cl-${id}`, "A reason", 10, (n) => api.closePenScheme(id, n), "Scheme closed."),
+    addContribution: (id) => act("contribution", "contribution", PEN.contributionPayload, (b) => api.addPenContribution(id, b), "Contribution recorded. A different person must confirm it.", () => { reset("contribution"); }),
+    addValuation: (id) => act("valuation", "valuation", PEN.valuationPayload, (b) => api.addPenValuation(id, b), "Valuation recorded. A different person must confirm it.", () => { reset("valuation"); }),
+    addObligation: (id) => act("obligation", "obligation", PEN.obligationPayload, (b) => api.addPenObligation(id, b), "Obligation added.", () => { reset("obligation"); }),
+    addConflict: (id) => act("conflict", "conflict", PEN.conflictPayload, (b) => api.addPenConflict(id, b), "Declaration recorded. A different person must review it.", () => { reset("conflict"); }),
+    completeObligation: (id, no) => { const r = PEN.completePayload(st.forms.complete[no] || {}); if (r.problem) return problem("complete-" + no, r.problem); return run(async () => { await api.completePenObligation(id, no, r.body); st.forms.complete = {}; await penRefresh(st); }, "Marked as done. A different person must confirm it."); },
+    setComplete: (no, k, v) => { st.forms.complete = { ...st.forms.complete, [no]: { ...(st.forms.complete[no] || {}), [k]: v } }; st.formError = null; },
+    confirm: (kind, id, no) => optNote(`${kind}-${id}-${no}`, "A confirmation note", (n) => api[PEN.CONFIRM[kind]](id, no, n), "Confirmed."),
+    reject: (kind, id, no) => needNote(`${kind}-${id}-${no}`, "A reason", 10, (n) => api[PEN.REJECT[kind]](id, no, n), "Rejected. The reason is kept."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Franchise and multi-location (Stage 38): locations with a royalty rate, monthly sales reports and royalty payments; collects no money and applies no franchise law
+// ----------------------------------------------------------------------
+function newFch() {
+  return { tab: "overview", ov: null, locations: [], sel: { location: null }, forms: { ...JSON.parse(JSON.stringify(FCH.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderFranchisePage(authState) {
+  if (!uiState.fch) uiState.fch = newFch();
+  once("fchLoading", () => loadFranchise());
+  return Franchise({ st: uiState.fch, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.fchLoading, onRetry: () => { loadedOnce.delete("fchLoading"); render(); }, actions: franchiseActions() });
+}
+
+async function fchRefresh(st) {
+  [st.ov, st.locations] = await Promise.all([api.fchOverview(), api.fchLocations()]);
+  st.forms.setting = { grace_days: String(st.ov.setting.grace_days) };
+  if (st.sel.location) st.sel.location = await api.fchLocation(st.sel.location.id).catch(() => null);
+}
+async function loadFranchise() {
+  const st = uiState.fch || (uiState.fch = newFch());
+  st.error = null;
+  try { await fchRefresh(st); } catch (err) { st.error = err.message || "Franchise and multi-location could not be loaded."; }
+  render();
+}
+
+function franchiseActions() {
+  const st = uiState.fch; const K = actionsKit(st, render, () => fchRefresh(st), FCH.EMPTY); const { run, problem, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    saveSetting: () => { const r = FCH.settingPayload(st.forms.setting); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setFchSetting(r.body); await fchRefresh(st); }, "Settings saved. They apply from now on."); },
+    selectLocation: (id) => run(async () => { st.sel.location = id ? await api.fchLocation(id) : null; st.notes = {}; ["report", "payment"].forEach(reset); }),
+    createLocation: () => act("location", "location", FCH.locationPayload, (b) => api.createFchLocation(b), null, (x) => { reset("location"); st.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    approveLocation: (id) => optNote(`lc-${id}`, "An approval note", (n) => api.approveFchLocation(id, n), "Location approved."),
+    rejectLocation: (id) => needNote(`lc-${id}`, "A reason", 10, (n) => api.rejectFchLocation(id, n), "Location rejected. The reason is kept."),
+    closeLocation: (id) => needNote(`cl-${id}`, "A reason", 10, (n) => api.closeFchLocation(id, n), "Location closed."),
+    addReport: (id) => act("report", "report", FCH.reportPayload, (b) => api.addFchReport(id, b), "Sales report recorded. A different person must confirm it.", () => { reset("report"); }),
+    addPayment: (id) => act("payment", "payment", FCH.paymentPayload, (b) => api.addFchPayment(id, b), "Payment recorded. A different person must confirm it.", () => { reset("payment"); }),
+    confirm: (kind, id, no) => optNote(`${kind}-${id}-${no}`, "A confirmation note", (n) => api[FCH.CONFIRM[kind]](id, no, n), "Confirmed."),
+    reject: (kind, id, no) => needNote(`${kind}-${id}-${no}`, "A reason", 10, (n) => api[FCH.REJECT[kind]](id, no, n), "Rejected. The reason is kept."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Mergers and acquisitions (Stage 39): deals with a due-diligence checklist, closing conditions and price adjustments; values nothing and gives no deal advice
+// ----------------------------------------------------------------------
+function newMa() {
+  return { tab: "overview", ov: null, deals: [], sel: { deal: null }, forms: { ...JSON.parse(JSON.stringify(MA.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderMergersPage(authState) {
+  if (!uiState.ma) uiState.ma = newMa();
+  once("maLoading", () => loadMergers());
+  return Mergers({ st: uiState.ma, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.maLoading, onRetry: () => { loadedOnce.delete("maLoading"); render(); }, actions: mergersActions() });
+}
+
+async function maRefresh(st) {
+  [st.ov, st.deals] = await Promise.all([api.maOverview(), api.maDeals()]);
+  st.forms.setting = { due_soon_days: String(st.ov.setting.due_soon_days) };
+  if (st.sel.deal) st.sel.deal = await api.maDeal(st.sel.deal.id).catch(() => null);
+}
+async function loadMergers() {
+  const st = uiState.ma || (uiState.ma = newMa());
+  st.error = null;
+  try { await maRefresh(st); } catch (err) { st.error = err.message || "Mergers and acquisitions could not be loaded."; }
+  render();
+}
+
+function mergersActions() {
+  const st = uiState.ma; const K = actionsKit(st, render, () => maRefresh(st), MA.EMPTY); const { run, problem, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    saveSetting: () => { const r = MA.settingPayload(st.forms.setting); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setMaSetting(r.body); await maRefresh(st); }, "Settings saved. They apply from now on."); },
+    selectDeal: (id) => run(async () => { st.sel.deal = id ? await api.maDeal(id) : null; st.notes = {}; ["checklist", "condition", "adjustment", "done", "close"].forEach(reset); }),
+    createDeal: () => act("deal", "deal", MA.dealPayload, (b) => api.createMaDeal(b), null, (x) => { reset("deal"); st.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    approveDeal: (id) => optNote(`dl-${id}`, "An approval note", (n) => api.approveMaDeal(id, n), "Deal approved."),
+    rejectDeal: (id) => needNote(`dl-${id}`, "A reason", 10, (n) => api.rejectMaDeal(id, n), "Deal rejected. The reason is kept."),
+    closeDeal: (id) => needNote(`cl-${id}`, "A reason", 10, (n) => api.closeMaDeal(id, { outcome: st.forms.close.outcome, reason: n }), "Deal closed."),
+    addChecklist: (id) => act("checklist", "checklist", MA.checklistPayload, (b) => api.addMaChecklist(id, b), "Checklist item added.", () => { reset("checklist"); }),
+    addCondition: (id) => act("condition", "condition", MA.conditionPayload, (b) => api.addMaCondition(id, b), "Condition added.", () => { reset("condition"); }),
+    addAdjustment: (id) => act("adjustment", "adjustment", MA.adjustmentPayload, (b) => api.addMaAdjustment(id, b), "Adjustment recorded. A different person must confirm it.", () => { reset("adjustment"); }),
+    setDone: (kind, no, k, v) => { const key = `${kind}-${no}`; st.forms.done = { ...st.forms.done, [key]: { ...(st.forms.done[key] || {}), [k]: v } }; st.formError = null; },
+    markDone: (kind, id, no) => { const key = `${kind}-${no}`, r = MA.donePayload(st.forms.done[key] || {}); if (r.problem) return problem("done-" + key, r.problem); return run(async () => { await api[MA.PROVIDE[kind]](id, no, r.body); st.forms.done = {}; await maRefresh(st); }, "Marked. A different person must confirm it."); },
+    confirm: (kind, id, no) => optNote(`${kind}-${id}-${no}`, "A confirmation note", (n) => api[MA.CONFIRM[kind]](id, no, n), "Confirmed."),
+    reject: (kind, id, no) => needNote(`${kind}-${id}-${no}`, "A reason", 10, (n) => api[MA.REJECT[kind]](id, no, n), "Rejected. The reason is kept."),
+  };
+}
+
+// ----------------------------------------------------------------------
+// Approval workflows (Stage 41): policies with up to three steps and requests that move through them; a record only, nothing else is blocked or triggered
+// ----------------------------------------------------------------------
+function newApw() {
+  return { tab: "overview", ov: null, policies: [], requests: [], sel: { policy: null, request: null }, forms: { ...JSON.parse(JSON.stringify(APW.EMPTY)), setting: null }, notes: {}, formError: null, busy: false, error: null, notice: null };
+}
+
+function renderApprovalsPage(authState) {
+  if (!uiState.apw) uiState.apw = newApw();
+  once("apwLoading", () => loadApprovals());
+  return Approvals({ st: uiState.apw, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.apwLoading, onRetry: () => { loadedOnce.delete("apwLoading"); render(); }, actions: approvalsActions() });
+}
+
+async function apwRefresh(st) {
+  [st.ov, st.policies, st.requests] = await Promise.all([api.apwOverview(), api.apwPolicies(), api.apwRequests()]);
+  st.forms.setting = { stale_days: String(st.ov.setting.stale_days) };
+  if (st.sel.policy) st.sel.policy = await api.apwPolicy(st.sel.policy.id).catch(() => null);
+  if (st.sel.request) st.sel.request = await api.apwRequest(st.sel.request.id).catch(() => null);
+}
+async function loadApprovals() {
+  const st = uiState.apw || (uiState.apw = newApw());
+  st.error = null;
+  try { await apwRefresh(st); } catch (err) { st.error = err.message || "Approval workflows could not be loaded."; }
+  render();
+}
+
+function approvalsActions() {
+  const st = uiState.apw; const K = actionsKit(st, render, () => apwRefresh(st), APW.EMPTY); const { run, problem, act, needNote, optNote, reset } = K;
+  return {
+    ...K.base,
+    saveSetting: () => { const r = APW.settingPayload(st.forms.setting); if (r.problem) return problem("setting", r.problem); return run(async () => { await api.setApwSetting(r.body); await apwRefresh(st); }, "Settings saved. They apply from now on."); },
+    selectPolicy: (id) => run(async () => { st.sel.policy = id ? await api.apwPolicy(id) : null; st.notes = {}; }),
+    selectRequest: (id) => run(async () => { st.sel.request = id ? await api.apwRequest(id) : null; st.notes = {}; }),
+    createPolicy: () => act("policy", "policy", APW.policyPayload, (b) => api.createApwPolicy(b), null, (x) => { reset("policy"); st.notice = `${x.ref} proposed. A different person must decide it.`; }),
+    activatePolicy: (id) => optNote(`pl-${id}`, "An approval note", (n) => api.activateApwPolicy(id, n), "Policy activated. Requests can now use it."),
+    rejectPolicy: (id) => needNote(`pl-${id}`, "A reason", 10, (n) => api.rejectApwPolicy(id, n), "Policy rejected. The reason is kept."),
+    retirePolicy: (id) => needNote(`pl-${id}`, "A reason", 10, (n) => api.retireApwPolicy(id, n), "Policy retired. Requests already under way finish under the steps they started with."),
+    submitRequest: () => act("request", "request", APW.requestPayload, (b) => api.submitApwRequest(b), null, (x) => { reset("request"); st.notice = `${x.ref} submitted. It is waiting at step 1.`; }),
+    approveRequest: (id) => optNote(`rq-${id}`, "An approval note", (n) => api.approveApwRequest(id, n), "Your approval is recorded."),
+    rejectRequest: (id) => needNote(`rq-${id}`, "A reason", 10, (n) => api.rejectApwRequest(id, n), "Request rejected. The reason is kept."),
+    withdrawRequest: (id) => needNote(`rq-${id}`, "A reason", 10, (n) => api.withdrawApwRequest(id, n), "Request withdrawn."),
   };
 }
 

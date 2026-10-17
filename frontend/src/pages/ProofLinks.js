@@ -2,7 +2,7 @@ import { h } from "../lib/vdom.js";
 import { LoadingState, ErrorState } from "../components/DataState.js";
 import { PermissionGate } from "../components/PermissionGate.js";
 import { PERMISSIONS, can } from "../lib/permissions.js";
-import { linkStatus, gapStatus, basisText, linkSentence, nodeText, relationsFor, targetTypes, relationOf, linkActions, ACTION_TEXT, needsReason, canWaive, confirmedText, typeLabel } from "../lib/proofLinks.js";
+import { linkStatus, gapStatus, basisText, linkSentence, nodeText, relationsFor, targetTypes, relationOf, linkActions, ACTION_TEXT, needsReason, canWaive, confirmedText, typeLabel, supersedeCandidates } from "../lib/proofLinks.js";
 
 /**
  * Proof Links: record, in one place, how a piece of evidence, a control, a finding, a fix, a case, a risk, a standard or an agent decision relate.
@@ -38,18 +38,19 @@ function neighbourhood(pl, me, role, a) {
   return h("div", { className: "card", id: "pl-graph", style: "margin-bottom:16px;" },
     h("h3", {}, `Links around ${nodeText(v, g.focus)}`),
     g.truncated ? h("p", { className: "alert alert-warning", id: "pl-truncated" }, "This picture was cut short because it has a lot of records. Narrow it by looking at a closer step.") : null,
-    g.links.length === 0 ? h("p", { id: "pl-none" }, "No links are recorded for this record yet.") : h("ul", { id: "pl-links", style: "padding-left:0;list-style:none;" }, g.links.map((l) => linkRow(pl, l, me, prep, appr, a))),
+    g.links.length === 0 ? h("p", { id: "pl-none" }, "No links are recorded for this record yet.") : h("ul", { id: "pl-links", style: "padding-left:0;list-style:none;" }, g.links.map((l) => linkRow(pl, l, me, prep, appr, a, g.links))),
     h("h4", {}, "Links that are expected but missing"),
     g.gaps.length === 0 ? h("p", { id: "pl-nogaps" }, "None recorded.") : h("ul", { id: "pl-gaps", style: "padding-left:0;list-style:none;" }, g.gaps.map((x) => gapRow(pl, x, me, appr, a))),
     PermissionGate({ role, permission: PERMISSIONS.GRC_PREPARE }, gapForm(pl, a)));
 }
 
-function linkRow(pl, l, me, prep, appr, a) {
-  const st = linkStatus(l.status), acts = linkActions(l, me, prep, appr);
+function linkRow(pl, l, me, prep, appr, a, all = []) {
+  const cands = supersedeCandidates(l, all), st = linkStatus(l.status), acts = linkActions(l, me, prep, appr, cands.length);
   return h("li", { "data-link": l.id, style: "border-bottom:1px solid var(--ink-200);padding:8px 0;" },
     h("div", {}, Badge(st), " ", linkSentence(pl.vocabulary, l)),
     h("div", { style: "color: var(--ink-500); font-size:0.9em;" }, `${basisText(l.basis)}. ${confirmedText(l)}${l.note ? ` Note: ${l.note}` : ""}`),
     acts.length ? h("div", { style: "margin-top:6px;" },
+      acts.includes("supersede") ? h("select", { id: `pl-replace-${l.id}`, onChange: (e) => a.setReplacement(l.id, e.target.value) }, [h("option", { value: "" }, "Replace with…"), ...cands.map((c) => h("option", { value: c.id, selected: (pl.replace || {})[l.id] === c.id }, linkSentence(pl.vocabulary, c)))]) : null,
       acts.some(needsReason) ? h("input", { type: "text", id: `pl-reason-${l.id}`, placeholder: "Reason", value: pl.reasons[l.id] || "", onInput: (e) => a.setReason(l.id, e.target.value) }) : null,
       acts.map((k) => h("button", { className: "btn btn-secondary", "data-act": k, disabled: pl.busy, onClick: () => a.act(l.id, k) }, ACTION_TEXT[k]))) : null,
     h("details", {}, h("summary", {}, "History"), h("ol", {}, (l.history || []).map((x) => h("li", {}, `${x.event} by ${x.by}${x.note ? `: ${x.note}` : ""}`)))));

@@ -390,6 +390,78 @@ def get_esg(security: SecurityContext = Depends(get_security), session=Depends(g
     return EsgService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
 
 
+def get_approvals(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Approval workflows service: records in the shared document store; every action is audited."""
+    from ..approvals.service import ApprovalsService
+    from ..approvals.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ApprovalsService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_mergers(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Mergers and acquisitions service: records in the shared document store; every action is audited."""
+    from ..mergers.service import MergersService
+    from ..mergers.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return MergersService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_franchise(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Franchise and multi-location service: records in the shared document store; every action is audited."""
+    from ..franchise.service import FranchiseService
+    from ..franchise.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return FranchiseService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_pension(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Pension and fiduciary service: records in the shared document store; every action is audited."""
+    from ..pension.service import PensionService
+    from ..pension.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return PensionService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_insolvency(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Insolvency service: records in the shared document store; every action is audited."""
+    from ..insolvency.service import InsolvencyService
+    from ..insolvency.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return InsolvencyService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_impact(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Impact measurement service: records in the shared document store; every action is audited."""
+    from ..impact.service import ImpactService
+    from ..impact.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return ImpactService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_oprs(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Operations research service: records in the shared document store; every action is audited."""
+    from ..oprs.service import OprsService
+    from ..oprs.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return OprsService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
+def get_datagov(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
+    """Data governance service: records in the shared document store; every action is audited."""
+    from ..datagov.service import DatagovService
+    from ..datagov.wiring import make_log
+    from .db.security_store import SqlAlchemyDocStore
+
+    return DatagovService(SqlAlchemyDocStore(session), get_evidence_vault(session), log=make_log(security))
+
+
 def get_projects(security: SecurityContext = Depends(get_security), session=Depends(get_session)):
     """Projects and grants service: projects, budget lines, spending and receipts in the shared document store; moves no money; every action is audited."""
     from ..projects.service import ProjectsService

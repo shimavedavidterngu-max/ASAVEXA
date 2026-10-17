@@ -165,6 +165,53 @@ class LinkLifecycle(unittest.TestCase):
         self.assertEqual([e[0] for e in self.ev], ["GRAPH_LINK_ADDED", "GRAPH_LINK_CONFIRMED", "GRAPH_LINK_DISPUTED", "GRAPH_LINK_REINSTATED", "GRAPH_LINK_RETIRED"])
 
 
+class Superseding(unittest.TestCase):
+    def setUp(self):
+        self.g, self.ev = make()
+        self.old = self.g.link_records(ORG, ("evidence", "e1"), ("finding", "f1"), "EVIDENCES", "u1", "first")
+        self.new = self.g.link_records(ORG, ("evidence", "e1"), ("finding", "f2"), "EVIDENCES", "u1", "better")
+
+    def test_supersede_keeps_both_and_hides_the_old_one(self):
+        self.g.confirm_link(ORG, self.old["id"], "u2")
+        r = self.g.supersede_link(ORG, self.old["id"], self.new["id"], "u3", "Pointed at the wrong finding")
+        self.assertEqual((r["status"], r["superseded_by"], r["confirmed_by"]), ("SUPERSEDED", self.new["id"], None))
+        self.assertEqual(self.g.get_link(ORG, self.new["id"])["supersedes"], [self.old["id"]])
+        self.assertEqual([h["event"] for h in self.g.get_link(ORG, self.old["id"])["history"]], ["CREATED", "CONFIRMED", "SUPERSEDED"])
+        self.assertEqual([h["event"] for h in self.g.get_link(ORG, self.new["id"])["history"]], ["CREATED", "SUPERSEDES"])
+        ids = lambda inc: {d["id"] for d in self.g.neighbourhood(ORG, "evidence", "e1", 1, inc)["links"]}
+        self.assertEqual(ids(False), {self.new["id"]}); self.assertEqual(ids(True), {self.old["id"], self.new["id"]})
+        self.assertEqual(len(self.g.list_links(ORG, "SUPERSEDED")), 1)
+
+    def test_a_disputed_link_can_be_superseded(self):
+        self.g.dispute_link(ORG, self.old["id"], "u3", "Wrong invoice")
+        self.assertEqual(self.g.supersede_link(ORG, self.old["id"], self.new["id"], "u3", "Replaced")["status"], "SUPERSEDED")
+
+    def test_rules(self):
+        for rep in (None, "", " ", 5, "nope"):
+            with self.assertRaises(GraphLinkError): self.g.supersede_link(ORG, self.old["id"], rep, "u2", "reason")
+        with self.assertRaises(GraphLinkError): self.g.supersede_link(ORG, self.old["id"], self.old["id"], "u2", "reason")
+        with self.assertRaises(GraphLinkError): self.g.supersede_link(ORG, self.old["id"], self.new["id"], "u2", " ")
+        other_from = self.g.link_records(ORG, ("evidence", "e2"), ("finding", "f1"), "EVIDENCES", "u1", "different record")
+        with self.assertRaises(GraphLinkError): self.g.supersede_link(ORG, self.old["id"], other_from["id"], "u2", "reason")      # must start from the same record
+        with self.assertRaises(GraphLinkNotFoundError): self.g.supersede_link(ORG, "nope", self.new["id"], "u2", "reason")
+        with self.assertRaises(GraphLinkNotFoundError): self.g.supersede_link(OTHER, self.old["id"], self.new["id"], "u2", "reason")
+        self.g.retire_link(ORG, self.new["id"], "u2", "gone")
+        with self.assertRaises(GraphLinkStateError): self.g.supersede_link(ORG, self.old["id"], self.new["id"], "u2", "reason")      # replacement must be active
+        self.assertEqual(self.g.get_link(ORG, self.old["id"])["status"], "ACTIVE")                                               # nothing changed on failure
+
+    def test_a_superseded_link_is_final(self):
+        self.g.supersede_link(ORG, self.old["id"], self.new["id"], "u2", "Replaced")
+        for fn in (lambda: self.g.retire_link(ORG, self.old["id"], "u2", "x"), lambda: self.g.dispute_link(ORG, self.old["id"], "u2", "x"), lambda: self.g.confirm_link(ORG, self.old["id"], "u3"),
+                   lambda: self.g.reinstate_link(ORG, self.old["id"], "u3", "x"), lambda: self.g.supersede_link(ORG, self.old["id"], self.new["id"], "u2", "again")):
+            with self.assertRaises(GraphLinkStateError): fn()
+        again = self.g.link_records(ORG, ("evidence", "e1"), ("finding", "f1"), "EVIDENCES", "u1", "same pair may be recorded afresh")
+        self.assertEqual(again["status"], "ACTIVE")
+
+    def test_audited_without_content(self):
+        self.g.supersede_link(ORG, self.old["id"], self.new["id"], "u2", "Replaced")
+        self.assertIn("GRAPH_LINK_SUPERSEDED", [e[0] for e in self.ev])
+
+
 class SystemLinks(unittest.TestCase):
     def test_system_links_are_marked_and_idempotent(self):
         g, ev = make()

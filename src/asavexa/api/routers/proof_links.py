@@ -25,6 +25,11 @@ class LinkBody(BaseModel):
     note: str = ""
 
 
+class SupersedeBody(BaseModel):
+    replacement_id: str
+    reason: str
+
+
 class ReasonBody(BaseModel):
     reason: str
 
@@ -90,6 +95,11 @@ def get_one(link_id: str, org: str = Depends(get_current_org), svc: ProofLinks =
 @router.post("/{link_id}/retire", dependencies=[Depends(require_permission(GRC_PREPARE))])
 def retire(link_id: str, body: ReasonBody, org: str = Depends(get_current_org), actor: str = Depends(get_current_actor), svc: ProofLinks = Depends(get_proof_links)):
     return _run(lambda: svc.retire_link(org, link_id, actor, body.reason))
+
+
+@router.post("/{link_id}/supersede", dependencies=[Depends(require_permission(GRC_PREPARE))])
+def supersede(link_id: str, body: SupersedeBody, org: str = Depends(get_current_org), actor: str = Depends(get_current_actor), svc: ProofLinks = Depends(get_proof_links)):
+    return _run(lambda: svc.supersede_link(org, link_id, body.replacement_id, actor, body.reason))
 
 
 @router.post("/{link_id}/dispute", dependencies=[Depends(require_permission(GRC_PREPARE))])

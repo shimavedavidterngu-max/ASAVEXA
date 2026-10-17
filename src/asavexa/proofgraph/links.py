@@ -5,7 +5,7 @@ RECORD between the records that matter once something goes wrong: evidence, cont
 agent decisions. A link says what one record has to do with another ("this evidence supports that finding"), who said so, when, and why.
 
 Honest by design:
-  * A link is a claim somebody made, kept with its history. It is never deleted; it can be RETIRED (with a reason), DISPUTED, and REINSTATED.
+  * A link is a claim somebody made, kept with its history. It is never deleted; it can be RETIRED (with a reason), DISPUTED, REINSTATED, or SUPERSEDED by a newer active link from the same record (with a reason).
   * A link starts as RECORDED (by a person) or SYSTEM (the platform created it while doing something else). A DIFFERENT person can CONFIRM it.
     Nobody can confirm their own link, and the person who disputed a link cannot be the one who reinstates it.
   * "An expected link is missing" can be written down too (a GAP), and "these two records conflict" is a relation (CONFLICTS_WITH).
@@ -22,7 +22,8 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 from ..security.errors import SecurityError
 
 LINK_KIND, GAP_KIND = "pa_link", "pa_gap"
-LINK_STATUSES = ("ACTIVE", "DISPUTED", "RETIRED")
+LINK_STATUSES = ("ACTIVE", "DISPUTED", "RETIRED", "SUPERSEDED")
+GONE = ("RETIRED", "SUPERSEDED")
 GAP_STATUSES = ("OPEN", "FILLED", "WAIVED")
 BASIS = ("RECORDED", "SYSTEM")
 MAX_TEXT = 2000
@@ -121,7 +122,7 @@ class ProofLinks:
 
     def _existing(self, org, a, b, relation) -> Optional[dict]:
         for d in self._all(LINK_KIND, org):
-            if d["status"] == "RETIRED" or d["relation"] != relation:
+            if d["status"] in GONE or d["relation"] != relation:
                 continue
             if (self._same(d["from"], a) and self._same(d["to"], b)) or (relation in SYMMETRIC and self._same(d["from"], b) and self._same(d["to"], a)):
                 return d
@@ -143,7 +144,7 @@ class ProofLinks:
             if _idempotent:
                 return dup
             raise GraphLinkStateError("That link already exists.")
-        if sum(1 for d in self._all(LINK_KIND, org) if d["status"] != "RETIRED") >= MAX_LINKS:
+        if sum(1 for d in self._all(LINK_KIND, org) if d["status"] not in GONE) >= MAX_LINKS:
             raise GraphLinkStateError(f"This organisation already has {MAX_LINKS} live links. Retire some before adding more.")
         d = {"id": str(uuid.uuid4()), "org": org, "from": a, "to": b, "relation": relation, "status": "ACTIVE", "basis": _basis, "note": note,
              "created_by": actor, "created_at": self.now().isoformat(), "updated_at": self.now().isoformat(), "confirmed_by": None, "confirmed_at": None,
@@ -166,9 +167,31 @@ class ProofLinks:
         d = self._get(LINK_KIND, org, link_id, "Link", for_update=True)
         if d["status"] == "RETIRED":
             raise GraphLinkStateError("That link is already retired.")
+        if d["status"] == "SUPERSEDED":
+            raise GraphLinkStateError("That link has been superseded by a newer one and stays in the history as it is.")
         reason = _text(reason, "Reason")
         d["status"] = "RETIRED"; self._stamp(d, actor, "RETIRED", reason); self._put(LINK_KIND, org, d)
         self.log("GRAPH_LINK_RETIRED", actor, link_id, org, reason[:120])
+        return d
+
+    def supersede_link(self, org, link_id, replacement_id, actor, reason) -> dict:
+        """Mark an active or disputed link as replaced by a newer ACTIVE link that starts from the same record. Both stay in the history; nothing is deleted."""
+        if not isinstance(replacement_id, str) or not replacement_id.strip():
+            raise GraphLinkError("Choose the newer link that replaces this one.")
+        d = self._get(LINK_KIND, org, link_id, "Link", for_update=True)
+        if d["status"] not in ("ACTIVE", "DISPUTED"):
+            raise GraphLinkStateError(f"Only an active or disputed link can be superseded (this one is {d['status'].lower()}).")
+        if replacement_id == d["id"]:
+            raise GraphLinkError("A link cannot supersede itself.")
+        n = self._get(LINK_KIND, org, replacement_id, "Replacement link", for_update=True)
+        if n["status"] != "ACTIVE":
+            raise GraphLinkStateError(f"The replacement must be an active link (this one is {n['status'].lower()}).")
+        if not self._same(n["from"], d["from"]):
+            raise GraphLinkError("The replacement must start from the same record as the link it replaces.")
+        reason = _text(reason, "Reason")
+        d.update(status="SUPERSEDED", superseded_by=n["id"], confirmed_by=None, confirmed_at=None); self._stamp(d, actor, "SUPERSEDED", reason); self._put(LINK_KIND, org, d)
+        n["supersedes"] = sorted(set(n.get("supersedes", [])) | {d["id"]}); self._stamp(n, actor, "SUPERSEDES", f"Replaces link {d['id']}"); self._put(LINK_KIND, org, n)
+        self.log("GRAPH_LINK_SUPERSEDED", actor, link_id, org, reason[:120])
         return d
 
     def dispute_link(self, org, link_id, actor, reason) -> dict:
@@ -242,7 +265,7 @@ class ProofLinks:
         focus = self._node(org, (ntype, nid))
         if not isinstance(depth, int) or isinstance(depth, bool) or not 1 <= depth <= 3:
             raise GraphLinkError("Depth must be 1, 2 or 3.")
-        links = [d for d in self._all(LINK_KIND, org) if include_retired or d["status"] != "RETIRED"]
+        links = [d for d in self._all(LINK_KIND, org) if include_retired or d["status"] not in GONE]
         by_node: Dict[Tuple[str, str], List[dict]] = {}
         for d in links:
             by_node.setdefault((d["from"]["type"], d["from"]["id"]), []).append(d); by_node.setdefault((d["to"]["type"], d["to"]["id"]), []).append(d)

@@ -70,8 +70,29 @@ check("a different person can waive it", pg.locator("[data-gap] [data-act=waive]
 GID = pg.locator("[data-gap]").first.get_attribute("data-gap")
 pg.fill(f"#pl-reason-{GID}", "Not applicable to this period"); pg.click("[data-gap] [data-act=waive]"); pg.wait_for_timeout(1500)
 check("waived", "Waived" in txt(pg,"[data-gap]") or "Waived" in txt(pg,"#pl-notice"), txt(pg,"#pl-notice"))
+# supersede: record a newer link from the same start, then replace the old one with it
+old=api("GET", f"/proof-links/{LID}", DARA, "Meridian")
+tref=None
+for t in ("remediation","risk","control","action","outcome","decision"):
+    ch=api("GET", f"/proof-links/choices?type={t}", DARA, "Meridian").get("choices") or []
+    if ch: tref={"type": t, "id": ch[0]["id"]}; break
+check("there is another record the newer link can point to", tref is not None, tref)
+new=api("POST", "/proof-links", DARA, "Meridian", {"from_ref": {"type": old["from"]["type"], "id": old["from"]["id"]}, "to_ref": tref, "relation": old.get("relation"), "note": "Newer signed invoice"})
+NID=new.get("id") or (new.get("link") or {}).get("id")
+check("a newer link was recorded", bool(NID), new)
+sign_in(pg, *DARA, "Meridian"); goto(pg, "/proof-links"); pg.wait_for_timeout(1000); look(pg, "evidence")
+check("the old link offers a replacement picker", pg.locator(f"#pl-replace-{LID}").count()==1, [pg.locator("[data-link]").count(), pg.locator("[data-link] select").count(), LID, NID, pg.locator("[data-link]").evaluate_all("e=>e.map(x=>x.dataset.link)")])
+res=api("POST", f"/proof-links/{LID}/supersede", DARA, "Meridian", {"replacement_id": LID, "reason": "same"})
+check("a link cannot replace itself", res.get("status")==400, res)
+res=api("POST", f"/proof-links/{LID}/supersede", OTHER, "Other", {"replacement_id": NID, "reason": "x"})
+check("another company cannot supersede it (404)", res.get("status")==404, res)
+res=api("POST", f"/proof-links/{LID}/supersede", DARA, "Meridian", {"replacement_id": NID, "reason": "A newer signed invoice replaces it"})
+check("superseded", (res.get("status") or "")=="SUPERSEDED" or res.get("status") is None and res.get("superseded_by")==NID, res)
+got=api("GET", f"/proof-links/{LID}", DARA, "Meridian")
+check("old link keeps history and points to the newer one", got.get("status")=="SUPERSEDED" and got.get("superseded_by")==NID, got)
+LID=NID
 # retire keeps history (needs prepare rights)
-sign_in(pg, *DARA, "Meridian"); goto(pg, "/proof-links"); look(pg)
+sign_in(pg, *DARA, "Meridian"); goto(pg, "/proof-links"); look(pg, "evidence")
 pg.fill(f"#pl-reason-{LID}", "Superseded by a better document"); pg.click("[data-link] [data-act=retire]"); pg.wait_for_timeout(1500)
 check("retired links leave the picture but stay on record", pg.locator("[data-link]").count()==0, txt(pg,"#pl-graph")[:200])
 got=api("GET", f"/proof-links/{LID}", DARA, "Meridian")

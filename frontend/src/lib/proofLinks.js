@@ -1,6 +1,6 @@
 /** Pure helpers for the Proof Links page (Stage 13). No DOM, no network. The server decides who may do what; this only words things and hides buttons that could not work. */
 
-export const LINK_STATUS = { ACTIVE: { tone: "pass", label: "Active" }, DISPUTED: { tone: "warn", label: "Disputed" }, RETIRED: { tone: "neutral", label: "Retired" } };
+export const LINK_STATUS = { ACTIVE: { tone: "pass", label: "Active" }, DISPUTED: { tone: "warn", label: "Disputed" }, RETIRED: { tone: "neutral", label: "Retired" }, SUPERSEDED: { tone: "neutral", label: "Superseded" } };
 export const linkStatus = (s) => LINK_STATUS[s] || { tone: "neutral", label: s || "—" };
 export const GAP_STATUS = { OPEN: { tone: "warn", label: "Still missing" }, FILLED: { tone: "pass", label: "Filled" }, WAIVED: { tone: "neutral", label: "Waived" } };
 export const gapStatus = (s) => GAP_STATUS[s] || { tone: "neutral", label: s || "—" };
@@ -52,17 +52,18 @@ export function gapPayload(focus, f) {
 }
 
 /** Buttons a person can usefully press on a link. The server still checks; this just avoids offering what cannot work. */
-export function linkActions(l, me, canPrepare, canApprove) {
+export function linkActions(l, me, canPrepare, canApprove, candidates = 0) {
   const out = [];
   if (!l) return out;
   if (l.status === "ACTIVE" && canApprove && !l.confirmed_by && l.created_by !== me) out.push("confirm");
   if (l.status === "ACTIVE" && canPrepare) out.push("dispute");
   if (l.status === "DISPUTED" && canApprove && l.disputed_by !== me) out.push("reinstate");
-  if (l.status !== "RETIRED" && canPrepare) out.push("retire");
+  if ((l.status === "ACTIVE" || l.status === "DISPUTED") && canPrepare && candidates > 0) out.push("supersede");
+  if (l.status !== "RETIRED" && l.status !== "SUPERSEDED" && canPrepare) out.push("retire");
   return out;
 }
-export const ACTION_TEXT = { confirm: "Confirm", dispute: "Dispute", reinstate: "Reinstate", retire: "Retire" };
-export const ACTION_NOTICE = { confirm: "Confirmed by you.", dispute: "Marked as disputed.", reinstate: "Reinstated.", retire: "Retired. It stays in the history." };
+export const ACTION_TEXT = { confirm: "Confirm", dispute: "Dispute", reinstate: "Reinstate", supersede: "Replace with newer link", retire: "Retire" };
+export const ACTION_NOTICE = { confirm: "Confirmed by you.", dispute: "Marked as disputed.", reinstate: "Reinstated.", supersede: "Superseded. Both links stay in the history.", retire: "Retired. It stays in the history." };
 /** confirm needs no reason; the others do. */
 export const needsReason = (a) => a !== "confirm";
 export const canWaive = (g, me, canApprove) => !!g && canApprove && g.status === "OPEN" && g.created_by !== me;
@@ -71,3 +72,5 @@ export const sameNode = (a, b) => !!a && !!b && a.type === b.type && a.id === b.
 /** Nodes of a graph other than the focus, in the order the server gave them. */
 export const otherNodes = (g) => ((g && g.nodes) || []).filter((n) => !sameNode(n, g.focus));
 export const confirmedText = (l) => (l.confirmed_by ? "Confirmed by a second person" : l.status === "ACTIVE" ? "Not yet confirmed by a second person" : "");
+/** Other active links that start from the same record as this one: the only valid replacements. */
+export const supersedeCandidates = (l, links) => (l && (l.status === "ACTIVE" || l.status === "DISPUTED") ? (links || []).filter((x) => x.id !== l.id && x.status === "ACTIVE" && sameNode(x.from, l.from)) : []);
