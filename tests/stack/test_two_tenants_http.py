@@ -126,7 +126,7 @@ class RealStack(unittest.TestCase):
                 if r.status_code < 300:
                     if any(n in r.text for n in needles):
                         leaks.append(f"{method} {url} -> {r.status_code} contained organisation A's data")
-                    elif method != "GET" and v:
+                    elif method != "GET" and v and url != path:   # only when A's identifier was really put into the path; a route with no {id} is B acting on B's own company
                         writes_ok.append(f"{method} {url} -> {r.status_code}")
         self.assertEqual(leaks, [], "CROSS-TENANT LEAK")
         self.assertEqual(self.snapshot(a), before, "organisation A's data changed because of organisation B's requests")
@@ -134,7 +134,7 @@ class RealStack(unittest.TestCase):
         self.assertEqual(me.status_code, 200, "B's own session died during the run, so later attacks were not really tried")
         self.assertGreater(attempts, 500)
         print(f"\n[two-tenant HTTP] attempts={attempts} leaks=0 successful_B_writes_by_A_id={len(writes_ok)}")
-        self.assertEqual(writes_ok, [], "a write by B using A's identifier succeeded (A's data looked unchanged, but this must be refused)")
+        self.assertEqual(writes_ok, [], "a write by B using A's identifier succeeded (A's data looked unchanged, but this must be refused):\n" + "\n".join(writes_ok))
 
     def test_3_b_sees_only_its_own_lists(self):
         a, b = self.signup("A2"), self.signup("B2")
