@@ -1,3 +1,4 @@
+import { formatDecimal } from "../lib/figures.js";
 import { h, Fragment } from "../lib/vdom.js";
 import { allowed } from "../components/PermissionGate.js";
 import { PERMISSIONS } from "../lib/permissions.js";
@@ -152,9 +153,11 @@ function emptyMetricCard(label, message) {
 
 export function formatMoney(value) {
   if (value === undefined || value === null) return "—";
-  // Presentation formatting ONLY — this never recomputes a figure the
-  // backend didn't already return (Section 24: no parallel accounting
-  // engine). `value` here is a Decimal-as-string from the backend.
-  const num = Number(value);
-  return Number.isFinite(num) ? num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(value);
+  // Presentation formatting ONLY: this never recomputes a figure the backend didn't already return (no parallel accounting engine).
+  // `value` is a Decimal-as-string from the backend. It is formatted as text, digit for digit: no float conversion, no rounding.
+  const f = formatDecimal(value);
+  if (f.ok) return f.text;
+  // A JS number that is not a whole number is already inexact; show it as before rather than refuse it.
+  if (typeof value === "number" && Number.isFinite(value)) return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return String(value);
 }

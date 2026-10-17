@@ -4,7 +4,7 @@ import { PERMISSIONS, ROLE_PERMISSIONS } from "./permissions.js";
 const has = (role, perm) => !!(ROLE_PERMISSIONS[role] && ROLE_PERMISSIONS[role].includes(perm));
 export const canPrepare = (role) => has(role, PERMISSIONS.PUBFIN_PREPARE);
 export const canApprove = (role) => has(role, PERMISSIONS.PUBFIN_APPROVE);
-export const TABS = [["overview", "Overview"], ["budgets", "Budgets"], ["commitments", "Commitments"], ["procurement", "Procurement"], ["grants", "Grants"], ["reports", "Reports"]];
+export const TABS = [["overview", "Overview"], ["spend", "Where the money went"], ["budgets", "Budgets"], ["commitments", "Commitments"], ["procurement", "Procurement"], ["grants", "Grants"], ["follow", "Follow a grant"], ["reports", "Reports"]];
 
 export const STATUS = {
   DRAFT: { tone: "neutral", label: "Draft" }, SUBMITTED: { tone: "info", label: "Waiting for approval" }, APPROVED: { tone: "pass", label: "Approved" }, REJECTED: { tone: "fail", label: "Sent back" },

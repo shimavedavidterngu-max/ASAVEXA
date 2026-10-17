@@ -97,6 +97,14 @@ class SpendBody(BaseModel):
     evidence_ids: List[str] = []
 
 
+class PrivacyBody(BaseModel):
+    hide_donor: bool
+
+
+class EraseBody(BaseModel):
+    confirm: str
+
+
 class PolicyBody(BaseModel):
     min_quotes: int
     quote_threshold: str
@@ -311,3 +319,13 @@ def reject_report(report_id: str, body: NoteBody, org: str = Depends(get_current
 def export_report(report_id: str, org: str = Depends(get_current_org), actor: str = Depends(get_current_actor), svc: PubFinService = Depends(get_pubfin)):
     out = svc.export_csv(org, report_id, actor)
     return Response(content=out["content"], media_type=out["content_type"], headers={"Content-Disposition": f'attachment; filename="{out["filename"]}"', "Cache-Control": "no-store"})
+
+
+@router.put("/privacy", dependencies=[_approve])
+def set_privacy(body: PrivacyBody, org: str = Depends(get_current_org), actor: str = Depends(get_current_actor), svc: PubFinService = Depends(get_pubfin)):
+    return svc.set_privacy(org, body.hide_donor, actor)
+
+
+@router.post("/privacy/erase-donors", dependencies=[_approve])
+def erase_donors(body: EraseBody, org: str = Depends(get_current_org), actor: str = Depends(get_current_actor), svc: PubFinService = Depends(get_pubfin)):
+    return svc.erase_donors(org, body.confirm, actor)

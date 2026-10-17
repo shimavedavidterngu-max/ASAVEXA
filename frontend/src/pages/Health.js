@@ -1,5 +1,8 @@
 import { h } from "../lib/vdom.js";
 import { LoadingState, ErrorState, EmptyState } from "../components/DataState.js";
+import { Figure } from "../components/Figure.js";
+import { ProofRail } from "../components/ProofRail.js";
+import { buildDeptTrace, HEALTH_VOCAB, receivedText } from "../lib/healthTrace.js";
 import { FORMS, SECTIONS, caps, label, STATE_TEXT, visibleTabs, visibleSections, visibleActions, needsNote } from "../lib/health.js";
 
 /**
@@ -39,7 +42,7 @@ export function Health({ hc, role, userId, loading, onRetry, actions }) {
         h("div", { className: "tabs", role: "tablist", style: "display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;" },
           tabs.map(([id, l]) => h("button", { className: `btn ${tab === id ? "btn-primary" : "btn-secondary"}`, role: "tab", id: `hc-tab-${id}`, "aria-selected": tab === id ? "true" : "false", onClick: () => actions.setTab(id) }, l))),
         hc.busy ? h("div", { style: "color: var(--ink-500);" }, "Working...") : null,
-        tab === "dashboard" ? dashboard(hc, actions) : tabBody(tab, hc, c, userId, actions)));
+        tab === "dashboard" ? dashboard(hc, actions) : tab === "trace" ? trace(hc, actions) : tabBody(tab, hc, c, userId, actions)));
 }
 
 function facilityBar(hc, c, a) {
@@ -121,4 +124,52 @@ function formView(hc, a) {
   return h("div", { className: "card", id: "hc-form", style: "margin-bottom:12px;" }, h("h3", {}, f.row && def.prefill ? `Edit: ${def.title}` : def.title),
     def.fields.map(fieldView),
     h("div", { style: "display:flex; gap:8px; margin:8px 0;" }, btn("Save", "hf-save", () => a.saveForm(), "primary", hc.busy), btn("Cancel", "hf-cancel", () => a.cancelForm())));
+}
+
+// ---------------------------------------------------------------- follow the money (Stage 7)
+function trace(hc, a) {
+  if (!hc.facilityId) return EmptyState({ title: "Nothing to show", message: "Create a facility first (Setup tab)." });
+  const t = hc.trace;
+  if (!t) return EmptyState({ title: "Nothing to show", message: "The figures could not be loaded." });
+  const depts = (hc.ref.depts || []).filter((d) => d.active);
+  const dept = depts.find((d) => d.id === hc.traceDept) || depts[0] || null;
+  const fac = (hc.options.facilities || []).find((f) => f.id === hc.facilityId) || {};
+  const ex = t.exec;
+  return h("div", { id: "hc-trace" },
+    h("div", { className: "card", id: "hc-trace-intro" },
+      h("p", { style: "color: var(--ink-500);" }, "Follow a department's money from what was authorised, to what was bought, to what was delivered, to what is still unresolved. Every figure is the one the server recorded; nothing is added up or estimated here. This holds no patient information, and it does not buy, pay or confirm that goods arrived."),
+      ex === undefined ? h("div", { className: "alert alert-warn", id: "hc-trace-budget-unknown", role: "status" }, "The budget could not be checked, so what is authorised is shown as not checked.") : null,
+      ex === null ? h("div", { className: "alert alert-info", id: "hc-trace-nobudget", role: "status" }, "No approved budget covers this period yet. Authorised amounts appear once a budget is approved.") : null,
+      ex ? h("p", { id: "hc-trace-budget" }, `Budget ${ex.ref}, ${ex.period_start} to ${ex.period_end}, in ${fac.currency || ""}.`) : null,
+      depts.length ? field("Department", "hc-trace-dept", h("select", { id: "hc-trace-dept", onChange: (e) => a.setTraceDept(e.target.value) }, depts.map((d) => h("option", { value: d.id, selected: dept && d.id === dept.id }, `${d.code} ${d.name}`)))) : h("div", { style: "color: var(--ink-500);" }, "No department yet. Add one under Setup.")),
+    ex && (ex.rows || []).length ? overview(ex, dept, a) : null,
+    dept ? traceBody(buildDeptTrace({ dept, exec: ex, pos: t.pos, invoices: t.invoices }), fac) : null);
+}
+
+function overview(ex, dept, a) {
+  return h("div", { className: "card", id: "hc-trace-overview-card" }, h("div", { className: "stmt-scroll" }, h("table", { className: "stmt", id: "hc-trace-overview" },
+    h("caption", {}, "Budget lines"),
+    h("thead", {}, h("tr", {}, [["Department"], ["Category"], ["Authorised", 1], ["Committed", 1], ["Spent", 1], ["Available", 1], [""]].map(([l, r]) => h("th", { scope: "col", className: r ? "num" : undefined }, l)))),
+    h("tbody", {}, ex.rows.map((r) => h("tr", { "data-dept": r.dept_id, "data-state": r.overspent ? "overspent" : "ok" }, h("td", {}, r.dept), h("td", {}, label(r.category)), h("td", { className: "num" }, r.budget), h("td", { className: "num" }, r.committed), h("td", { className: "num" }, r.spent),
+      h("td", { className: "num" }, r.available, r.overspent ? h("span", { className: "badge badge-fail" }, " Overspent") : null),
+      h("td", {}, dept && dept.id === r.dept_id ? h("span", { "aria-current": "true" }, "Showing") : btn("Follow", `hc-trace-follow-${r.dept_id}-${r.category}`, () => a.setTraceDept(r.dept_id)))))))));
+}
+
+function traceBody(tr, fac) {
+  if (!tr) return null;
+  const d = tr.dept, cur = fac.currency || "";
+  return h("div", { className: "ledger", id: "hc-trace-ledger", "data-sector": "health" },
+    h("div", { className: "ledger-main" },
+      h("p", { className: "ledger-eyebrow" }, "Follow the money"),
+      h("h2", { id: "hc-trace-title" }, `${d.code} ${d.name}`),
+      tr.ordersKnown ? (tr.orders.length ? h("div", { className: "stmt-scroll" }, h("table", { className: "stmt", id: "hc-trace-orders" },
+        h("caption", {}, `Purchase orders, in ${cur}`),
+        h("thead", {}, h("tr", {}, [["Order"], ["Supplier"], ["Total", 1], ["Received / ordered"], ["Status"]].map(([l, r]) => h("th", { scope: "col", className: r ? "num" : undefined }, l)))),
+        h("tbody", {}, tr.orders.map((o) => h("tr", { "data-po": o.id, "data-status": o.status }, h("td", {}, o.ref), h("td", {}, o.supplier), h("td", { className: "num" }, o.total), h("td", {}, (o.lines || []).map(receivedText).join(", ")), h("td", {}, label(o.status))))))) : h("p", { className: "hm-muted", id: "hc-trace-no-orders" }, "No purchase order for this department."))
+        : h("p", { className: "hm-muted", id: "hc-trace-orders-unknown" }, "Not checked: the orders could not be loaded."),
+      h("h3", {}, "Supplier invoices"),
+      tr.invoicesKnown ? (tr.invoices.length ? h("ul", { id: "hc-trace-invoices" }, tr.invoices.map((i) => h("li", { "data-invoice": i.id, "data-status": i.status }, `${i.ref} (${i.invoice_no}) ${i.amount} ${cur}. ${i.match && i.match.matched ? "Matches the order and what was received." : `Does not match: ${i.match ? i.match.allowed : "—"} could be invoiced.`} ${["EXCEPTION", "MATCHED"].includes(i.status) ? "" : `Status: ${label(i.status).toLowerCase()}.`}`.trim()))) : h("p", { className: "hm-muted", id: "hc-trace-no-invoices" }, "No invoice for this department."))
+        : h("p", { className: "hm-muted", id: "hc-trace-invoices-unknown" }, "Not checked: the invoices could not be loaded.")),
+    h("aside", { className: "ledger-margin", "aria-label": "The proof thread for this department" },
+      ProofRail({ id: "hc-trace-rail", subject: `department ${d.name}`, steps: tr.steps, vocab: HEALTH_VOCAB })));
 }

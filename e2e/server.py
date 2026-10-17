@@ -38,7 +38,8 @@ from asavexa.evidence.domain.enums import EvidenceType  # noqa: E402
 from asavexa.evidencereview.service import EvidenceReviewService  # noqa: E402
 from asavexa.identity.domain.errors import AsavexaIdentityError, PermissionDeniedError  # noqa: E402
 from asavexa.identity.domain.permissions import (AUDIT_READ, FINDING_MANAGE, FINDING_REMEDIATE, FINDING_VERIFY, GRC_APPROVE, GRC_PREPARE,  # noqa: E402
-                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, QUAL_APPROVE, QUAL_PREPARE, SEC_APPROVE, SEC_PREPARE, FIX_APPROVE, FIX_PREPARE, INV_APPROVE, INV_PREPARE, INVEST_APPROVE, INVEST_PREPARE, VAL_APPROVE, VAL_PREPARE, INS_APPROVE, INS_PREPARE, ESG_APPROVE, ESG_PREPARE, PAY_APPROVE, PAY_PREPARE, PROJ_APPROVE, PROJ_PREPARE, DG_APPROVE, DG_PREPARE, OPR_APPROVE, OPR_PREPARE, IMP_APPROVE, IMP_PREPARE, ISV_APPROVE, ISV_PREPARE, PEN_APPROVE, PEN_PREPARE, FCH_APPROVE, FCH_PREPARE, MNA_APPROVE, MNA_PREPARE, APW_APPROVE, APW_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE)
+                                                 ORG_MANAGE_SETTINGS, REPORTING_READ, PROCURE_APPROVE, PROCURE_PREPARE, FPA_APPROVE, FPA_PREPARE, FINCRIME_APPROVE, FINCRIME_PREPARE, FINCRIME_READ, ITAUDIT_APPROVE, ITAUDIT_PREPARE, RESIL_APPROVE, RESIL_PREPARE, AIG_APPROVE, AIG_PREPARE, QUAL_APPROVE, QUAL_PREPARE, SEC_APPROVE, SEC_PREPARE, FIX_APPROVE, FIX_PREPARE, INV_APPROVE, INV_PREPARE, INVEST_APPROVE, INVEST_PREPARE, VAL_APPROVE, VAL_PREPARE, INS_APPROVE, INS_PREPARE, ESG_APPROVE, ESG_PREPARE, PAY_APPROVE, PAY_PREPARE, PROJ_APPROVE, PROJ_PREPARE, DG_APPROVE, DG_PREPARE, OPR_APPROVE, OPR_PREPARE, IMP_APPROVE, IMP_PREPARE, ISV_APPROVE, ISV_PREPARE, PEN_APPROVE, PEN_PREPARE, FCH_APPROVE, FCH_PREPARE, MNA_APPROVE, MNA_PREPARE, APW_APPROVE, APW_PREPARE, ROLE_PERMISSIONS, TREASURY_APPROVE, TREASURY_PREPARE,
+                                                 HEALTH_READ, HEALTH_PREPARE, HEALTH_APPROVE, HEALTH_ADMIN, HEALTH_CLAIMS, HEALTH_STAFFING, PUBFIN_PREPARE, PUBFIN_APPROVE)
 from asavexa.reporting.services.service import ReportingService  # noqa: E402
 from asavexa.security import crypto  # noqa: E402
 from asavexa.security.auditchain import ChainedAuditRepository  # noqa: E402
@@ -363,6 +364,80 @@ def _ws(mod, svc, sub, m, b, org, a, qs, table, P, A_, need):
     return _NO
 
 
+# ---- Health Centre Administration: the REAL router functions and the REAL service. The route table is read from the router's own decorators, so a route added there is served here.
+import inspect  # noqa: E402
+from asavexa.health.service import HealthService  # noqa: E402
+hcr = importlib.import_module("asavexa.api.routers.health")
+
+
+def _hc_can(org, actor, perm):
+    r_ = w.identity.get_role(actor, org)
+    return r_ is not None and perm in ROLE_PERMISSIONS[r_]
+
+
+hcs = HealthService(store, w.vault, w.accounting, log=log_for("HealthCentre"), can=_hc_can)
+_HC_GUARDS = {"_prepare": [HEALTH_PREPARE], "_approve": [HEALTH_APPROVE], "_admin": [HEALTH_ADMIN], "_claims": [HEALTH_CLAIMS], "_staff": [HEALTH_STAFFING],
+              "_claims_prepare": [HEALTH_CLAIMS, HEALTH_PREPARE], "_claims_approve": [HEALTH_CLAIMS, HEALTH_APPROVE], "_staff_approve": [HEALTH_STAFFING, HEALTH_APPROVE]}
+HC_TABLE = []
+_src = open(hcr.__file__).read()
+for _m in re.finditer(r'@router\.(get|post|put)\("([^"]+)"(?:, status_code=(\d+))?(?:, dependencies=(\w+))?\)\s*\ndef (\w+)\(', _src):
+    _meth, _path, _code, _dep, _fn = _m.groups()
+    HC_TABLE.append((_meth.upper(), re.compile("^" + re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", _path) + "$"), _HC_GUARDS.get(_dep, []), _fn, int(_code) if _code else 200))
+
+
+def _hc(sub, m, b, org, a, qs, need):
+    for (meth, rx, guards, fname, code) in HC_TABLE:
+        if meth != m: continue
+        mm = rx.match(sub)
+        if not mm: continue
+        need(HEALTH_READ)
+        for g_ in guards: need(g_)
+        fn = getattr(hcr, fname); kw = {}
+        for pn in inspect.signature(fn).parameters:
+            if pn in mm.groupdict(): kw[pn] = mm.group(pn)
+            elif pn == "body": kw[pn] = b
+            elif pn == "org": kw[pn] = org
+            elif pn == "a": kw[pn] = a
+            elif pn == "s": kw[pn] = hcs
+            else: kw[pn] = qs.get(pn)
+        out = fn(**kw)
+        if hasattr(out, "content") and hasattr(out, "media_type"): return (200, out.content if isinstance(out.content, bytes) else str(out.content).encode())
+        return (code, out) if code != 200 else out
+    return _NO
+
+
+# ---- Public Finance: the REAL router functions and the REAL service. The route table is read from the router's own decorators.
+from asavexa.pubfin.service import PubFinService  # noqa: E402
+pfr = importlib.import_module("asavexa.api.routers.pubfin")
+pfs = PubFinService(store, w.accounting, w.vault, log=log_for("PublicFinance"))
+PF_TABLE = []
+_pfsrc = open(pfr.__file__).read()
+for _m in re.finditer(r'@router\.(get|post|put|delete)\("([^"]+)"(?:, status_code=(\d+))?(?:, dependencies=\[(\w+)\])?\)\s*\ndef (\w+)\(', _pfsrc):
+    _meth, _path, _code, _dep, _fn = _m.groups()
+    PF_TABLE.append((_meth.upper(), re.compile("^" + re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", _path) + "$"), {"_prepare": PUBFIN_PREPARE, "_approve": PUBFIN_APPROVE}.get(_dep), _fn, int(_code) if _code else 200))
+
+
+def _pf(sub, m, b, org, a, qs, need):
+    for (meth, rx, guard, fname, code) in PF_TABLE:
+        if meth != m: continue
+        mm = rx.match(sub)
+        if not mm: continue
+        need(REPORTING_READ)
+        if guard: need(guard)
+        fn = getattr(pfr, fname); kw = {}
+        for pn, par in inspect.signature(fn).parameters.items():
+            if pn in mm.groupdict(): kw[pn] = mm.group(pn)
+            elif pn == "body": kw[pn] = par.annotation(**b)
+            elif pn == "org": kw[pn] = org
+            elif pn == "actor": kw[pn] = a
+            elif pn == "svc": kw[pn] = pfs
+            else: kw[pn] = qs.get(pn)
+        out = fn(**kw)
+        if hasattr(out, "content") and hasattr(out, "media_type"): return (200, out.content if isinstance(out.content, bytes) else str(out.content).encode())
+        return (code, out) if code != 200 else out
+    return _NO
+
+
 def j(o):
     return json.dumps(o, default=lambda x: dataclasses.asdict(x) if dataclasses.is_dataclass(x) else (x.value if hasattr(x, "value") else (x.isoformat() if hasattr(x, "isoformat") else str(x))))
 
@@ -409,6 +484,18 @@ class Handler(BaseHTTPRequestHandler):
         def need(p):
             if r is None or p not in ROLE_PERMISSIONS[r]: raise PermissionDeniedError("You do not have " + p + ".")
         if path == "/periods": return w.accounting.periods.list_for_org(org)
+        if path == "/accounts" and m == "GET": need(REPORTING_READ); return w.accounting.accounts.list_for_org(org)
+        if path.startswith("/reports/") and m == "GET":
+            # The REAL reporting router functions and service (test-only wiring; the reconciliation summary needs a service built with reconciliation).
+            need(REPORTING_READ)
+            rr = importlib.import_module("asavexa.api.routers.reporting")
+            RSV = ReportingService(accounting=w.accounting, audit=w.audit, reconciliation=w.recon, evidence=w.vault)
+            if path == "/reports/trial-balance": return rr.get_trial_balance(qs["period_id"], org, a, w.reporting)
+            if path == "/reports/income-statement": return rr.get_income_statement(qs["period_id"], org, a, w.reporting)
+            if path == "/reports/balance-sheet": return rr.get_balance_sheet(qs["period_id"], org, a, w.reporting)
+            if path == "/reports/trace": return rr.trace_line(qs["account_id"], qs.get("period_id"), org, w.reporting)
+            if path == "/reports/evidence-completeness": return rr.get_evidence_completeness(qs["account_id"], qs.get("period_id"), org, RSV)
+            if path == "/reports/reconciliation-summary": return rr.get_reconciliation_summary(qs["bank_account_id"], org, RSV)
         if path.startswith("/organisations/") and path.endswith("/members"): return w.identity.list_members(org)
         if path == "/standards/catalog": return {"frameworks": [{"code": k, **v} for k, v in CAT.FRAMEWORKS.items()], "jurisdictions": [{"code": k, "name": v} for k, v in CAT.JURISDICTIONS.items()]}
         # ---- test-only hooks the journeys use to play "the person who does the work in the Evidence Vault"
@@ -874,6 +961,12 @@ class Handler(BaseHTTPRequestHandler):
             if r_ is not _NO: return r_
         if path.startswith("/mergers"):
             need(AUDIT_READ); r_ = _ws(mar, mas, path[len("/mergers"):], m, b, org, a, qs, MNA_ROUTES, MNA_PREPARE, MNA_APPROVE, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/pubfin"):
+            r_ = _pf(path[len("/pubfin"):], m, b, org, a, qs, need)
+            if r_ is not _NO: return r_
+        if path.startswith("/health"):
+            r_ = _hc(path[len("/health"):], m, b, org, a, qs, need)
             if r_ is not _NO: return r_
         if path.startswith("/approvals"):
             need(AUDIT_READ); r_ = _ws(apwr, apws, path[len("/approvals"):], m, b, org, a, qs, APW_ROUTES, APW_PREPARE, APW_APPROVE, need)

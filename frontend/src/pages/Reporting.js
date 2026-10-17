@@ -4,6 +4,10 @@ import { LoadingState, ErrorState, EmptyState } from "../components/DataState.js
 import { allowed } from "../components/PermissionGate.js";
 import { PERMISSIONS } from "../lib/permissions.js";
 import { formatMoney } from "./Dashboard.js";
+import { ProofMark } from "../components/Figure.js";
+import { ProofRail } from "../components/ProofRail.js";
+import { ACCOUNT_VOCAB, lineMarkState } from "../lib/accountProof.js";
+import { formatDecimal } from "../lib/figures.js";
 
 /**
  * Reporting (Section 7). This page displays exactly what the reporting
@@ -19,7 +23,7 @@ export function Reporting({
   role, reportType, periods, accounts, selectedPeriodId, selectedAccountId,
   loading, error, result, traceResult, completeness, reconciliationStatus,
   onSelectReportType, onSelectPeriod, onSelectAccount, onGenerate, onRetry,
-  onDrillAccount, onOpenDrilldown,
+  onDrillAccount, onOpenDrilldown, lineProof, onToggleProof, onCloseProof,
 }) {
   if (!allowed(role, PERMISSIONS.REPORTING_READ)) {
     return h("div", { className: "empty-state card" },
@@ -58,39 +62,41 @@ export function Reporting({
       )
     ),
     error ? ErrorState({ message: error, onRetry }) : null,
-    loading ? LoadingState("Generating…") : reportBody({ type, result, traceResult, completeness, reconciliationStatus, onDrillAccount, onOpenDrilldown })
+    loading ? LoadingState("Generating…") : reportBody({ type, result, traceResult, completeness, reconciliationStatus, onDrillAccount, onOpenDrilldown, proof: { lineProof, onToggleProof, onCloseProof, accounts } })
   );
 }
 
-function reportBody({ type, result, traceResult, completeness, reconciliationStatus, onDrillAccount, onOpenDrilldown }) {
+function reportBody({ type, result, traceResult, completeness, reconciliationStatus, onDrillAccount, onOpenDrilldown, proof }) {
   if (type === "trace") {
     return traceResult
       ? traceBody(traceResult, { completeness, reconciliationStatus, onOpenDrilldown })
       : EmptyState({ title: "No trace yet", message: "Select a period and account, then Generate." });
   }
   if (!result) return EmptyState({ title: "No report generated yet", message: "Select a period and click Generate." });
-  if (type === "trial-balance") return trialBalanceBody(result, onDrillAccount);
-  if (type === "income-statement") return incomeStatementBody(result, onDrillAccount);
-  if (type === "balance-sheet") return balanceSheetBody(result, onDrillAccount);
+  if (type === "trial-balance") return trialBalanceBody(result, onDrillAccount, proof);
+  if (type === "income-statement") return incomeStatementBody(result, onDrillAccount, proof);
+  if (type === "balance-sheet") return balanceSheetBody(result, onDrillAccount, proof);
   if (type === "general-ledger") return generalLedgerBody(result, onOpenDrilldown);
   return null;
 }
 
-function trialBalanceBody(r, onDrillAccount) {
+function trialBalanceBody(r, onDrillAccount, proof) {
   return Fragment([
     h("div", { className: "card" },
-      h("div", { style: "display:flex; gap:16px;" },
+      h("div", { style: "display:flex; gap:16px; flex-wrap:wrap;" },
         metric("Total debits", formatMoney(r.total_debits)),
         metric("Total credits", formatMoney(r.total_credits)),
         h("div", {}, h("span", { className: `badge badge-${r.is_balanced ? "pass" : "fail"}` }, r.is_balanced ? "Balanced" : "OUT OF BALANCE"))
       )),
+    proofPanel(proof),
     h("div", { className: "card" },
-      h("p", { style: "color: var(--ink-500); font-size:12.5px; margin-top:0;" }, "Click any line to see the evidence behind it."),
+      h("p", { style: "color: var(--ink-500); font-size:12.5px; margin-top:0;" }, "Click any line to see the evidence behind it, or use its proof mark to see what backs that line without leaving this page."),
       DataTable({
         columns: [
           { key: "account_code", label: "Code" }, { key: "account_name", label: "Account" }, { key: "account_type", label: "Type" },
           { key: "debit_total", label: "Debit", align: "right", render: (row) => formatMoney(row.debit_total) },
           { key: "credit_total", label: "Credit", align: "right", render: (row) => formatMoney(row.credit_total) },
+          proofColumn(proof),
         ],
         rows: r.lines || [], emptyTitle: "No activity this period",
         onRowClick: onDrillAccount ? (row) => onDrillAccount(row.account_id) : undefined,
@@ -99,23 +105,24 @@ function trialBalanceBody(r, onDrillAccount) {
   ]);
 }
 
-function incomeStatementBody(r, onDrillAccount) {
+function incomeStatementBody(r, onDrillAccount, proof) {
   return Fragment([
     h("div", { className: "card" },
-      h("div", { style: "display:flex; gap:16px;" },
+      h("div", { style: "display:flex; gap:16px; flex-wrap:wrap;" },
         metric("Total revenue", formatMoney(r.total_revenue)),
         metric("Total expenses", formatMoney(r.total_expenses)),
         metric("Net income", formatMoney(r.net_income)))),
+    proofPanel(proof),
     h("div", { className: "card" }, h("h3", {}, "Revenue"),
-      DataTable({ columns: statementColumns(), rows: r.revenue_lines || [], emptyTitle: "No revenue recorded",
+      DataTable({ columns: statementColumns(proof), rows: r.revenue_lines || [], emptyTitle: "No revenue recorded",
         onRowClick: onDrillAccount ? (row) => onDrillAccount(row.account_id) : undefined, getRowKey: (row) => row.account_id })),
     h("div", { className: "card" }, h("h3", {}, "Expenses"),
-      DataTable({ columns: statementColumns(), rows: r.expense_lines || [], emptyTitle: "No expenses recorded",
+      DataTable({ columns: statementColumns(proof), rows: r.expense_lines || [], emptyTitle: "No expenses recorded",
         onRowClick: onDrillAccount ? (row) => onDrillAccount(row.account_id) : undefined, getRowKey: (row) => row.account_id })),
   ]);
 }
 
-function balanceSheetBody(r, onDrillAccount) {
+function balanceSheetBody(r, onDrillAccount, proof) {
   const rowClick = onDrillAccount ? (row) => onDrillAccount(row.account_id) : undefined;
   return Fragment([
     h("div", { className: "card" },
@@ -125,12 +132,13 @@ function balanceSheetBody(r, onDrillAccount) {
         metric("Total equity", formatMoney(r.total_equity)),
         h("div", {}, h("span", { className: `badge badge-${r.accounting_equation_holds ? "pass" : "fail"}` },
           r.accounting_equation_holds ? "Equation holds" : `Imbalance: ${formatMoney(r.imbalance_amount)}`)))),
+    proofPanel(proof),
     h("div", { className: "card" }, h("h3", {}, "Assets"),
-      DataTable({ columns: statementColumns(), rows: r.asset_lines || [], emptyTitle: "No assets", onRowClick: rowClick, getRowKey: (row) => row.account_id })),
+      DataTable({ columns: statementColumns(proof), rows: r.asset_lines || [], emptyTitle: "No assets", onRowClick: rowClick, getRowKey: (row) => row.account_id })),
     h("div", { className: "card" }, h("h3", {}, "Liabilities"),
-      DataTable({ columns: statementColumns(), rows: r.liability_lines || [], emptyTitle: "No liabilities", onRowClick: rowClick, getRowKey: (row) => row.account_id })),
+      DataTable({ columns: statementColumns(proof), rows: r.liability_lines || [], emptyTitle: "No liabilities", onRowClick: rowClick, getRowKey: (row) => row.account_id })),
     h("div", { className: "card" }, h("h3", {}, "Equity"),
-      DataTable({ columns: statementColumns(), rows: r.equity_lines || [], emptyTitle: "No equity", onRowClick: rowClick, getRowKey: (row) => row.account_id })),
+      DataTable({ columns: statementColumns(proof), rows: r.equity_lines || [], emptyTitle: "No equity", onRowClick: rowClick, getRowKey: (row) => row.account_id })),
   ]);
 }
 
@@ -217,11 +225,38 @@ function entryColumns() {
   ];
 }
 
-function statementColumns() {
+function statementColumns(proof) {
   return [
     { key: "account_code", label: "Code" }, { key: "account_name", label: "Account" },
     { key: "amount", label: "Amount", align: "right", render: (row) => formatMoney(row.amount) },
+    proofColumn(proof),
   ];
+}
+
+/** The margin-mark column. A line's mark is "Proof not checked" until the person opens it; then it shows what was found. No figure is computed here. */
+function proofColumn(proof) {
+  const p = proof || {}, lp = p.lineProof || {};
+  return {
+    key: "proof", label: "Proof",
+    render: (row) => (typeof p.onToggleProof === "function" && row.account_id
+      ? ProofMark({ id: `lp-${row.account_id}`, label: `${row.account_code || ""} ${row.account_name || "this account"}`.trim(), proof: lineMarkState((lp.entries || {})[row.account_id]),
+          open: lp.openId === row.account_id, onToggle: () => p.onToggleProof(row.account_id) })
+      : null),
+  };
+}
+
+/** The proof for the open line, shown beside the statement. Loading, failure and result are all said in words. */
+function proofPanel(proof) {
+  const p = proof || {}, lp = p.lineProof || {};
+  if (!lp.openId) return null;
+  const acc = (p.accounts || []).find((a) => a.id === lp.openId);
+  const subject = acc ? `${acc.code} — ${acc.name}` : "this account";
+  const entry = (lp.entries || {})[lp.openId];
+  const id = `lp-${lp.openId}-rail`;
+  if (lp.loading && !entry) return h("div", { className: "card", id: `${id}-loading`, role: "status" }, h("strong", {}, `Proof behind ${subject}`), h("p", { className: "hm-muted" }, "Loading what backs this line…"));
+  if (!entry || entry.error) return h("div", { className: "card", id: `${id}-error`, role: "alert" }, h("strong", {}, `Proof behind ${subject}`),
+    h("p", {}, entry && entry.error ? entry.error : "The proof could not be loaded."), h("button", { className: "btn", id: `${id}-retry`, onClick: () => p.onToggleProof(lp.openId, { retry: true }) }, "Try again"));
+  return ProofRail({ id, subject, steps: entry.steps, vocab: ACCOUNT_VOCAB, onClose: () => p.onCloseProof() });
 }
 
 function metric(label, value) {

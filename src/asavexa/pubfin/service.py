@@ -71,6 +71,9 @@ def _date(v, name) -> date:
         raise PubFinError(f"{name} must be a real date written YYYY-MM-DD.")
 
 
+NOT_RECORDED = "Not recorded"
+
+
 class PubFinService:
     def __init__(self, store, accounting, vault, log: Callable[..., None] = lambda *a, **k: None, now: Callable[[], datetime] = _utc):
         self.store, self.accounting, self.vault, self.log, self.now = store, accounting, vault, log, now
@@ -88,7 +91,7 @@ class PubFinService:
 
     def _settings(self, org, for_update=False) -> dict:
         s = self.store.get("pf_setting", f"{org}:settings", for_update=for_update)
-        return s if s else {"id": "settings", "org": org, "min_quotes": DEFAULT_MIN_QUOTES, "quote_threshold": DEFAULT_QUOTE_THRESHOLD, "counters": {}, "updated_by": None, "updated_at": None}
+        return s if s else {"id": "settings", "org": org, "min_quotes": DEFAULT_MIN_QUOTES, "quote_threshold": DEFAULT_QUOTE_THRESHOLD, "hide_donor": False, "counters": {}, "updated_by": None, "updated_at": None}
 
     def _ref(self, org, prefix) -> str:
         s = self._settings(org, for_update=True)
@@ -137,6 +140,38 @@ class PubFinService:
         self._put("pf_setting", org, s)
         self.log("PF_POLICY_SET", actor, "settings", org, f"quotes {mq}, threshold {s2(th)}")
         return self.get_policy(org)
+
+    def hide_donor(self, org) -> bool:
+        return bool(self._settings(org).get("hide_donor", False))
+
+    def set_privacy(self, org, hide_donor, actor) -> dict:
+        if not isinstance(hide_donor, bool):
+            raise PubFinError("Choose on or off for hiding who gave.")
+        s = self._settings(org, for_update=True)
+        s.update(hide_donor=hide_donor, updated_by=actor, updated_at=self.now().isoformat())
+        self._put("pf_setting", org, s)
+        self.log("PF_PRIVACY_SET", actor, "settings", org, "donor hidden" if hide_donor else "donor shown")
+        return self.get_privacy(org)
+
+    def get_privacy(self, org) -> dict:
+        h = self.hide_donor(org)
+        return {"hide_donor": h, "meaning": ("Who gave is not stored for new grants and is not shown or exported. Names already stored are hidden, not erased." if h else "Who gave is stored and shown.")}
+
+    def erase_donors(self, org, confirm, actor) -> dict:
+        """Permanently replace stored donor names on grants with "Not recorded". Only while hiding is on, and only with the typed word ERASE.
+        Submitted report snapshots are fingerprinted and are NOT rewritten; they stay masked in every view and export."""
+        if not self.hide_donor(org):
+            raise PubFinStateError("Turn on hiding who gave first.")
+        if confirm != "ERASE":
+            raise PubFinError('Type ERASE to confirm. This cannot be undone.')
+        n = 0
+        for g in self._all("pf_grant", org):
+            if g["donor"] != NOT_RECORDED:
+                g = self._get("pf_grant", org, g["id"], "Grant", for_update=True)
+                g["donor"] = NOT_RECORDED; self._hist(g, actor, "DONOR_ERASED"); self._put("pf_grant", org, g); n += 1
+        s = self._settings(org, for_update=True); s.update(donors_erased=True, updated_by=actor, updated_at=self.now().isoformat()); self._put("pf_setting", org, s)
+        self.log("PF_DONORS_ERASED", actor, "settings", org, f"{n} grant(s)")
+        return {"erased": n, "meaning": f"{n} stored donor name(s) were permanently erased from grants. Submitted report snapshots keep their fingerprinted copy, which stays hidden from now on."}
 
     # ------------------------------------------------------------------ actuals and execution
     def _actuals(self, org, start: date, end: date) -> dict:
@@ -435,6 +470,7 @@ class PubFinService:
     # ------------------------------------------------------------------ grants
     def _gview(self, g) -> dict:
         v = dict(g)
+        if self.hide_donor(g["org"]): v["donor"] = NOT_RECORDED
         spent = sum((Decimal(s["amount"]) for s in g["spend"] if s["status"] == "APPROVED"), ZERO)
         pending = sum((Decimal(s["amount"]) for s in g["spend"] if s["status"] == "PROPOSED"), ZERO)
         received, amt = sum((Decimal(r["amount"]) for r in g["receipts"]), ZERO), Decimal(g["amount"])
@@ -445,7 +481,7 @@ class PubFinService:
     def create_grant(self, org, d, actor) -> dict:
         s, e = _date(d.get("start"), "Start date"), _date(d.get("end"), "End date")
         if e < s: raise PubFinError("The end date cannot be before the start date.")
-        g = {"id": uuid.uuid4().hex, "org": org, "ref": self._ref(org, "G"), "title": _txt(d.get("title"), "Grant title", 3, 200), "donor": _txt(d.get("donor"), "Donor or grantor", 2, 200),
+        g = {"id": uuid.uuid4().hex, "org": org, "ref": self._ref(org, "G"), "title": _txt(d.get("title"), "Grant title", 3, 200), "donor": NOT_RECORDED if self.hide_donor(org) else _txt(d.get("donor"), "Donor or grantor", 2, 200),
              "amount": s2(_dec(d.get("amount"), "Award amount", positive=True)), "currency": _txt(d.get("currency"), "Currency", 3, 3).upper(), "start": s.isoformat(), "end": e.isoformat(),
              "restricted": bool(d.get("restricted", True)), "conditions": _txt(d.get("conditions"), "Conditions", 0, 3000, required=False), "status": "ACTIVE", "receipts": [], "spend": [],
              "created_by": actor, "created_at": self.now().isoformat(), "history": []}
@@ -561,7 +597,11 @@ class PubFinService:
     def _rview(self, r, full=True) -> dict:
         v = {k: x for k, x in r.items() if k != "snapshot"}
         v["has_snapshot"] = r["snapshot"] is not None
-        if full: v["snapshot"] = r["snapshot"]
+        if full:
+            sn = r["snapshot"]
+            if sn and (self.hide_donor(r["org"]) or self._settings(r["org"]).get("donors_erased")):
+                sn = dict(sn, grants=[dict(g, donor=NOT_RECORDED) for g in sn.get("grants", [])])
+            v["snapshot"] = sn
         v["confidentiality"] = CONFIDENTIAL
         return v
 
@@ -587,11 +627,11 @@ class PubFinService:
         w.writerow([]); w.writerow(["COMMITMENTS"]); w.writerow(["Ref", "Line", "Vendor", "What for", "Amount", "Status", "Settled amount"])
         for c in s["commitments"]: w.writerow([c["ref"], c["code"], safe(c["vendor"]), safe(c["description"]), c["amount"], c["status"], c["settled_amount"] or ""])
         w.writerow([]); w.writerow(["GRANTS"]); w.writerow(["Ref", "Title", "Donor", "Award", "Received", "Spent (approved)", "Remaining", "Utilisation %", "Status"])
-        for g in s["grants"]: w.writerow([g["ref"], safe(g["title"]), safe(g["donor"]), g["amount"], g["received"], g["spent"], g["remaining"], g["utilisation_pct"], g["status"]])
+        for g in s["grants"]: w.writerow([g["ref"], safe(g["title"]), safe(NOT_RECORDED if (self.hide_donor(org) or self._settings(org).get("donors_erased")) else g["donor"]), g["amount"], g["received"], g["spent"], g["remaining"], g["utilisation_pct"], g["status"]])
         w.writerow([]); w.writerow(["LIMITATIONS"]); [w.writerow([x]) for x in s["limitations"]]
         self.log("PF_REPORT_EXPORTED", actor, rid, org, r["ref"])
         return {"filename": f"{r['ref']}-accountability-v{r['version']}.csv", "content": buf.getvalue(), "content_type": "text/csv; charset=utf-8"}
 
     def options(self, org) -> dict:
         accts = [{"id": a.id, "code": a.code, "name": a.name, "type": self._atype(a)} for a in sorted(self._accounts(org).values(), key=lambda a: a.code) if self._atype(a) in ("EXPENSE", "REVENUE")]
-        return {"accounts": accts, "policy": self.get_policy(org), "limitations": LIMITATIONS}
+        return {"accounts": accts, "policy": self.get_policy(org), "privacy": self.get_privacy(org), "limitations": LIMITATIONS}

@@ -75,3 +75,14 @@ describe("Dashboard — renders only what real data supports", () => {
     assert.ok(text.includes("Remediation required"));
   });
 });
+
+describe("formatMoney is exact for the backend's decimal strings", () => {
+  test("a very large amount keeps every digit, and four decimals are not rounded away", () => {
+    assert.equal(formatMoney("12345678901234567.89"), "12,345,678,901,234,567.89");
+    assert.equal(formatMoney("1.005"), "1.005");
+    assert.equal(formatMoney("0.1234"), "0.1234");
+  });
+  test("a plain JS number still formats as before", () => {
+    assert.equal(formatMoney(1000.5), "1,000.50");
+  });
+});

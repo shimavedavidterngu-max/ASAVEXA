@@ -25,17 +25,22 @@ export function Num({ value, minFraction = 0, id }) {
   return h("span", { className: `num${f.ok ? "" : " is-invalid"}${f.neg ? " neg" : ""}`, id }, f.text);
 }
 
+/** The margin mark on its own (a button with a state glyph and a label that says the state in words). Used inside table cells as well as beside a Figure. */
+export function ProofMark({ id, label, proof, mark, open = false, onToggle }) {
+  if (!(proof && PROOF_TEXT[proof] && typeof onToggle === "function")) return null;
+  return h("button", { type: "button", className: `pm pm-${proof}`, id: id ? `${id}-mark` : undefined, "aria-expanded": open ? "true" : "false", "aria-controls": open && id ? `${id}-rail` : undefined,
+    "aria-label": `${PROOF_TEXT[proof]} for ${label || "this figure"}. ${open ? "Hide" : "Show"} the proof.`, onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); onToggle(); },
+    onKeydown: (e) => { if (e && e.stopPropagation) e.stopPropagation(); } },   // a mark inside a clickable table row must not also trigger the row
+    markGlyph(proof), mark != null ? h("span", { className: "pm-n", "aria-hidden": "true" }, String(mark)) : null);
+}
+
 export function Figure({ id, label, amount, currency, proof, mark, open = false, onToggle, size = "md", negative }) {
   const m = formatMoney(amount, currency, { negative });
   const body = m.ok
     ? [h("span", { className: "fig-cur" }, m.currency), " ", h("span", { className: `num fig-amount${m.neg ? " neg" : ""}` }, m.number)]
     : [h("span", { className: "num fig-amount is-invalid", title: "This amount could not be read" }, m.number), h("span", { className: "sr-only" }, " Amount unavailable")];
-  const showMark = proof && PROOF_TEXT[proof] && typeof onToggle === "function";
   return h("span", { className: `fig fig-${size}${open ? " is-open" : ""}`, id, "data-proof": proof || undefined },
-    body,
-    showMark ? h("button", { type: "button", className: `pm pm-${proof}`, id: id ? `${id}-mark` : undefined, "aria-expanded": open ? "true" : "false", "aria-controls": open && id ? `${id}-rail` : undefined,
-      "aria-label": `${PROOF_TEXT[proof]} for ${label || "this figure"}. ${open ? "Hide" : "Show"} the proof.`, onClick: () => onToggle() },
-      markGlyph(proof), mark != null ? h("span", { className: "pm-n", "aria-hidden": "true" }, String(mark)) : null) : null);
+    body, ProofMark({ id, label, proof, mark, open, onToggle }));
 }
 
 /**

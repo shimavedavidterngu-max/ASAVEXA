@@ -523,6 +523,8 @@ export class ApiClient {
   // ---- Public Finance (src/asavexa/api/routers/pubfin.py) ----
   pubfinOptions() { return this.get("/pubfin/options"); }
   pubfinOverview() { return this.get("/pubfin/overview"); }
+  setPubfinPrivacy(body) { return this.put("/pubfin/privacy", body); }
+  erasePubfinDonors(body) { return this.post("/pubfin/privacy/erase-donors", body); }
   setPubfinPolicy(body) { return this.put("/pubfin/policy", body); }
   pubfinBudgets() { return this.get("/pubfin/budgets"); }
   createPubfinBudget(body) { return this.post("/pubfin/budgets", body); }

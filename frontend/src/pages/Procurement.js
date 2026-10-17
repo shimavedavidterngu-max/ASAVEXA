@@ -1,5 +1,8 @@
 import { h } from "../lib/vdom.js";
 import { LoadingState, ErrorState } from "../components/DataState.js";
+import { Figure } from "../components/Figure.js";
+import { ProofRail } from "../components/ProofRail.js";
+import { buildTrace, PROC_VOCAB } from "../lib/procTrace.js";
 import { TABS, SCORE_LABEL, ATTENTION_TONE, FLAG_TEXT, MOVE_TEXT, canPrepare, canApprove, statusOf, words, fmt, supplierMoves, contractMoves, orderMoves, invoiceMoves, approvalText, overrideNeeded, linkablePayments } from "../lib/procurement.js";
 
 /**
@@ -36,7 +39,7 @@ export function Procurement({ pc, role, userId, loading, onRetry, actions: a }) 
         TABS.map(([id, l]) => h("button", { className: `btn ${pc.tab === id ? "btn-primary" : "btn-secondary"}`, role: "tab", id: `pc-tab-${id}`, "aria-selected": pc.tab === id ? "true" : "false", onClick: () => a.setTab(id) }, l))),
       pc.busy ? h("div", { style: "color: var(--ink-500);" }, "Working...") : null,
       pc.tab === "overview" ? overview(pc, role, a) : pc.tab === "suppliers" ? suppliers(pc, role, userId, a) : pc.tab === "contracts" ? contracts(pc, role, userId, a)
-        : pc.tab === "orders" ? orders(pc, role, userId, a) : pc.tab === "receipts" ? receipts(pc, role, userId, a) : reviews(pc, role, a)));
+        : pc.tab === "orders" ? orders(pc, role, userId, a) : pc.tab === "trace" ? trace(pc, a) : pc.tab === "receipts" ? receipts(pc, role, userId, a) : reviews(pc, role, a)));
 }
 
 // ---------------------------------------------------------------- overview
@@ -139,10 +142,51 @@ function orderCard(pc, role, me, a, o) {
     approvalText(o) ? h("div", {}, approvalText(o)) : null,
     table([["#"], ["What"], ["Ordered", true], ["Unit price", true], ["Received", true], ["Invoiced", true], ["Still to come", true]], o.lines.map((l) => h("tr", {}, td(String(l.n)), td(l.description), td(l.qty, true), td(fmt(l.unit_price), true), td(l.received, true), td(l.invoiced, true), td(l.outstanding, true)))),
     moveRow(pc, a, `po-${o.id}`, `pc-po-${o.ref}`, orderMoves(o, me, role), (m) => a.orderStep(o.id, m), "Note (required to reject, cancel or close)"),
-    row(btn(open ? "Hide chain" : "Show deliveries and invoices", `pc-po-open-${o.ref}`, () => a.selectOrder(open ? null : o.id), "secondary", pc.busy)),
+    row(btn(open ? "Hide chain" : "Show deliveries and invoices", `pc-po-open-${o.ref}`, () => a.selectOrder(open ? null : o.id), "secondary", pc.busy),
+      btn("Trace this order", `pc-po-trace-${o.ref}`, () => a.traceOrder(o.id), "secondary", pc.busy)),
     open ? h("div", { "data-chain": o.id }, h("h4", {}, "Deliveries"), open.deliveries.length ? h("ul", {}, open.deliveries.map((d) => h("li", {}, `${d.ref} received ${d.received_date} by ${d.received_by}: ${d.lines.map((l) => `line ${l.line} × ${l.qty}`).join(", ")}`))) : none("No delivery recorded."),
       h("h4", {}, "Invoices"), open.invoices.length ? h("ul", {}, open.invoices.map((i) => h("li", {}, `${i.ref} (${i.invoice_number}) ${fmt(i.total, i.currency)} — ${statusOf(i.status).label}`))) : none("No invoice recorded.")) : null,
     h("details", {}, h("summary", {}, "History"), hist(o.history)));
+}
+
+// ---------------------------------------------------------------- trace (Procurement Trace)
+/**
+ * The whole chain behind one purchase order, set as a statement with the proof thread in the margin. It only restates what the server recorded:
+ * quantities and totals are shown as the server sent them, and a problem is shown only when the server flagged it.
+ */
+function trace(pc, a) {
+  const orders = pc.orders || [];
+  const picked = orders.find((o) => o.id === pc.traceId) || null;
+  const t = picked ? buildTrace({ order: picked, suppliers: pc.suppliers, contracts: pc.contracts, deliveries: pc.deliveries, invoices: pc.invoices, reviews: pc.reviews }) : null;
+  return h("div", {},
+    card("Trace an order", "pc-trace-pick",
+      h("p", { style: "color: var(--ink-500);" }, "Follow one purchase order from the supplier to the payment record. Each step says what was recorded, and says plainly when a step is missing. This records and checks; it does not buy, pay or confirm that goods arrived."),
+      orders.length ? field("Purchase order", "pc-trace-order", h("select", { id: "pc-trace-order", onChange: (e) => a.setTrace(e.target.value) },
+        [h("option", { value: "" }, "Choose a purchase order"), ...orders.map((o) => h("option", { value: o.id, selected: pc.traceId === o.id }, `${o.ref} · ${o.supplier_name} · ${fmt(o.total, o.currency)}`))])) : none("No purchase orders yet.")),
+    t ? traceBody(t) : (orders.length ? h("div", { className: "card", id: "pc-trace-empty" }, none("Choose a purchase order to see its chain.")) : null));
+}
+
+function traceBody(t) {
+  const o = t.order;
+  return h("div", { className: "ledger", id: "pc-trace", "data-sector": "procurement" },
+    h("div", { className: "ledger-main" },
+      h("p", { className: "ledger-eyebrow" }, "Procurement trace"),
+      h("h2", { id: "pc-trace-title" }, `${o.ref} · ${o.supplier_name}`),
+      h("div", { id: "pc-trace-total" }, Figure({ id: "pc-trace-fig", label: `Total of order ${o.ref}`, amount: o.total, currency: o.currency, size: "xl" })),
+      h("p", { className: "hm-muted" }, `${o.purpose} · expected by ${o.expected_date}${o.contract_ref ? ` · contract ${o.contract_ref}` : " · no contract"}`),
+      h("div", { className: "stmt-scroll" }, h("table", { className: "stmt", id: "pc-trace-match" },
+        h("caption", {}, "Three-way match: ordered, received, invoiced"),
+        h("thead", {}, h("tr", {}, [["#"], ["What"], ["Ordered", true], ["Unit price", true], ["Received", true], ["Invoiced", true], ["Still to come", true]].map(([l, r]) => h("th", { className: r ? "num" : undefined, scope: "col" }, l)))),
+        h("tbody", {}, o.lines.map((l) => h("tr", { "data-line": String(l.n) }, h("td", {}, String(l.n)), h("td", {}, l.description), h("td", { className: "num" }, l.qty), h("td", { className: "num" }, fmt(l.unit_price)), h("td", { className: "num" }, l.received), h("td", { className: "num" }, l.invoiced), h("td", { className: "num" }, l.outstanding)))))),
+      h("h3", {}, "Invoices"),
+      t.invoices.length ? h("ul", { id: "pc-trace-invoices" }, t.invoices.map((i) => h("li", { "data-invoice": i.id },
+        `${i.ref} (${i.invoice_number}) ${fmt(i.total, i.currency)} `, St(i.status),
+        (i.flags || []).length ? h("ul", {}, i.flags.map((f) => h("li", { "data-flag": f }, Badge({ tone: "fail", label: words(f) }), " ", FLAG_TEXT[f] || f))) : null,
+        i.override_note ? h("div", {}, `Approved despite the warnings: ${i.override_note}`) : null))) : none("No invoice recorded."),
+      h("h3", {}, "Deliveries"),
+      t.deliveries.length ? h("ul", { id: "pc-trace-deliveries" }, t.deliveries.map((d) => h("li", { "data-delivery": d.id }, `${d.ref} received ${d.received_date} by ${d.received_by}: ${d.lines.map((l) => `line ${l.line} × ${l.qty}`).join(", ")}`))) : none("No delivery recorded.")),
+    h("aside", { className: "ledger-margin", "aria-label": "The proof thread for this order" },
+      ProofRail({ id: "pc-trace-rail", subject: `order ${o.ref}`, steps: t.steps, vocab: PROC_VOCAB })));
 }
 
 // ---------------------------------------------------------------- deliveries and invoices

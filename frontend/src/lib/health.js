@@ -246,7 +246,7 @@ export const SECTIONS = {
       act("export", "Download CSV", "read", (r) => r.status === "APPROVED", { export: true })] },
 };
 
-export const TABS = [["dashboard", "Dashboard", "read"], ["setup", "Setup", "read"], ["budgets", "Budgets", "read"], ["procurement", "Procurement", "read"], ["inventory", "Inventory", "read"], ["revenue", "Revenue", "read"], ["claims", "Claims", "claims"], ["assets", "Equipment", "read"], ["staffing", "Staffing costs", "staffing"], ["reports", "Reports", "read"]];
+export const TABS = [["dashboard", "Dashboard", "read"], ["trace", "Follow the money", "read"], ["setup", "Setup", "read"], ["budgets", "Budgets", "read"], ["procurement", "Procurement", "read"], ["inventory", "Inventory", "read"], ["revenue", "Revenue", "read"], ["claims", "Claims", "claims"], ["assets", "Equipment", "read"], ["staffing", "Staffing costs", "staffing"], ["reports", "Reports", "read"]];
 export const sectionsOf = (tab) => Object.entries(SECTIONS).filter(([, s]) => s.tab === tab).map(([id, s]) => [id, s]);
 export const visibleTabs = (c) => TABS.filter(([, , need]) => c[need]);
 export const visibleSections = (tab, c) => sectionsOf(tab).filter(([, s]) => c[s.need]);

@@ -345,3 +345,76 @@ class IsolationAndAudit(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DonorPrivacy(Base):
+    def grant(self, donor="Alhaji Musa"):
+        return self.svc.create_grant(ORG, dict(title="Building fund", donor=donor, amount="1000", currency="USD", start="2026-01-01", end="2026-12-31"), U1)
+
+    def test_default_shows_donor(self):
+        self.assertFalse(self.svc.options(ORG)["privacy"]["hide_donor"])
+        self.assertEqual(self.grant()["donor"], "Alhaji Musa")
+
+    def test_hidden_never_stores_new_name_and_masks_old(self):
+        old = self.grant("Old Donor")
+        self.svc.set_privacy(ORG, True, U2)
+        self.assertEqual(self.svc.get_grant(ORG, old["id"])["donor"], "Not recorded")
+        new = self.grant("Secret Name")
+        self.assertEqual(new["donor"], "Not recorded")
+        self.assertNotIn("Secret Name", str(self.w.store.get("pf_grant", f"{ORG}:{new['id']}")))
+        self.assertTrue(all(g["donor"] == "Not recorded" for g in self.svc.list_grants(ORG)))
+        self.svc.set_privacy(ORG, False, U2)
+        self.assertEqual(self.svc.get_grant(ORG, old["id"])["donor"], "Old Donor")
+
+    def test_validation_audit_and_isolation(self):
+        with self.assertRaises(PubFinError): self.svc.set_privacy(ORG, "yes", U2)
+        self.svc.set_privacy(ORG, True, U2)
+        self.assertTrue(any(e[0] == "PF_PRIVACY_SET" for e in self.events))
+        self.assertFalse(self.svc.options(OTHER)["privacy"]["hide_donor"])
+
+    def test_report_view_and_csv_masked(self):
+        self.grant("Visible Donor")
+        b = self.approved(); r = self.svc.create_report(ORG, b["id"], "Q1 report", U1)
+        self.svc.set_privacy(ORG, True, U2)
+        self.svc.submit_report(ORG, r["id"], U1)
+        self.assertNotIn("Visible Donor", str(self.svc.get_report(ORG, r["id"])))
+        self.svc.approve_report(ORG, r["id"], U2, "ok")
+        self.assertNotIn("Visible Donor", self.svc.export_csv(ORG, r["id"], U2)["content"])
+
+
+class DonorErase(Base):
+    def g(self, donor):
+        return self.svc.create_grant(ORG, dict(title="Fund A", donor=donor, amount="1000", currency="USD", start="2026-01-01", end="2026-12-31"), U1)
+
+    def test_needs_hiding_on_and_exact_word(self):
+        self.g("Named Donor")
+        with self.assertRaises(PubFinStateError): self.svc.erase_donors(ORG, "ERASE", U2)
+        self.svc.set_privacy(ORG, True, U2)
+        for bad in ("", "erase", "yes"):
+            with self.assertRaises(PubFinError): self.svc.erase_donors(ORG, bad, U2)
+
+    def test_erases_for_real_and_is_permanent_and_audited(self):
+        a = self.g("Named Donor"); self.g("Other Name")
+        self.svc.set_privacy(ORG, True, U2)
+        self.assertEqual(self.svc.erase_donors(ORG, "ERASE", U2)["erased"], 2)
+        self.assertNotIn("Named Donor", str(self.w.store.get("pf_grant", f"{ORG}:{a['id']}")))
+        self.svc.set_privacy(ORG, False, U2)
+        self.assertEqual(self.svc.get_grant(ORG, a["id"])["donor"], "Not recorded")
+        self.assertTrue(any(e[0] == "PF_DONORS_ERASED" for e in self.events))
+
+    def test_other_company_untouched(self):
+        self.svc.set_privacy(ORG, True, U2)
+        self.svc.create_grant(OTHER, dict(title="Fund B", donor="Their Donor", amount="500", currency="USD", start="2026-01-01", end="2026-12-31"), U1)
+        self.svc.erase_donors(ORG, "ERASE", U2)
+        self.assertEqual(self.svc.list_grants(OTHER)[0]["donor"], "Their Donor")
+
+
+class DonorEraseReports(Base):
+    def test_report_copy_stays_masked_after_erase_even_if_hiding_turned_off(self):
+        self.svc.create_grant(ORG, dict(title="Fund A", donor="Visible Donor", amount="1000", currency="USD", start="2026-01-01", end="2026-12-31"), U1)
+        b = self.approved(); r = self.svc.create_report(ORG, b["id"], "Q1 report", U1); self.svc.submit_report(ORG, r["id"], U1)
+        self.assertIn("Visible Donor", str(self.svc.get_report(ORG, r["id"])))
+        self.svc.set_privacy(ORG, True, U2); self.svc.erase_donors(ORG, "ERASE", U2); self.svc.set_privacy(ORG, False, U2)
+        self.assertNotIn("Visible Donor", str(self.svc.get_report(ORG, r["id"])))
+        self.svc.approve_report(ORG, r["id"], U2, "ok")
+        self.assertNotIn("Visible Donor", self.svc.export_csv(ORG, r["id"], U2)["content"])

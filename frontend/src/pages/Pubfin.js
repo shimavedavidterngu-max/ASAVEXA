@@ -1,5 +1,8 @@
 import { h } from "../lib/vdom.js";
 import { LoadingState, ErrorState, EmptyState } from "../components/DataState.js";
+import { ProofRail } from "../components/ProofRail.js";
+import { buildLineTrace, SPEND_VOCAB, isExpense } from "../lib/spendTrace.js";
+import { buildGrantTrace, GRANT_VOCAB, GRANT_LIMIT, FUND_VOCAB, FUND_LIMIT } from "../lib/grantTrace.js";
 import { TABS, canPrepare, canApprove, statusOf, money, budgetMoves, virementMoves, procMoves, spendMoves, reportMoves } from "../lib/pubfin.js";
 
 /**
@@ -22,7 +25,8 @@ const checks = (idp, ids, items, onToggle, label) => h("div", {}, items.length =
 const noteBox = (pf, key, a, label, id) => field(label, id, area(id, pf.notes, key, a.noteChange));
 const hist = (items, id) => h("ul", { id }, (items || []).map((x) => h("li", {}, `${String(x.at).slice(0, 10)} ${x.event.replace(/_/g, " ").toLowerCase()} by ${x.by}${x.note ? ": " + x.note : ""}`)));
 
-export function Pubfin({ pf, role, userId, loading, onRetry, actions }) {
+export function Pubfin({ pf, role, userId, loading, onRetry, actions, sector }) {
+  const mode = sector === "church" ? "fund" : "grant";
   return h("div", {},
     h("h1", {}, "Financial Management and Public Finance"),
     note("ACTUAL figures come only from posted journals. Approvals are by a second person and are not an audit opinion or a legal certification. Procurement thresholds are your own policy settings, not law.", "warning"),
@@ -30,10 +34,10 @@ export function Pubfin({ pf, role, userId, loading, onRetry, actions }) {
     note(pf.notice, "success"),
     loading ? LoadingState() : h("div", {},
       h("div", { className: "tabs", role: "tablist", style: "display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;" },
-        TABS.map(([id, label]) => h("button", { className: `btn ${pf.tab === id ? "btn-primary" : "btn-secondary"}`, role: "tab", id: `pf-tab-${id}`, "aria-selected": pf.tab === id ? "true" : "false", onClick: () => actions.setTab(id) }, label))),
+        TABS.map(([id, label]) => h("button", { className: `btn ${pf.tab === id ? "btn-primary" : "btn-secondary"}`, role: "tab", id: `pf-tab-${id}`, "aria-selected": pf.tab === id ? "true" : "false", onClick: () => actions.setTab(id) }, id === "follow" && mode === "fund" ? "Follow a fund" : label))),
       pf.busy ? h("div", { style: "color: var(--ink-500);" }, "Working...") : null,
-      pf.tab === "overview" ? overview(pf, role, actions) : pf.tab === "budgets" ? budgets(pf, role, userId, actions) : pf.tab === "commitments" ? commitments(pf, role, actions)
-        : pf.tab === "procurement" ? procurement(pf, role, userId, actions) : pf.tab === "grants" ? grants(pf, role, userId, actions) : reports(pf, role, userId, actions)));
+      pf.tab === "overview" ? overview(pf, role, actions) : pf.tab === "spend" ? spend(pf, actions) : pf.tab === "budgets" ? budgets(pf, role, userId, actions) : pf.tab === "commitments" ? commitments(pf, role, actions)
+        : pf.tab === "procurement" ? procurement(pf, role, userId, actions) : pf.tab === "grants" ? grants(pf, role, userId, actions, mode) : pf.tab === "follow" ? follow(pf, actions, mode) : reports(pf, role, userId, actions)));
 }
 
 // ---------------------------------------------------------------- overview
@@ -50,7 +54,20 @@ function overview(pf, role, a) {
       h("h4", {}, "Grants where approved spending is more than cash received"), o.grants_overspent_vs_received.length ? h("ul", {}, o.grants_overspent_vs_received.map((x) => h("li", {}, `${x.ref} ${x.title}: spent ${money(x.spent)}, received ${money(x.received)}`))) : h("div", { style: "color: var(--ink-500);" }, "None.")),
     h("div", { className: "card", style: "margin-bottom:12px;" }, h("h3", {}, "Procurement policy"), h("div", { id: "pf-policy" }, o.policy.meaning),
       canApprove(role) && p ? h("div", { style: "margin-top:8px;" }, field("Minimum quotes (1 to 10)", "pol-q", text("pol-q", p, "min_quotes", a.policyChange)), field("Quotes needed from this estimated value (0 = always)", "pol-t", text("pol-t", p, "quote_threshold", a.policyChange)), btn("Save policy", "pol-save", () => a.savePolicy(), "secondary", pf.busy)) : null),
+    privacyCard(pf, role, a),
     h("div", { className: "card" }, h("h3", {}, "What this does not tell you"), h("ul", {}, o.limitations.map((l) => h("li", {}, l)))));
+}
+
+function privacyCard(pf, role, a) {
+  const pr = pf.options && pf.options.privacy;
+  if (!pr) return null;
+  return h("div", { className: "card", id: "pf-privacy", style: "margin-bottom:12px;" }, h("h3", {}, "Who gave"),
+    h("div", { id: "pf-privacy-state" }, pr.hide_donor ? "Hidden. " + pr.meaning : "Shown. " + pr.meaning),
+    canApprove(role) ? h("div", { style: "margin-top:8px;" }, btn(pr.hide_donor ? "Show who gave" : "Hide who gave", "pf-privacy-toggle", () => a.setPrivacy(!pr.hide_donor), "secondary", pf.busy)) : null,
+    canApprove(role) && pr.hide_donor ? h("div", { id: "pf-erase", style: "margin-top:12px;" },
+      h("p", { style: "color: var(--ink-500);" }, "Names stored before hiding was turned on are hidden, not erased. You can erase them for good. This cannot be undone. Submitted reports keep their fingerprinted copy, which stays hidden."),
+      field('Type ERASE to confirm', "pf-erase-word", text("pf-erase-word", pf.eraseForm || { word: "" }, "word", (k, v) => a.eraseChange(v))),
+      btn("Erase stored donor names", "pf-erase-go", () => a.eraseDonors(), "secondary", pf.busy)) : null);
 }
 
 // ---------------------------------------------------------------- budgets
@@ -166,20 +183,22 @@ function procDetail(pf, role, userId, a) {
 }
 
 // ---------------------------------------------------------------- grants
-function grants(pf, role, userId, a) {
-  if (pf.grantForm) { const f = pf.grantForm; return h("div", { className: "card", id: "grant-form" }, h("h3", {}, "New grant"), field("Title", "gf-title", text("gf-title", f, "title", a.grantChange)), field("Donor", "gf-donor", text("gf-donor", f, "donor", a.grantChange)),
+function grants(pf, role, userId, a, mode) {
+  const fund = mode === "fund";
+  if (pf.grantForm) { const f = pf.grantForm; return h("div", { className: "card", id: "grant-form" }, h("h3", {}, "New grant"), field("Title", "gf-title", text("gf-title", f, "title", a.grantChange)), field(fund ? "Source (a general description such as \"Congregation\"; never a person's name)" : "Donor", "gf-donor", text("gf-donor", f, "donor", a.grantChange)),
     field("Award amount", "gf-amt", text("gf-amt", f, "amount", a.grantChange)), field("Currency", "gf-cur", text("gf-cur", f, "currency", a.grantChange)), field("Starts", "gf-start", text("gf-start", f, "start", a.grantChange, "2026-01-01")), field("Ends", "gf-end", text("gf-end", f, "end", a.grantChange, "2026-12-31")),
     field("Conditions (text you copy from the agreement)", "gf-cond", area("gf-cond", f, "conditions", a.grantChange, 3)), row(btn("Create", "gf-save", () => a.saveGrant(), "primary", pf.busy), btn("Cancel", "gf-cancel", () => a.cancelGrant()))); }
-  if (pf.grant) return grantDetail(pf, role, userId, a);
-  return h("div", { id: "pf-grants" }, canPrepare(role) ? btn("New grant", "grant-new", () => a.newGrant(), "primary") : null,
+  if (pf.grant) return grantDetail(pf, role, userId, a, mode);
+  return h("div", { id: "pf-grants" }, fund ? h("div", { className: "alert alert-info", id: "pf-grants-private", role: "status", style: "margin-bottom:12px;" }, "Who gave is not shown on this page for faith-based organisations.") : null, canPrepare(role) ? btn("New grant", "grant-new", () => a.newGrant(), "primary") : null,
     pf.grants.length === 0 ? EmptyState({ title: "No grants", message: "Record a grant to track receipts and approved spending against the award." })
-      : table([["Ref"], ["Title"], ["Donor"], ["Award", true], ["Spent", true], ["Used %", true], ["Status"], [""]], pf.grants.map((g) => h("tr", { "data-grant": g.id }, td(g.ref), td(g.title), td(g.donor), td(`${g.currency} ${money(g.amount)}`, true), td(money(g.spent), true), td(g.utilisation_pct + "%", true), td(St(g.status)), td(btn("Open", `grant-open-${g.id}`, () => a.openGrant(g.id))))), "pf-grant-table"));
+      : table([["Ref"], ["Title"], ...(fund ? [] : [["Donor"]]), ["Award", true], ["Spent", true], ["Used %", true], ["Status"], [""]], pf.grants.map((g) => h("tr", { "data-grant": g.id }, td(g.ref), td(g.title), ...(fund ? [] : [td(g.donor)]), td(`${g.currency} ${money(g.amount)}`, true), td(money(g.spent), true), td(g.utilisation_pct + "%", true), td(St(g.status)), td(btn("Open", `grant-open-${g.id}`, () => a.openGrant(g.id))))), "pf-grant-table"));
 }
 
-function grantDetail(pf, role, userId, a) {
+function grantDetail(pf, role, userId, a, mode) {
+  const fund = mode === "fund";
   const g = pf.grant, r = pf.receiptForm, s = pf.spendForm;
   return h("div", { id: "pf-grant" }, btn("Back to grants", "grant-back", () => a.closeGrantView()), h("h2", {}, `${g.ref}: ${g.title} `, St(g.status, "grant-status")),
-    h("div", { className: "card", style: "margin-bottom:12px;" }, h("div", {}, `${g.donor}. ${g.start} to ${g.end}. ${g.restricted ? "Restricted" : "Unrestricted"}.`),
+    h("div", { className: "card", style: "margin-bottom:12px;" }, h("div", {}, `${fund ? "" : g.donor + ". "}${g.start} to ${g.end}. ${g.restricted ? "Restricted" : "Unrestricted"}.`),
       h("div", { id: "grant-figures" }, `Award ${g.currency} ${money(g.amount)}; received ${money(g.received)}; approved spending ${money(g.spent)} (${g.utilisation_pct}%); waiting ${money(g.pending)}; remaining ${money(g.remaining)}; cash on hand ${money(g.cash_on_hand)}.`),
       g.overspent_vs_received ? note("Approved spending is more than the cash received for this grant.", "warning") : null, g.expired ? note("This grant has passed its end date and is still active.", "warning") : null, g.conditions ? h("p", {}, `Conditions: ${g.conditions}`) : null),
     g.status === "ACTIVE" && canPrepare(role) ? row(!r ? btn("Record cash received", "rec-new", () => a.newReceipt()) : null, !s ? btn("Record spending", "sp-new", () => a.newSpend()) : null) : null,
@@ -213,4 +232,72 @@ function reports(pf, role, userId, a) {
   return h("div", { id: "pf-reports" }, canPrepare(role) ? btn("New report", "rep-new", () => a.newReport(), "primary") : null,
     pf.reports.length === 0 ? EmptyState({ title: "No reports", message: "A report freezes a budget's figures, commitments and grants for a second person to approve." })
       : table([["Ref"], ["Title"], ["Budget"], ["Version", true], ["Status"], [""]], pf.reports.map((r) => h("tr", { "data-report": r.id }, td(r.ref), td(r.title), td(r.budget_ref), td(String(r.version), true), td(St(r.status)), td(btn("Open", `rep-open-${r.id}`, () => a.openReport(r.id))))), "pf-report-table"));
+}
+
+// ---------------------------------------------------------------- where the money went (Stage 8)
+function spend(pf, a) {
+  const done = (pf.budgets || []).filter((b) => b.status === "APPROVED" || b.status === "CLOSED");
+  const sp = pf.spend || {};
+  if (!done.length) return h("div", { className: "card", id: "pf-spend-none" }, EmptyState({ title: "No approved budget yet", message: "Once a budget is approved, this page shows where its money went, line by line, in plain words." }));
+  const chosen = done.find((b) => b.id === sp.budgetId) || done[done.length - 1];
+  const detail = sp.detail && sp.detail.id === chosen.id ? sp.detail : undefined;
+  const exec = detail ? detail.execution : undefined;
+  const rows = exec ? exec.rows || [] : [];
+  const exp = rows.filter(isExpense), inc = rows.filter((r) => !isExpense(r));
+  const row = exp.find((r) => r.account_id === sp.line) || exp[0] || null;
+  const tr = detail && row ? buildLineTrace({ detail, commitments: pf.commitments, accountId: row.account_id }) : null;
+  const cur = exec ? exec.currency : "";
+  return h("div", { id: "pf-spend" },
+    h("div", { className: "card" },
+      h("p", { style: "color: var(--ink-500);" }, "Pick a budget to see, for each line, what was approved, what is promised, and what has actually been spent (posted to the ledger). Every figure is the one the server recorded; nothing is estimated here. This records and checks; it does not pay anything."),
+      field("Budget", "pf-spend-budget", sel("pf-spend-budget", chosen.id, (v) => a.spendBudget(v), done.map((b) => [b.id, `${b.ref} ${b.name} (${b.start} to ${b.end})`]))),
+      sp.error ? h("div", { className: "alert alert-warn", id: "pf-spend-unknown", role: "status" }, "Not checked: the figures for this budget could not be loaded. " + sp.error) : null),
+    exec ? h("div", { className: "ledger", id: "pf-spend-ledger" },
+      h("div", { className: "ledger-main" },
+        h("p", { className: "ledger-eyebrow" }, "Where the money went"),
+        h("h2", { id: "pf-spend-title" }, `${exec.ref} ${exec.name}`),
+        h("p", { className: "hm-muted" }, `${exec.start} to ${exec.end}, in ${cur}. Spent means posted to the ledger.`),
+        h("div", { className: "stmt-scroll" }, h("table", { className: "stmt", id: "pf-spend-lines" },
+          h("caption", {}, "Spending lines"),
+          h("thead", {}, h("tr", {}, [["Line"], ["Authorised", 1], ["Promised", 1], ["Spent", 1], ["Available", 1]].map(([l, r]) => h("th", { scope: "col", className: r ? "num" : undefined }, l)))),
+          h("tbody", {}, exp.map((r) => h("tr", { "data-account": r.account_id, "data-state": r.overspent ? "overspent" : "ok" }, h("td", {}, h("div", {}, `${r.code} ${r.name}`), row && row.account_id === r.account_id ? h("small", { "aria-current": "true", className: "hm-muted" }, "Showing") : btn("Follow", `pf-spend-follow-${r.code}`, () => a.spendLine(r.account_id))), h("td", { className: "num" }, money(r.budget)), h("td", { className: "num" }, money(r.committed)), h("td", { className: "num" }, money(r.actual)),
+            h("td", { className: "num" }, money(r.available), r.overspent ? h("span", { className: "badge badge-fail", style: "margin-left:6px;" }, "Over budget") : null),
+            ))))),
+        tr && tr.sentence ? h("p", { id: "pf-spend-sentence", style: "font-size:1.05em; margin-top:12px;" }, tr.sentence) : null,
+        tr && tr.commitmentsKnown ? (tr.commitments.length ? h("ul", { id: "pf-spend-commitments" }, tr.commitments.map((c) => h("li", { "data-commitment": c.id }, `${c.ref} ${c.vendor}: ${money(c.amount)} ${cur}, ${c.status === "OPEN" ? "open" : "settled"}. ${(c.evidence || []).length ? `Evidence: ${c.evidence.map((e) => e.filename).join(", ")}.` : "No evidence linked."}`))) : h("p", { className: "hm-muted", id: "pf-spend-no-commitments" }, "Nothing has been promised on this line.")) : null,
+        inc.length ? h("div", { className: "stmt-scroll" }, h("table", { className: "stmt", id: "pf-spend-income" },
+          h("caption", {}, "Income lines"),
+          h("thead", {}, h("tr", {}, [["Line"], ["Expected", 1], ["Posted so far", 1]].map(([l, r]) => h("th", { scope: "col", className: r ? "num" : undefined }, l)))),
+          h("tbody", {}, inc.map((r) => h("tr", { "data-account": r.account_id }, h("td", {}, `${r.code} ${r.name}`), h("td", { className: "num" }, money(r.budget)), h("td", { className: "num" }, money(r.actual))))))) : null,
+        h("div", { className: "card" }, h("h3", {}, "What this does not tell you"), h("ul", {}, (exec.limitations || []).map((l) => h("li", {}, l))))),
+      h("aside", { className: "ledger-margin", "aria-label": "The proof thread for this budget line" },
+        tr ? ProofRail({ id: "pf-spend-rail", subject: `${row.code} ${row.name}`, steps: tr.steps, vocab: SPEND_VOCAB }) : null)) : (sp.error ? null : h("div", { className: "card", id: "pf-spend-loading" }, "Loading the figures…")));
+}
+
+// ---------------------------------------------------------------- follow a grant (Stage 9)
+const SPEND_WORDS = { APPROVED: "approved", PROPOSED: "waiting for a different person to approve it", REJECTED: "sent back" };
+function follow(pf, a, mode) {
+  const fund = mode === "fund";
+  const grants = pf.grants || [];
+  if (!grants.length) return h("div", { className: "card", id: "pf-follow-none" }, EmptyState({ title: fund ? "No funds yet" : "No grants yet", message: fund ? "Record a fund to follow it from the gifts received to the spending and its evidence." : "Record a grant to follow it from the award to the spending and its evidence." }));
+  const g = grants.find((x) => x.id === pf.followId) || grants[grants.length - 1];
+  const t = buildGrantTrace(g, mode);
+  return h("div", { id: "pf-follow" },
+    h("div", { className: "card" },
+      h("p", { style: "color: var(--ink-500);" }, fund ? "Follow one fund from the gifts received, to the spending a second person approved, to the evidence behind it. Who gave is never shown here. Every figure is the one the server recorded; nothing is estimated." : "Follow one grant from the award, to the cash received, to the spending a second person approved, to the evidence behind it. Every figure is the one the server recorded; nothing is estimated here."),
+      field(fund ? "Fund" : "Grant", "pf-follow-pick", sel("pf-follow-pick", g.id, (v) => a.followGrant(v), grants.map((x) => [x.id, fund ? `${x.ref} ${x.title}` : `${x.ref} ${x.title} (${x.donor})`])))),
+    h("div", { className: "ledger", id: "pf-follow-ledger" },
+      h("div", { className: "ledger-main" },
+        h("p", { className: "ledger-eyebrow" }, fund ? "Follow a fund" : "Follow a grant"),
+        h("h2", { id: "pf-follow-title" }, `${g.ref} ${g.title}`),
+        h("p", { id: "pf-follow-sentence", style: "font-size:1.05em;" }, t.sentence),
+        h("div", { className: "stmt-scroll" }, h("table", { className: "stmt", id: "pf-follow-figures" },
+          h("caption", {}, `Figures, in ${g.currency}`),
+          h("tbody", {}, [[fund ? "Set aside" : "Awarded", g.amount], ["Received", g.received], ["Approved spending", g.spent], ["Waiting for approval", g.pending], ["Unspent", g.remaining], ["Cash held", g.cash_on_hand]].map(([l, v]) => h("tr", {}, h("th", { scope: "row" }, l), h("td", { className: "num" }, money(v))))))),
+        h("h3", {}, "Spending entries"),
+        t.spend.length ? h("ul", { id: "pf-follow-spend" }, t.spend.map((s) => h("li", { "data-spend": s.id, "data-status": s.status }, `${money(s.amount)} ${g.currency} on ${s.date}: ${s.description}${s.reference ? ` (${s.reference})` : ""}. ${SPEND_WORDS[s.status] || s.status}. ${(s.evidence || []).length ? `Evidence: ${s.evidence.map((e) => e.filename).join(", ")}.` : "No evidence linked."}`)))
+          : h("p", { className: "hm-muted", id: "pf-follow-no-spend" }, "No spending has been recorded against this grant."),
+        h("p", { className: "hm-muted", id: "pf-follow-limit" }, fund ? FUND_LIMIT : GRANT_LIMIT)),
+      h("aside", { className: "ledger-margin", "aria-label": "The proof thread for this grant" },
+        ProofRail({ id: "pf-follow-rail", subject: `${fund ? "fund" : "grant"} ${g.ref}`, steps: t.steps, vocab: fund ? FUND_VOCAB : GRANT_VOCAB }))));
 }

@@ -9,7 +9,7 @@ import urllib.request
 from playwright.sync_api import sync_playwright  # noqa: F401
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BACKEND_PORT, WEB_PORT = 8790, 5173
+BACKEND_PORT, WEB_PORT = int(os.environ.get("E2E_BACKEND_PORT", 8790)), int(os.environ.get("E2E_WEB_PORT", 5173))   # the overrides let a second journey run beside the first
 BASE = f"http://127.0.0.1:{BACKEND_PORT}"
 URL = f"http://localhost:{WEB_PORT}/index.html"
 CHROMIUM = os.environ.get("CHROMIUM_PATH")          # leave unset to use Playwright's own browser

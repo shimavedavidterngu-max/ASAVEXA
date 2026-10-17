@@ -58,6 +58,9 @@ import { Assurance } from "./pages/Assurance.js";
 import { ProofLinks } from "./pages/ProofLinks.js";
 import { EntityConfig } from "./pages/EntityConfig.js";
 import { sectorOf } from "./lib/sector.js";
+import { focusRail } from "./components/ProofRail.js";
+import { focusMark } from "./components/Figure.js";
+import { accountProofSteps, reconciliationOrNull } from "./lib/accountProof.js";
 import { filterNavByWorkspaces, shownFor, formFromConfig, configPayload, toggleWorkspace, suggestedFor } from "./lib/entityConfig.js";
 import { EMPTY_LINK, EMPTY_GAP, linkPayload, gapPayload, needsReason, ACTION_NOTICE, relationsFor } from "./lib/proofLinks.js";
 import { EMPTY_FORM, formProblem } from "./lib/standardsRegistry.js";
@@ -318,6 +321,7 @@ let uiState = {
   loginMode: "login", loginError: null, loginPending: false, vf: null,
   auth: { draft: { email: "", password: "", confirm: "" }, fieldErrors: {}, notice: null }, rc: null,
   enteredAuth: false, landingMenu: false, landingSeen: false, landingBead: null,
+  lineProof: { openId: null, loading: false, entries: {} },
   navOpen: {}, mobileNav: false, search: { q: "", open: false, idx: 0 }, menu: null, lastPath: null,
   home: { key: "", data: null, loading: false, error: null }, showLocked: false, orgLoading: false,
   onb: { mode: "auto", form: { name: "", category: "" }, errors: {}, pending: false, error: null, copied: false, checking: false, checkMessage: null, orgs: null, loading: false }, setup: null, orgList: null, switching: false, switchError: null,
@@ -1826,19 +1830,44 @@ function renderReporting(authState, nav) {
     selectedPeriodId: uiState.selectedPeriodId, selectedAccountId: uiState.selectedAccountId,
     loading: uiState.reportingLoading, error: uiState.reportingError, result: uiState.reportResult, traceResult: uiState.traceResult,
     completeness: uiState.traceCompleteness, reconciliationStatus: uiState.traceReconciliation,
+    lineProof: uiState.lineProof, onToggleProof: (id, o) => toggleLineProof(id, o), onCloseProof: () => closeLineProof(),
     onSelectReportType: (t) => {
-      uiState.reportType = t; uiState.reportResult = null; uiState.traceResult = null;
+      resetLineProof(); uiState.reportType = t; uiState.reportResult = null; uiState.traceResult = null;
       uiState.traceCompleteness = null; uiState.traceReconciliation = null; render();
     },
-    onSelectPeriod: (id) => { uiState.selectedPeriodId = id; render(); },
+    onSelectPeriod: (id) => { resetLineProof(); uiState.selectedPeriodId = id; render(); },
     onSelectAccount: (id) => { uiState.selectedAccountId = id; render(); },
-    onGenerate: () => handleGenerateReport(),
+    onGenerate: () => { resetLineProof(); handleGenerateReport(); },
     onRetry: () => handleGenerateReport(),
     onDrillAccount: (accountId) => handleDrillAccount(accountId),
     onOpenDrilldown: (journalId) => openDrilldown(journalId, {
       accountId: uiState.selectedAccountId, periodId: uiState.selectedPeriodId,
     }),
   });
+}
+
+/** What backs one line of a statement, loaded only when the person opens that line's proof mark (one account, one period, three read-only calls). */
+function resetLineProof() { uiState.lineProof = { openId: null, loading: false, entries: {} }; }
+function closeLineProof() {
+  const id = uiState.lineProof.openId;
+  uiState.lineProof.openId = null; render();
+  if (id) focusMark(`lp-${id}`);
+}
+async function toggleLineProof(accountId, opts = {}) {
+  const lp = uiState.lineProof;
+  if (lp.openId === accountId && !opts.retry) { closeLineProof(); return; }
+  const periodId = uiState.selectedPeriodId;
+  lp.openId = accountId;
+  if (opts.retry) delete lp.entries[accountId];
+  if (lp.entries[accountId]) { render(); focusRail(`lp-${accountId}-rail`); return; }
+  lp.loading = true; render();
+  const [t, c, r] = await Promise.allSettled([api.traceLine(accountId, periodId), api.evidenceCompleteness(accountId, periodId), api.reconciliationSummary(accountId)]);
+  if (uiState.lineProof !== lp || lp.openId !== accountId) return;   // the person moved on while it loaded
+  lp.loading = false;
+  // The posted entries are the base of the proof: without them nothing can be said, so say that. The other two only add steps; a failure there shows "Not checked".
+  lp.entries[accountId] = t.status !== "fulfilled" ? { error: "Could not load the posted entries for this account. Nothing is claimed about it." }
+    : { steps: accountProofSteps({ trace: t.value, completeness: c.status === "fulfilled" ? c.value : undefined, reconciliation: r.status === "fulfilled" ? reconciliationOrNull(r.value) : undefined }) };
+  render(); focusRail(`lp-${accountId}-rail`);
 }
 
 /** A statement line's "account" row has no journal to open directly
@@ -4159,7 +4188,7 @@ function newPubfin() {
 function renderPubfinPage(authState) {
   if (!uiState.pf) uiState.pf = newPubfin();
   once("pfLoading", () => loadPubfin());
-  return Pubfin({ pf: uiState.pf, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.pfLoading, onRetry: () => { loadedOnce.delete("pfLoading"); render(); }, actions: pubfinActions() });
+  return Pubfin({ pf: uiState.pf, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.pfLoading, onRetry: () => { loadedOnce.delete("pfLoading"); render(); }, actions: pubfinActions(), sector: (sectorOf(uiState.entity && uiState.entity.org === authState.organisationId ? uiState.entity.cfg : null) || {}).id });
 }
 
 async function pubfinRefresh(pf) {
@@ -4181,6 +4210,15 @@ async function loadPubfin() {
   } catch (err) { pf.error = err.message || "Public finance could not be loaded."; }
 }
 
+/** Stage 8. Loads one approved budget with its execution. A failure is kept as an error (the page then says "Not checked"), never shown as zero. */
+async function pubfinSpendLoad(pf, id) {
+  const done = (pf.budgets || []).filter((b) => b.status === "APPROVED" || b.status === "CLOSED");
+  const target = id || (pf.spend && pf.spend.budgetId) || (done.length ? done[done.length - 1].id : null);
+  pf.spend = { budgetId: target, detail: undefined, line: null, error: null };
+  if (!target) return;
+  try { pf.spend.detail = await api.pubfinBudget(target); } catch (err) { pf.spend.error = err.message || "The budget could not be loaded."; }
+}
+
 function pubfinActions() {
   const pf = uiState.pf;
   const run = async (fn, ok) => { pf.error = null; pf.notice = null; pf.busy = true; render(); try { await fn(); if (ok) pf.notice = ok; } catch (err) { pf.error = err.message || "That did not work."; } pf.busy = false; render(); };
@@ -4192,8 +4230,14 @@ function pubfinActions() {
   const set = (key) => (k, v) => { pf[key] = { ...pf[key], [k]: v }; };
   const decide = (needNote, label, f) => (ok, id) => { if (!ok) { const p = PF.noteProblem(needNote(), label, 3); if (p) return fail(p); } return f(ok, id); };
   return {
-    setTab: (t) => run(async () => { pf.tab = t; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); await refresh(); }),
+    setTab: (t) => run(async () => { pf.tab = t; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); await refresh(); if (t === "spend") await pubfinSpendLoad(pf, null); }),
+    spendBudget: (id) => run(async () => { await pubfinSpendLoad(pf, id); }),
+    followGrant: (id) => { pf.followId = id; render(); },
+    spendLine: (accountId) => { pf.spend = { ...pf.spend, line: accountId }; render(); },
     policyChange: (k, v) => { pf.policyForm = { ...pf.policyForm, [k]: v }; },
+    setPrivacy: (hide) => run(async () => { await api.setPubfinPrivacy({ hide_donor: hide }); pf.options = await api.pubfinOptions(); await refresh(); }, hide ? "Who gave is now hidden and will not be stored for new grants." : "Who gave is shown and stored again."),
+    eraseChange: (v) => { pf.eraseForm = { word: v }; },
+    eraseDonors: () => { const w = ((pf.eraseForm || {}).word || "").trim(); if (w !== "ERASE") return fail("Type ERASE in capital letters to confirm. This cannot be undone."); return run(async () => { const r = await api.erasePubfinDonors({ confirm: w }); pf.eraseForm = null; await refresh(); pf.notice = r.meaning; }); },
     savePolicy: () => { const p = PF.policyProblem(pf.policyForm); if (p) return fail(p); return run(async () => { await api.setPubfinPolicy({ min_quotes: +pf.policyForm.min_quotes, quote_threshold: pf.policyForm.quote_threshold.trim() }); await refresh(); }, "Procurement policy saved."); },
     noteChange: (k, v) => { pf.notes[k] = v; },
     // budgets
@@ -4503,7 +4547,7 @@ function procurementActions() {
     return run(async () => { await call(id, m, n); pc.notes = {}; await refresh(); }, extra[m]);
   };
   return {
-    setTab: (t) => run(async () => { pc.tab = t; pc.formError = null; await refresh(); }),
+    setTab: (t) => run(async () => { pc.tab = t; pc.formError = null; if (t === "trace") pc.orderFilter = ""; await refresh(); }),
     setForm: (name, k, v, rerender) => { pc.forms[name] = { ...(pc.forms[name] || {}), [k]: v }; pc.formError = null;
       if (name === "delivery" && k === "order_id") pc.forms.delivery = PC.prefillDelivery(pc.live.find((o) => o.id === v));
       if (name === "invoice" && k === "order_id") pc.forms.invoice = PC.prefillInvoice(pc.live.find((o) => o.id === v));
@@ -4527,6 +4571,8 @@ function procurementActions() {
     raiseOrder: () => { const r = PC.orderPayload(pc.forms.order); if (r.problem) return problem("order", r.problem); return run(async () => { const o = await api.raisePcOrder(r.body); reset("order"); await refresh(); pc.notice = `Order ${o.ref} raised${o.approvals_needed > 1 ? `. It needs ${o.approvals_needed} different approvers` : ". A different person must approve it"}.`; }); },
     orderStep: (id, m) => step("po", id, m, (i, mm, n) => api.pcOrderStep(i, mm, n), { approve: "Approval recorded.", reject: "Order rejected.", cancel: "Order cancelled.", close: "Order closed." }),
     selectOrder: (id) => run(async () => { pc.sel.order = id ? await api.pcOrder(id) : null; }),
+    traceOrder: (id) => run(async () => { pc.orderFilter = ""; pc.traceId = id; pc.tab = "trace"; pc.formError = null; await refresh(); }),
+    setTrace: (id) => { pc.traceId = id || null; render(); },
     // deliveries and invoices
     addDelivery: () => { const f = pc.forms.delivery, r = PC.deliveryPayload(f); if (r.problem) return problem("delivery", r.problem); return run(async () => { const d = await api.addPcDelivery(f.order_id, r.body); reset("delivery"); await refresh(); pc.notice = `Delivery ${d.ref} recorded.`; }); },
     addInvoice: () => { const f = pc.forms.invoice, r = PC.invoicePayload(f); if (r.problem) return problem("invoice", r.problem); return run(async () => { const i = await api.addPcInvoice(f.order_id, r.body); reset("invoice"); await refresh();
@@ -5924,13 +5970,26 @@ function renderHealthPage(authState) {
   return Health({ hc: uiState.hc, role: authState.role, userId: authState.user && authState.user.id, loading: uiState.hcLoading, onRetry: () => { loadedOnce.delete("hcLoading"); render(); }, actions: healthActions(authState) });
 }
 
+/** Stage 7. Each list is loaded on its own: one that fails becomes undefined ("Not checked"), never an empty list that would read as clean. No approved budget is null. */
+async function loadHealthTrace(fid) {
+  const base = `/facilities/${encodeURIComponent(fid)}`, soft = (p) => p.catch(() => undefined);
+  const [budgets, pos, invoices] = await Promise.all([soft(api.hcGet(`${base}/budgets`)), soft(api.hcGet(`${base}/pos`)), soft(api.hcGet(`${base}/invoices`))]);
+  let exec;
+  if (budgets === undefined) exec = undefined;
+  else {
+    const approved = budgets.filter((b) => b.status === "APPROVED").sort((x, y) => String(y.period_start).localeCompare(String(x.period_start)) || String(y.ref).localeCompare(String(x.ref)))[0];
+    exec = approved ? await soft(api.hcGet(`${base}/budgets/${encodeURIComponent(approved.id)}/execution`)) : null;
+  }
+  return { exec, pos, invoices };
+}
+
 /** Reload what the current tab shows. Reference lists feed the drop-downs in forms. */
 async function healthRefresh(hc, role, withOptions) {
   if (withOptions || !hc.options) hc.options = await api.hcOptions();
   const fs = hc.options.facilities || [];
   if (!fs.some((f) => f.id === hc.facilityId)) hc.facilityId = fs.length ? fs[0].id : "";
   const fid = hc.facilityId, c = HC.caps(role);
-  hc.data = {}; hc.dashboard = null;
+  hc.data = {}; hc.dashboard = null; hc.trace = null;
   if (!fid) { hc.ref = {}; if (c.admin) hc.data.facilities = await api.hcGet("/facilities"); return; }
   const soft = (p) => p.catch(() => []);
   const [depts, suppliers, items, payers, fees] = await Promise.all([
@@ -5938,6 +5997,7 @@ async function healthRefresh(hc, role, withOptions) {
     soft(api.hcGet(`/facilities/${encodeURIComponent(fid)}/payers`)), soft(api.hcGet(`/facilities/${encodeURIComponent(fid)}/fees`))]);
   hc.ref = { depts, suppliers, items, payers, fees };
   if (hc.tab === "dashboard") { hc.dashboard = await api.hcGet(`/facilities/${encodeURIComponent(fid)}/dashboard`); return; }
+  if (hc.tab === "trace") { hc.trace = await loadHealthTrace(fid); return; }
   const tabSecs = HC.visibleSections(hc.tab, c);
   await Promise.all(tabSecs.map(async ([id, s]) => { try { hc.data[id] = await s.load(api, fid); } catch (err) { hc.data[id] = null; hc.error = err.message || `${s.title} could not be loaded.`; } }));
 }
@@ -5960,7 +6020,8 @@ function healthActions(authState) {
   const setVal = (k, v) => { hc.form.values = { ...hc.form.values, [k]: v }; };
   return {
     setTab: (t) => { hc.tab = t; close(); return run(async () => {}); },
-    setFacility: (id) => { hc.facilityId = id; close(); return run(async () => {}); },
+    setFacility: (id) => { hc.facilityId = id; hc.traceDept = null; close(); return run(async () => {}); },
+    setTraceDept: (id) => { hc.traceDept = id || null; render(); },
     noteChange: (v) => { hc.noteText = v; },
     closeDetail: () => { hc.detail = null; render(); },
     newForm: (secId) => { close(); const name = SECTIONS_CREATE(secId); hc.form = { name, secId, row: null, values: HC.emptyForm(HC.FORMS[name], null) }; hc.error = null; render(); },

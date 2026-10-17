@@ -28,7 +28,7 @@ export function normaliseSteps(input, order = STAGES) {
     if (v === undefined) return { key, state: "unknown" };
     if (typeof v !== "object") return { key, state: "unknown" };
     const state = STATES.has(v.state) ? v.state : v.state === undefined ? "linked" : "unknown";
-    return { key, state, title: typeof v.title === "string" ? v.title : null, meta: typeof v.meta === "string" ? v.meta : null, href: typeof v.href === "string" && v.href.startsWith("#/") ? v.href : null };
+    return { key, state, stateLabel: typeof v.stateLabel === "string" && v.stateLabel ? v.stateLabel : null, title: typeof v.title === "string" ? v.title : null, meta: typeof v.meta === "string" ? v.meta : null, href: typeof v.href === "string" && v.href.startsWith("#/") ? v.href : null };
   });
 }
 
@@ -82,7 +82,7 @@ export function ProofRail({ id = "proof-rail", subject, steps, vocab = {}, sampl
       Bead({ state: s.state }),
       h("div", { className: "pr-body" },
         h("strong", { className: "pr-label" }, words[s.key] || s.key),
-        h("span", { className: "pr-state" }, STATE_TEXT[s.state]),
+        h("span", { className: "pr-state" }, s.stateLabel || STATE_TEXT[s.state]),   // a sector may say more than the four stock words (e.g. "Suspended"); the shape still carries the coarse state
         s.title ? (s.href ? h("a", { className: "pr-link", href: s.href }, s.title) : h("span", { className: "pr-what" }, s.title)) : null,
         s.meta ? h("span", { className: "pr-meta" }, s.meta) : null)))));
 }

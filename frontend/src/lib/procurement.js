@@ -11,7 +11,7 @@ const has = (role, perm) => !!(ROLE_PERMISSIONS[role] && ROLE_PERMISSIONS[role].
 export const canPrepare = (role) => has(role, PERMISSIONS.PROCURE_PREPARE);
 export const canApprove = (role) => has(role, PERMISSIONS.PROCURE_APPROVE);
 
-export const TABS = [["overview", "Overview"], ["suppliers", "Suppliers"], ["contracts", "Contracts"], ["orders", "Purchase orders"], ["receipts", "Deliveries and invoices"], ["reviews", "Supplier reviews"]];
+export const TABS = [["overview", "Overview"], ["suppliers", "Suppliers"], ["contracts", "Contracts"], ["orders", "Purchase orders"], ["trace", "Trace an order"], ["receipts", "Deliveries and invoices"], ["reviews", "Supplier reviews"]];
 export const SCORE_LABEL = { delivery: "Delivery", quality: "Quality", price: "Price", service: "Service" };
 
 export const STATUS = {
