@@ -79,7 +79,7 @@ describe("the tab and the page", () => {
     assert.match(text(byId(v, "pf-follow-figures")), /20,000.00.*12,000.00.*5,000.00.*1,000.00.*15,000.00.*7,000.00/);
     assert.match(text(byId(v, "pf-follow-spend")), /waiting for a different person to approve it/);
     assert.equal(all(byId(v, "pf-follow-rail"), (n) => n.props && n.props.className && String(n.props.className).split(" ").includes("pr-step")).length, 4);
-    assert.match(text(byId(v, "pf-follow-limit")), /does not link the grant to programme results/);
+    assert.match(text(byId(v, "pf-follow-limit")), /does not prove the grant produced any programme result/);
   });
   test("no grants says so", () => assert.ok(byId(page(pf({ grants: [] })), "pf-follow-none")));
   test("a read view: no buttons in the ledger", () => assert.equal(all(byId(page(pf()), "pf-follow-ledger"), (n) => n.tag === "button").length, 0));

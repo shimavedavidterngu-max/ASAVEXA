@@ -46,7 +46,7 @@ class Run(unittest.TestCase):
         g = guards()
         approve = {"set_policy", "set_privacy", "erase_donors", "approve_budget", "reject_budget", "approve_virement", "reject_virement", "approve_award", "reject_award", "approve_spend", "reject_spend", "approve_report", "reject_report"}
         prepare = {"create_budget", "update_budget", "discard_budget", "submit_budget", "close_budget", "propose_virement", "create_commitment", "settle_commitment", "cancel_commitment", "create_procurement",
-                   "add_quote", "propose_award", "cancel_procurement", "create_grant", "record_receipt", "add_spend", "close_grant", "create_report", "submit_report"}
+                   "add_quote", "propose_award", "cancel_procurement", "create_grant", "set_grant_programme", "record_receipt", "add_spend", "close_grant", "create_report", "submit_report"}
         for n in prepare: self.assertEqual(g[n], {"PUBFIN_PREPARE"}, n)
         for n in approve: self.assertEqual(g[n], {"PUBFIN_APPROVE"}, n)
         reads = set(g) - prepare - approve - {"_d"}

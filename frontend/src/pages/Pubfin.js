@@ -2,6 +2,7 @@ import { h } from "../lib/vdom.js";
 import { LoadingState, ErrorState, EmptyState } from "../components/DataState.js";
 import { ProofRail } from "../components/ProofRail.js";
 import { buildLineTrace, SPEND_VOCAB, isExpense } from "../lib/spendTrace.js";
+import { programmeLink, PROGRAMME_LIMIT } from "../lib/programmeLink.js";
 import { buildGrantTrace, GRANT_VOCAB, GRANT_LIMIT, FUND_VOCAB, FUND_LIMIT } from "../lib/grantTrace.js";
 import { TABS, canPrepare, canApprove, statusOf, money, budgetMoves, virementMoves, procMoves, spendMoves, reportMoves } from "../lib/pubfin.js";
 
@@ -37,7 +38,7 @@ export function Pubfin({ pf, role, userId, loading, onRetry, actions, sector }) 
         TABS.map(([id, label]) => h("button", { className: `btn ${pf.tab === id ? "btn-primary" : "btn-secondary"}`, role: "tab", id: `pf-tab-${id}`, "aria-selected": pf.tab === id ? "true" : "false", onClick: () => actions.setTab(id) }, id === "follow" && mode === "fund" ? "Follow a fund" : label))),
       pf.busy ? h("div", { style: "color: var(--ink-500);" }, "Working...") : null,
       pf.tab === "overview" ? overview(pf, role, actions) : pf.tab === "spend" ? spend(pf, actions) : pf.tab === "budgets" ? budgets(pf, role, userId, actions) : pf.tab === "commitments" ? commitments(pf, role, actions)
-        : pf.tab === "procurement" ? procurement(pf, role, userId, actions) : pf.tab === "grants" ? grants(pf, role, userId, actions, mode) : pf.tab === "follow" ? follow(pf, actions, mode) : reports(pf, role, userId, actions)));
+        : pf.tab === "procurement" ? procurement(pf, role, userId, actions) : pf.tab === "grants" ? grants(pf, role, userId, actions, mode) : pf.tab === "follow" ? follow(pf, actions, mode, role) : reports(pf, role, userId, actions)));
 }
 
 // ---------------------------------------------------------------- overview
@@ -186,7 +187,7 @@ function procDetail(pf, role, userId, a) {
 function grants(pf, role, userId, a, mode) {
   const fund = mode === "fund";
   if (pf.grantForm) { const f = pf.grantForm; return h("div", { className: "card", id: "grant-form" }, h("h3", {}, "New grant"), field("Title", "gf-title", text("gf-title", f, "title", a.grantChange)), field(fund ? "Source (a general description such as \"Congregation\"; never a person's name)" : "Donor", "gf-donor", text("gf-donor", f, "donor", a.grantChange)),
-    field("Award amount", "gf-amt", text("gf-amt", f, "amount", a.grantChange)), field("Currency", "gf-cur", text("gf-cur", f, "currency", a.grantChange)), field("Starts", "gf-start", text("gf-start", f, "start", a.grantChange, "2026-01-01")), field("Ends", "gf-end", text("gf-end", f, "end", a.grantChange, "2026-12-31")),
+    field("Award amount", "gf-amt", text("gf-amt", f, "amount", a.grantChange)), field("Currency", "gf-cur", text("gf-cur", f, "currency", a.grantChange)), field("Programme reference (optional, to match impact indicators)", "gf-prog", text("gf-prog", f, "programme_ref", a.grantChange, "for example WASH-01")), field("Starts", "gf-start", text("gf-start", f, "start", a.grantChange, "2026-01-01")), field("Ends", "gf-end", text("gf-end", f, "end", a.grantChange, "2026-12-31")),
     field("Conditions (text you copy from the agreement)", "gf-cond", area("gf-cond", f, "conditions", a.grantChange, 3)), row(btn("Create", "gf-save", () => a.saveGrant(), "primary", pf.busy), btn("Cancel", "gf-cancel", () => a.cancelGrant()))); }
   if (pf.grant) return grantDetail(pf, role, userId, a, mode);
   return h("div", { id: "pf-grants" }, fund ? h("div", { className: "alert alert-info", id: "pf-grants-private", role: "status", style: "margin-bottom:12px;" }, "Who gave is not shown on this page for faith-based organisations.") : null, canPrepare(role) ? btn("New grant", "grant-new", () => a.newGrant(), "primary") : null,
@@ -276,7 +277,7 @@ function spend(pf, a) {
 
 // ---------------------------------------------------------------- follow a grant (Stage 9)
 const SPEND_WORDS = { APPROVED: "approved", PROPOSED: "waiting for a different person to approve it", REJECTED: "sent back" };
-function follow(pf, a, mode) {
+function follow(pf, a, mode, role) {
   const fund = mode === "fund";
   const grants = pf.grants || [];
   if (!grants.length) return h("div", { className: "card", id: "pf-follow-none" }, EmptyState({ title: fund ? "No funds yet" : "No grants yet", message: fund ? "Record a fund to follow it from the gifts received to the spending and its evidence." : "Record a grant to follow it from the award to the spending and its evidence." }));
@@ -297,7 +298,27 @@ function follow(pf, a, mode) {
         h("h3", {}, "Spending entries"),
         t.spend.length ? h("ul", { id: "pf-follow-spend" }, t.spend.map((s) => h("li", { "data-spend": s.id, "data-status": s.status }, `${money(s.amount)} ${g.currency} on ${s.date}: ${s.description}${s.reference ? ` (${s.reference})` : ""}. ${SPEND_WORDS[s.status] || s.status}. ${(s.evidence || []).length ? `Evidence: ${s.evidence.map((e) => e.filename).join(", ")}.` : "No evidence linked."}`)))
           : h("p", { className: "hm-muted", id: "pf-follow-no-spend" }, "No spending has been recorded against this grant."),
+        programmeSection(g, pf, role, a),
         h("p", { className: "hm-muted", id: "pf-follow-limit" }, fund ? FUND_LIMIT : GRANT_LIMIT)),
       h("aside", { className: "ledger-margin", "aria-label": "The proof thread for this grant" },
-        ProofRail({ id: "pf-follow-rail", subject: `${fund ? "fund" : "grant"} ${g.ref}`, steps: t.steps, vocab: fund ? FUND_VOCAB : GRANT_VOCAB }))));
+        ProofRail({ id: "pf-follow-rail", subject: `${fund ? "fund" : "grant"} ${g.ref}`, steps: t.steps, vocab: fund ? FUND_VOCAB : GRANT_VOCAB }))),
+    programmeEdit(g, pf, role, a));
+}
+
+function programmeSection(g, pf, role, a) {
+  const pr = pf.programme, L = programmeLink(g, pr && pr.grantId === g.id ? pr.indicators : undefined);
+  return h("div", { id: "pf-follow-programme" }, h("h3", {}, "Programme results"),
+    L.kind === "no-ref" ? h("p", { className: "hm-muted", id: "pf-programme-noref" }, "No programme reference has been typed on this grant, so no indicators are matched.")
+      : L.kind === "unknown" ? h("p", { className: "hm-muted", id: "pf-programme-unknown" }, `Not checked. The impact indicators for reference ${L.ref} could not be loaded; you may not have permission to see them.`)
+      : L.kind === "none" ? h("p", { className: "hm-muted", id: "pf-programme-none" }, `No approved indicator carries the reference ${L.ref}.`)
+      : h("ul", { id: "pf-programme-list" }, L.rows.map((x) => h("li", { "data-indicator": x.id, "data-state": x.state }, x.text, x.stale ? " The latest reading is older than your limit." : ""))),
+    h("p", { className: "hm-muted", id: "pf-programme-limit" }, PROGRAMME_LIMIT));
+}
+
+/** The one place a person changes the reference. Kept outside the read-only ledger. */
+function programmeEdit(g, pf, role, a) {
+  if (!(canPrepare(role) && g.status === "ACTIVE")) return null;
+  const f = pf.progForm && pf.progForm.id === g.id ? pf.progForm : { id: g.id, value: g.programme_ref || "" };
+  return h("div", { className: "card", id: "pf-programme-edit" }, field("Programme reference (2 to 40 characters; empty removes it)", "pf-programme-ref", h("input", { id: "pf-programme-ref", type: "text", value: f.value, onInput: (e) => a.progChange(g.id, e.target.value) })),
+    btn("Save reference", "pf-programme-save", () => a.saveProgramme(g.id), "secondary", pf.busy));
 }

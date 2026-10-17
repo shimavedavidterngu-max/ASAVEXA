@@ -86,17 +86,19 @@ export const procMoves = (p, role, userId) => ({ quote: canPrepare(role) && p.st
   decide: canApprove(role) && p.status === "AWARD_PROPOSED" && p.award.proposed_by !== userId, own: canApprove(role) && p.status === "AWARD_PROPOSED" && p.award.proposed_by === userId });
 export const policyProblem = (f) => (!/^([1-9]|10)$/.test(String(f.min_quotes).trim()) ? "The number of quotes is a whole number from 1 to 10." : !isMoney(f.quote_threshold) ? "The threshold is a number like 1000 or 0." : null);
 
-export const emptyGrant = () => ({ title: "", donor: "", amount: "", currency: "USD", start: "", end: "", restricted: true, conditions: "" });
+export { refProblem } from "./programmeLink.js";
+export const emptyGrant = () => ({ title: "", donor: "", amount: "", currency: "USD", start: "", end: "", restricted: true, conditions: "", programme_ref: "" });
 export function grantProblem(f) {
   if ((f.title || "").trim().length < 3) return "Give the grant a title.";
   if ((f.donor || "").trim().length < 2) return "Name the donor.";
   if (!isPositive(f.amount)) return "Enter the award amount, more than zero.";
   if (!/^[A-Za-z]{3}$/.test((f.currency || "").trim())) return "The currency is a 3-letter code.";
+  { const r = (f.programme_ref || "").trim(); if (r && (r.length < 2 || r.length > 40)) return "The programme reference must be 2 to 40 characters, or left empty."; }
   if (!isRealDate(f.start) || !isRealDate(f.end)) return "Enter the start and end dates like 2026-01-31.";
   if (f.end < f.start) return "The end date cannot be before the start date.";
   return null;
 }
-export const grantBody = (f) => ({ title: f.title.trim(), donor: f.donor.trim(), amount: f.amount.trim(), currency: f.currency.trim().toUpperCase(), start: f.start.trim(), end: f.end.trim(), restricted: !!f.restricted, conditions: (f.conditions || "").trim() });
+export const grantBody = (f) => ({ title: f.title.trim(), donor: f.donor.trim(), amount: f.amount.trim(), currency: f.currency.trim().toUpperCase(), start: f.start.trim(), end: f.end.trim(), restricted: !!f.restricted, conditions: (f.conditions || "").trim(), ...((f.programme_ref || "").trim() ? { programme_ref: f.programme_ref.trim() } : {}) });
 export const receiptProblem = (f) => (!isPositive(f.amount) ? "Enter the amount received, more than zero." : !isRealDate(f.date) ? "Enter the date received like 2026-02-10." : (f.reference || "").trim().length < 2 ? "Add the bank or receipt reference." : null);
 export const spendProblem = (f) => (!isPositive(f.amount) ? "Enter the amount, more than zero." : !isRealDate(f.date) ? "Enter the date like 2026-02-10." : (f.description || "").trim().length < 3 ? "Say what it was for." : null);
 export const spendMoves = (s, role, userId) => ({ decide: canApprove(role) && s.status === "PROPOSED" && s.proposed_by !== userId, own: canApprove(role) && s.status === "PROPOSED" && s.proposed_by === userId });

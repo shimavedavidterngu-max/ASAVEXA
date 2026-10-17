@@ -81,6 +81,11 @@ class GrantBody(BaseModel):
     end: str
     restricted: bool = True
     conditions: str = ""
+    programme_ref: Optional[str] = None
+
+
+class ProgrammeBody(BaseModel):
+    programme_ref: Optional[str] = None
 
 
 class ReceiptBody(BaseModel):
@@ -280,6 +285,11 @@ def approve_spend(grant_id: str, spend_id: str, body: NoteBody, org: str = Depen
 @router.post("/grants/{grant_id}/spend/{spend_id}/reject", dependencies=[_approve])
 def reject_spend(grant_id: str, spend_id: str, body: NoteBody, org: str = Depends(get_current_org), actor: str = Depends(get_current_actor), svc: PubFinService = Depends(get_pubfin)):
     return svc.reject_spend(org, grant_id, spend_id, actor, body.note)
+
+
+@router.put("/grants/{grant_id}/programme", dependencies=[_prepare])
+def set_grant_programme(grant_id: str, body: ProgrammeBody, org: str = Depends(get_current_org), actor: str = Depends(get_current_actor), svc: PubFinService = Depends(get_pubfin)):
+    return svc.set_grant_programme(org, grant_id, body.programme_ref, actor)
 
 
 @router.post("/grants/{grant_id}/close", dependencies=[_prepare])

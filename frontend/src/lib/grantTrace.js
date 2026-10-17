@@ -6,7 +6,7 @@ import { money } from "./pubfin.js";
  * Honest by construction:
  *  - It restates what the server recorded (amounts as the server's decimal text; the server's own spent, received, remaining and cash figures). Nothing is added or compared as a number here.
  *  - "Spent" means approved by a second person. Spending still waiting for that person is shown as waiting, never as spent.
- *  - ASAVEXA records and checks. It does not judge whether donor conditions are met, and it does not link a grant to programme results (outputs or outcomes): the page says so.
+ *  - ASAVEXA records and checks. It does not judge whether donor conditions are met, and it does not prove a grant produced any programme result (Stage 14 matches indicators by a typed reference only): the page says so.
  * A step is { key, state: linked|missing|pending|unknown, stateLabel, title, meta }.
  */
 export const GRANT_VOCAB = { funding: "Funding awarded", received: "Cash received", spent: "Spent (approved)", evidence: "Evidence" };
@@ -17,7 +17,7 @@ export const FUND_LIMIT = "This view does not judge whether a fund is spent as i
 export const hasDonor = (g) => !!g.donor && g.donor !== "Not recorded";
 export const isFund = (mode) => mode === "fund";
 export const GRANT_ORDER = ["funding", "received", "spent", "evidence"];
-export const GRANT_LIMIT = "This view does not judge whether donor conditions are met, and it does not link the grant to programme results (activities, outputs or outcomes).";
+export const GRANT_LIMIT = "This view does not judge whether donor conditions are met, and it does not prove the grant produced any programme result. Results shown under Programme results are matched only by a typed reference.";
 
 const step = (key, state, stateLabel, title, meta) => ({ key, state, stateLabel: stateLabel || null, title: title || null, meta: meta || null });
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;

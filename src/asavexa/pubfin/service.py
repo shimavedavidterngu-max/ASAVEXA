@@ -71,6 +71,13 @@ def _date(v, name) -> date:
         raise PubFinError(f"{name} must be a real date written YYYY-MM-DD.")
 
 
+def _prog(v):
+    """Optional programme reference (2 to 40 characters). Empty means none."""
+    s = _txt(v, "The programme reference", 2, 40, required=False)
+    if s and len(s) < 2: raise PubFinError("The programme reference must be at least 2 characters, or left empty.")
+    return s or None
+
+
 NOT_RECORDED = "Not recorded"
 
 
@@ -469,7 +476,7 @@ class PubFinService:
 
     # ------------------------------------------------------------------ grants
     def _gview(self, g) -> dict:
-        v = dict(g)
+        v = dict(g); v.setdefault("programme_ref", None)
         if self.hide_donor(g["org"]): v["donor"] = NOT_RECORDED
         spent = sum((Decimal(s["amount"]) for s in g["spend"] if s["status"] == "APPROVED"), ZERO)
         pending = sum((Decimal(s["amount"]) for s in g["spend"] if s["status"] == "PROPOSED"), ZERO)
@@ -483,7 +490,7 @@ class PubFinService:
         if e < s: raise PubFinError("The end date cannot be before the start date.")
         g = {"id": uuid.uuid4().hex, "org": org, "ref": self._ref(org, "G"), "title": _txt(d.get("title"), "Grant title", 3, 200), "donor": NOT_RECORDED if self.hide_donor(org) else _txt(d.get("donor"), "Donor or grantor", 2, 200),
              "amount": s2(_dec(d.get("amount"), "Award amount", positive=True)), "currency": _txt(d.get("currency"), "Currency", 3, 3).upper(), "start": s.isoformat(), "end": e.isoformat(),
-             "restricted": bool(d.get("restricted", True)), "conditions": _txt(d.get("conditions"), "Conditions", 0, 3000, required=False), "status": "ACTIVE", "receipts": [], "spend": [],
+             "restricted": bool(d.get("restricted", True)), "conditions": _txt(d.get("conditions"), "Conditions", 0, 3000, required=False), "programme_ref": _prog(d.get("programme_ref")), "status": "ACTIVE", "receipts": [], "spend": [],
              "created_by": actor, "created_at": self.now().isoformat(), "history": []}
         self._hist(g, actor, "CREATED"); self._put("pf_grant", org, g); self.log("PF_GRANT_CREATED", actor, g["id"], org, f"{g['ref']} {g['amount']}")
         return self._gview(g)
@@ -526,6 +533,14 @@ class PubFinService:
 
     def approve_spend(self, org, gid, sid, actor, note="") -> dict: return self._decide_spend(org, gid, sid, actor, True, note)
     def reject_spend(self, org, gid, sid, actor, note) -> dict: return self._decide_spend(org, gid, sid, actor, False, note)
+
+    def set_grant_programme(self, org, gid, programme_ref, actor) -> dict:
+        """Type the programme reference this grant is for, so the same code can be matched against impact indicators. A typed label, not a verified link."""
+        g = self._get("pf_grant", org, gid, "Grant", for_update=True)
+        if g["status"] != "ACTIVE": raise PubFinStateError("This grant is closed.")
+        g["programme_ref"] = _prog(programme_ref); self._hist(g, actor, "PROGRAMME_REF_SET", g["programme_ref"] or "cleared")
+        self._put("pf_grant", org, g); self.log("PF_GRANT_PROGRAMME_SET", actor, gid, org, g["ref"])
+        return self._gview(g)
 
     def close_grant(self, org, gid, note, actor) -> dict:
         g = self._get("pf_grant", org, gid, "Grant", for_update=True)

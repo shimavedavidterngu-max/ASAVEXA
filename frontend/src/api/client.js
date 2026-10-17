@@ -525,6 +525,7 @@ export class ApiClient {
   pubfinOverview() { return this.get("/pubfin/overview"); }
   setPubfinPrivacy(body) { return this.put("/pubfin/privacy", body); }
   erasePubfinDonors(body) { return this.post("/pubfin/privacy/erase-donors", body); }
+  setPubfinGrantProgramme(id, body) { return this.put(`/pubfin/grants/${encodeURIComponent(id)}/programme`, body); }
   setPubfinPolicy(body) { return this.put("/pubfin/policy", body); }
   pubfinBudgets() { return this.get("/pubfin/budgets"); }
   createPubfinBudget(body) { return this.post("/pubfin/budgets", body); }

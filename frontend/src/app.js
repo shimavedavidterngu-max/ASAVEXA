@@ -4211,6 +4211,15 @@ async function loadPubfin() {
 }
 
 /** Stage 8. Loads one approved budget with its execution. A failure is kept as an error (the page then says "Not checked"), never shown as zero. */
+/** Loads approved impact indicators for the grant being followed, only when it has a programme reference. A failure leaves them unloaded (shown as "Not checked"). */
+async function pubfinProgrammeLoad(pf, force) {
+  const list = pf.grants || [], g = list.find((x) => x.id === pf.followId) || list[list.length - 1];
+  if (!g || !g.programme_ref) { pf.programme = null; return; }
+  if (!force && pf.programme && pf.programme.grantId === g.id && Array.isArray(pf.programme.indicators)) return;
+  pf.programme = { grantId: g.id, indicators: undefined };
+  try { pf.programme.indicators = await api.impIndicators("APPROVED"); } catch (err) { pf.programme.indicators = undefined; }
+}
+
 async function pubfinSpendLoad(pf, id) {
   const done = (pf.budgets || []).filter((b) => b.status === "APPROVED" || b.status === "CLOSED");
   const target = id || (pf.spend && pf.spend.budgetId) || (done.length ? done[done.length - 1].id : null);
@@ -4230,9 +4239,11 @@ function pubfinActions() {
   const set = (key) => (k, v) => { pf[key] = { ...pf[key], [k]: v }; };
   const decide = (needNote, label, f) => (ok, id) => { if (!ok) { const p = PF.noteProblem(needNote(), label, 3); if (p) return fail(p); } return f(ok, id); };
   return {
-    setTab: (t) => run(async () => { pf.tab = t; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); await refresh(); if (t === "spend") await pubfinSpendLoad(pf, null); }),
+    setTab: (t) => run(async () => { pf.tab = t; pf.budget = pf.proc = pf.grant = pf.report = null; clearForms(); await refresh(); if (t === "spend") await pubfinSpendLoad(pf, null); if (t === "follow") await pubfinProgrammeLoad(pf); }),
     spendBudget: (id) => run(async () => { await pubfinSpendLoad(pf, id); }),
-    followGrant: (id) => { pf.followId = id; render(); },
+    followGrant: (id) => run(async () => { pf.followId = id; await pubfinProgrammeLoad(pf); }),
+    progChange: (id, v) => { pf.progForm = { id, value: v }; },
+    saveProgramme: (id) => { const v = ((pf.progForm && pf.progForm.id === id ? pf.progForm.value : "") || "").trim(); const p = PF.refProblem ? PF.refProblem(v) : null; if (p) return fail(p); return run(async () => { await api.setPubfinGrantProgramme(id, { programme_ref: v }); pf.progForm = null; await refresh(); await pubfinProgrammeLoad(pf, true); }, v ? "Programme reference saved." : "Programme reference removed."); },
     spendLine: (accountId) => { pf.spend = { ...pf.spend, line: accountId }; render(); },
     policyChange: (k, v) => { pf.policyForm = { ...pf.policyForm, [k]: v }; },
     setPrivacy: (hide) => run(async () => { await api.setPubfinPrivacy({ hide_donor: hide }); pf.options = await api.pubfinOptions(); await refresh(); }, hide ? "Who gave is now hidden and will not be stored for new grants." : "Who gave is shown and stored again."),

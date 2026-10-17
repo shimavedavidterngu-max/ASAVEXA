@@ -418,3 +418,29 @@ class DonorEraseReports(Base):
         self.assertNotIn("Visible Donor", str(self.svc.get_report(ORG, r["id"])))
         self.svc.approve_report(ORG, r["id"], U2, "ok")
         self.assertNotIn("Visible Donor", self.svc.export_csv(ORG, r["id"], U2)["content"])
+
+
+class GrantProgramme(Base):
+    def g(self, **kw):
+        d = dict(title="Fund A", donor="Some Donor", amount="1000", currency="USD", start="2026-01-01", end="2026-12-31"); d.update(kw)
+        return self.svc.create_grant(ORG, d, U1)
+
+    def test_optional_on_create_and_missing_means_none(self):
+        self.assertIsNone(self.g()["programme_ref"])
+        self.assertEqual(self.g(programme_ref="  WASH-01 ")["programme_ref"], "WASH-01")
+
+    def test_validation(self):
+        for bad in ("x", "y" * 41):
+            with self.assertRaises(PubFinError): self.g(programme_ref=bad)
+
+    def test_set_clear_audit_and_closed(self):
+        g = self.g()
+        self.assertEqual(self.svc.set_grant_programme(ORG, g["id"], "WASH-02", U1)["programme_ref"], "WASH-02")
+        self.assertIsNone(self.svc.set_grant_programme(ORG, g["id"], "", U1)["programme_ref"])
+        self.assertTrue(any(e[0] == "PF_GRANT_PROGRAMME_SET" for e in self.events))
+        self.svc.close_grant(ORG, g["id"], "all done", U1)
+        with self.assertRaises(PubFinStateError): self.svc.set_grant_programme(ORG, g["id"], "WASH-03", U1)
+
+    def test_other_company_cannot_set(self):
+        g = self.g()
+        with self.assertRaises(PubFinNotFoundError): self.svc.set_grant_programme(OTHER, g["id"], "WASH-01", U1)

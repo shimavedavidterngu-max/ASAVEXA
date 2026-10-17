@@ -35,7 +35,7 @@ check("received: none, in words", "No cash received yet" in t["received"], t["re
 check("spent: nothing yet, in words", "Nothing spent yet" in t["spent"], t["spent"])
 check("a missing step is drawn hollow-dashed (shape, not only colour)", "is-missing" in shape(pg, "received") and pg.locator("#pf-follow-rail .pr-step[data-stage=received] .pr-dash").count() == 1)
 check("with no spending, the spending list says so", "No spending has been recorded" in pg.inner_text("#pf-follow-no-spend"))
-check("the limit is stated: conditions are not judged, results are not linked", "does not link the grant to programme results" in pg.inner_text("#pf-follow-limit"))
+check("the limit is stated: conditions are not judged, results are not proven", "does not prove the grant produced any programme result" in pg.inner_text("#pf-follow-limit"))
 
 # ---- the restricted grant with receipts and spending ----
 pg.select_option("#pf-follow-pick", water["id"]); pg.wait_for_timeout(600)
