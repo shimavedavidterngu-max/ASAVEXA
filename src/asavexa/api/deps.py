@@ -193,21 +193,6 @@ def get_entity_config(security: SecurityContext = Depends(get_security), session
     return EntityConfigService(SqlAlchemyDocStore(session), lambda: [w["id"] for w in WORKSPACES], log=make_log(security))
 
 
-def get_assurance(vault=Depends(get_evidence_vault), compliance=Depends(get_compliance_service), review=Depends(get_evidence_review),
-                  registry=Depends(get_standards_registry), agents=Depends(get_agent_registry), analysis=Depends(get_analysis)):
-    """The shared status vocabulary and a read-only count across modules. It owns no data and never writes: each module supplies its own records."""
-    from ..assurance.service import AssuranceService
-
-    return AssuranceService({
-        "evidence": lambda org: [(r.id, r.status.value, {"uploaded_by": r.uploaded_by, "verified_by": r.verified_by}) for r in vault.list_for_org(org)],
-        "finding": lambda org: [(f.id, f.status.value, {}) for f in compliance.list_findings(org)],
-        "evidence_review_case": lambda org: [(c["id"], c["status"], {}) for c in review.list_cases(org)],
-        "standards_source": lambda org: [(x["id"], x["status"], {}) for x in registry.list_sources(org)],
-        "agent_decision": lambda org: [(d["id"], d["state"], {}) for d in agents.list_decisions(org)],
-        "analysis_report": lambda org: [(r["id"], r["status"], {}) for r in analysis.list_reports(org)],
-    })
-
-
 def get_health(security: SecurityContext = Depends(get_security), session=Depends(get_session), identity: IdentityService = Depends(get_identity_service)):
     """Health Centre Administration service: facilities, budgets, procurement, stock, claims administration, assets and staffing costs in the shared document store; reads the ledger and Evidence Vault, never changes them; every action is audited. Holds no patient information."""
     from ..health.service import HealthService
@@ -684,3 +669,19 @@ def require_permission(permission: str):
                 detail=f"You do not have {permission!r} in this organisation.",
             )
     return _check
+
+
+# Defined last on purpose: its Depends() defaults name functions defined above, and Python reads defaults when the def runs.
+def get_assurance(vault=Depends(get_evidence_vault), compliance=Depends(get_compliance_service), review=Depends(get_evidence_review),
+                  registry=Depends(get_standards_registry), agents=Depends(get_agent_registry), analysis=Depends(get_analysis)):
+    """The shared status vocabulary and a read-only count across modules. It owns no data and never writes: each module supplies its own records."""
+    from ..assurance.service import AssuranceService
+
+    return AssuranceService({
+        "evidence": lambda org: [(r.id, r.status.value, {"uploaded_by": r.uploaded_by, "verified_by": r.verified_by}) for r in vault.list_for_org(org)],
+        "finding": lambda org: [(f.id, f.status.value, {}) for f in compliance.list_findings(org)],
+        "evidence_review_case": lambda org: [(c["id"], c["status"], {}) for c in review.list_cases(org)],
+        "standards_source": lambda org: [(x["id"], x["status"], {}) for x in registry.list_sources(org)],
+        "agent_decision": lambda org: [(d["id"], d["state"], {}) for d in agents.list_decisions(org)],
+        "analysis_report": lambda org: [(r["id"], r["status"], {}) for r in analysis.list_reports(org)],
+    })
