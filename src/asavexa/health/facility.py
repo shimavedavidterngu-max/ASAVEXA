@@ -2,7 +2,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from .base import CATEGORIES, FACILITY_TYPES, OWNERSHIP, P_ADMIN, ZERO, Base, day, dec, enum, money, q2, s2, txt, whole
+from .base import CATEGORIES, FACILITY_TYPES, OWNERSHIP, P_ADMIN, P_READ, ZERO, Base, day, dec, enum, money, q2, s2, txt, whole
 from .errors import HealthError, HealthForbiddenError, HealthNotFoundError, HealthStateError
 
 SPENT_INVOICE = ("VERIFIED", "PAYMENT_APPROVED", "PAID")
@@ -79,6 +79,10 @@ class FacilityMixin(Base):
         self._need(org, actor, P_ADMIN, "grant facility access")
         user_id = txt(user_id, "User", 1, 100)
         ids = list(dict.fromkeys(str(i) for i in (facility_ids or [])))
+        known = user_id in self._settings(org)["access"]
+        if not known and not self.can(org, user_id, P_READ):
+            # Only people who belong to this organisation (and can use the health workspace) can be given facility access.
+            raise HealthNotFoundError("That person was not found in this organisation.")
         for i in ids:
             f = self.store.get("hc_facility", f"{org}:{i}")
             if f is None or f["org"] != org: raise HealthError("A facility in the list was not found in this organisation.")

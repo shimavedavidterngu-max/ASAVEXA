@@ -21,7 +21,7 @@ class Clock:
     def __call__(self): return datetime(self.d.year, self.d.month, self.d.day, 9, tzinfo=timezone.utc)
 
 
-def can(org, actor, perm): return perm in ROLE_PERMISSIONS[ROLES[actor]]
+def can(org, actor, perm): return actor in ROLES and perm in ROLE_PERMISSIONS[ROLES[actor]]   # like the real one: a stranger simply cannot
 
 
 class Base(unittest.TestCase):
@@ -91,6 +91,11 @@ class TestFacilityAndAccess(Base):
         with self.assertRaises(HealthNotFoundError): self.svc.set_supplier_status(ORG, s2["id"], False, "no longer used", PRE)
         with self.assertRaises(HealthNotFoundError): self.svc.dashboard(ORG, f2["id"], MGR)
         with self.assertRaises(HealthForbiddenError): self.svc.set_access(ORG, MGR, [self.fid], MGR)
+
+    def test_facility_access_only_for_people_in_the_organisation(self):
+        with self.assertRaises(HealthNotFoundError): self.svc.set_access(ORG, "someone-from-another-company", [self.fid], ADM)
+        with self.assertRaises(HealthNotFoundError): self.svc.set_access(ORG, "someone-from-another-company", [], ADM)
+        self.assertNotIn("someone-from-another-company", self.svc.get_access(ORG, ADM))
 
     def test_another_organisation_cannot_see_anything(self):
         self.supplier()
