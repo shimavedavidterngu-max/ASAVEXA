@@ -67,8 +67,7 @@ class TwoTenants(unittest.TestCase):
         self.refused(lambda: w.accounting.post_journal(B, w.invoice.id, actor=self.b_actor))
         self.refused(lambda: w.accounting.reverse_journal(B, w.invoice.id, self.b_actor, "cross-tenant attempt"))
         self.refused(lambda: w.accounting.get_ledger(B, w.cash.id))
-        tb = w.accounting.get_trial_balance(B, w.period.id)          # an empty report for B's own (non-existent) view: nothing of A's in it
-        self.assertEqual((tb["accounts"], str(tb["total_debits"]), str(tb["total_credits"])), ({}, "0.00", "0.00"))
+        self.refused(lambda: w.accounting.get_trial_balance(B, w.period.id))   # A's period is 'not found' for B, not an empty success
         self.refused(lambda: w.accounting.lock_period(B, w.period.id, self.b_actor, "cross-tenant attempt"))
         self.refused(lambda: w.accounting.get_audit_trail(B, "Journal", w.invoice.id))
 

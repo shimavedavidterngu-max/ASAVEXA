@@ -369,6 +369,10 @@ class AccountingEngine:
         balance check the blueprint requires before accepting a completed
         period: Total Debits == Total Credits.
         """
+        if self.periods.get(org_id, period_id) is None:
+            # A period that is not this organisation's (or does not exist) is "not found",
+            # never an empty-but-successful answer that confirms the identifier is real.
+            raise PeriodNotFoundError(f"Period {period_id} not found.")
         journals = [
             j for j in self.journals.list_for_org(org_id, period_id=period_id)
             if j.status != JournalStatus.DRAFT

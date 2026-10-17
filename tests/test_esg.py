@@ -154,7 +154,7 @@ class Audit(Base):
         t = self.tgt(); self.svc.es_approve_target(ORG, t["id"], {"note": "Board agreed on this"}, U3); t2 = self.tgt(label="Second target"); self.svc.es_reject_target(ORG, t2["id"], "The baseline is not agreed yet", U3); self.svc.es_set_setting(ORG, {"factor_max_age_years": 3}, U3)
         acts = [x[0] for x in self.events]
         for x in ("ESG_ENTRY_PROPOSED", "ESG_ENTRY_VERIFIED", "ESG_ENTRY_REJECTED", "ESG_TARGET_PROPOSED", "ESG_TARGET_APPROVED", "ESG_TARGET_REJECTED", "ESG_SETTING_SET"): self.assertIn(x, acts)
-        blob = " ".join(str(x) for x in self.events)
+        blob = " ".join(str(x[:2] + x[3:]) for x in self.events)   # the random record id (x[2]) can contain digits such as "719" by chance
         for secret in ("Diesel", "generator", "National factor", "3351", "1250", "719", "Quantity does not", "Board agreed", "Cut total", "not agreed"): self.assertNotIn(secret, blob)
 
     def test_failed_actions_are_not_logged(self):
