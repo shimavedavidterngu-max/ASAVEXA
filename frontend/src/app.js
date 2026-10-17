@@ -57,6 +57,7 @@ import { EMPTY_AGENT, agentFormProblem } from "./lib/agents.js";
 import { Assurance } from "./pages/Assurance.js";
 import { ProofLinks } from "./pages/ProofLinks.js";
 import { EntityConfig } from "./pages/EntityConfig.js";
+import { sectorOf } from "./lib/sector.js";
 import { filterNavByWorkspaces, shownFor, formFromConfig, configPayload, toggleWorkspace, suggestedFor } from "./lib/entityConfig.js";
 import { EMPTY_LINK, EMPTY_GAP, linkPayload, gapPayload, needsReason, ACTION_NOTICE, relationsFor } from "./lib/proofLinks.js";
 import { EMPTY_FORM, formProblem } from "./lib/standardsRegistry.js";
@@ -316,7 +317,7 @@ const routes = [
 let uiState = {
   loginMode: "login", loginError: null, loginPending: false, vf: null,
   auth: { draft: { email: "", password: "", confirm: "" }, fieldErrors: {}, notice: null }, rc: null,
-  enteredAuth: false, landingMenu: false, landingSeen: false,
+  enteredAuth: false, landingMenu: false, landingSeen: false, landingBead: null,
   navOpen: {}, mobileNav: false, search: { q: "", open: false, idx: 0 }, menu: null, lastPath: null,
   home: { key: "", data: null, loading: false, error: null }, showLocked: false, orgLoading: false,
   onb: { mode: "auto", form: { name: "", category: "" }, errors: {}, pending: false, error: null, copied: false, checking: false, checkMessage: null, orgs: null, loading: false }, setup: null, orgList: null, switching: false, switchError: null,
@@ -461,7 +462,7 @@ function render() {
   if (!authState.token && signedOutScreen({ path: router.currentPath(), enteredAuth: uiState.enteredAuth }) === "landing") {
     const animate = !uiState.landingSeen; uiState.landingSeen = true;
     mount(Landing({
-      animate, menuOpen: uiState.landingMenu,
+      animate, menuOpen: uiState.landingMenu, selectedBead: uiState.landingBead, onSelectBead: (k) => { uiState.landingBead = k; render(); },
       onSignIn: () => openAuth("login"), onGetStarted: () => openAuth("register"),
       onJump: landingJump, onToggleMenu: () => { uiState.landingMenu = !uiState.landingMenu; render(); },
     }), root);
@@ -540,7 +541,7 @@ function renderShell(authState) {
   mount(
     h(
       "div",
-      { className: "app-shell" },
+      { className: "app-shell", "data-sector": (sectorOf(uiState.entity && uiState.entity.org === authState.organisationId ? uiState.entity.cfg : null) || {}).id },
       SideNav({
         groups, navOpen: uiState.navOpen, activeId: activeGroupId(groups), mobileOpen: uiState.mobileNav,
         onToggleGroup: (id, wasOpen) => { uiState.navOpen = { ...uiState.navOpen, [id]: !wasOpen }; render(); },
@@ -816,6 +817,7 @@ function renderPage(matched, authState) {
     loadHomeData(authState);
     const aiOn = DK.dockAvailable(authState.role);
     return Home({
+      sector: sectorOf(uiState.entity && uiState.entity.org === authState.organisationId ? uiState.entity.cfg : null),
       user: authState.user, role: authState.role, orgLabel: orgName(uiState.orgList || (uiState.home.data && uiState.home.data.orgs), authState.organisationId),
       data: uiState.home.data, loading: uiState.home.loading, error: uiState.home.error, dashboardData: uiState.dashboardData,
       showLocked: uiState.showLocked, aiAvailable: DK.canAsk(authState.role) && aiOn, onNavigate: nav,

@@ -11,10 +11,10 @@ import { workspaceCards, shortPurpose, quickActions, setupSteps, attentionSummar
  */
 const Badge = ({ tone, label }) => h("span", { className: `badge badge-${tone || "neutral"}` }, label);
 
-function welcome({ user, role, orgLabel }) {
+function welcome({ user, role, orgLabel, sector }) {
   const name = displayName(user);
   return h("section", { className: "hm-welcome", id: "hm-welcome", "aria-labelledby": "hm-h1" },
-    h("div", {}, h("h1", { id: "hm-h1" }, name ? `Welcome back, ${name}` : "Welcome back"),
+    h("div", {}, sector ? h("p", { className: "ledger-eyebrow", id: "hm-sector" }, sector.label) : null, h("h1", { id: "hm-h1" }, name ? `Welcome back, ${name}` : "Welcome back"),
       h("p", { className: "hm-sub", id: "hm-sub" }, `${orgLabel} · ${roleLabel(role)}`)));
 }
 

@@ -37,3 +37,22 @@
 :root[data-theme="dark"] .auth-brand, :root[data-theme="dark"] .rc-title { color: #eef2f7; }
 :root[data-theme="dark"] .rc-lead { color: #c3ccd8; }
 :root[data-theme="dark"] .auth-card a, :root[data-theme="dark"] .auth-card .linklike { color: #5fd3bf; }
+
+/* ---- Sign-in layout (Stage 4): a ledger-paper panel beside the form. Replaces the old centred card on a navy field. ---- */
+.auth-split { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); background: var(--paper-50); }
+.auth-aside { background-color: #0a1526; color: #cdd6e2; display: flex; align-items: center; padding: 48px clamp(24px, 5vw, 72px);
+  background-image: linear-gradient(rgba(184, 138, 68, 0.3), rgba(184, 138, 68, 0.3)), repeating-linear-gradient(180deg, transparent 0 35px, rgba(255, 255, 255, 0.045) 35px 36px);
+  background-repeat: no-repeat, repeat; background-size: 1px 100%, auto; background-position: clamp(14px, 3vw, 40px) 0, 0 0; }
+.auth-aside-inner { max-width: 30em; }
+.auth-aside-eyebrow { color: #dcbb84; font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; margin-bottom: 14px; }
+.auth-aside-tag { font-family: var(--font-display); font-size: clamp(26px, 3vw, 36px); line-height: 1.15; color: #fff; margin: 0 0 24px; }
+.auth-aside-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.auth-aside-list li { position: relative; padding-left: 22px; font-size: 15px; line-height: 1.5; color: #e4eaf2; }
+.auth-aside-list li::before { content: "\2713"; position: absolute; left: 0; top: 0; color: #dcbb84; font-weight: 700; }
+.auth-main { display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+.auth-main .auth-card { width: 100%; max-width: 400px; }
+@media (max-width: 900px) {
+  .auth-split { grid-template-columns: minmax(0, 1fr); }
+  .auth-aside { display: none; }
+  .auth-main { min-height: 100vh; padding: 24px 16px; }
+}

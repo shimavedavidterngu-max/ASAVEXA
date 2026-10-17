@@ -5,7 +5,7 @@ import { Landing } from "../src/pages/Landing.js";
 import { Login } from "../src/pages/Login.js";
 import {
   LANDING_PATHS, isLandingPath, signedOutScreen, NAV, HERO, CAPABILITIES, WORKSPACES, ORG_TYPES, STEPS, TRUST, STATUS, FOOTER,
-  FORBIDDEN_CLAIMS, allCopy,
+  FORBIDDEN_CLAIMS, allCopy, THREAD, THREAD_DEFAULT,
 } from "../src/lib/landing.js";
 
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
@@ -233,5 +233,36 @@ describe("the side-by-side card fix", () => {
   });
   test("the landing stylesheet is linked from the page", () => {
     assert.match(readFileSync(new URL("../index.html", import.meta.url), "utf8"), /styles\/landing\.css/);
+  });
+});
+
+describe("the hero thread is interactive and still honest", () => {
+  test("every step is a real button that reports which step was chosen", () => {
+    const { vnode, calls } = page({ onSelectBead: (k) => calls.push(["bead", k]) });
+    for (const b of THREAD) { byId(vnode, `ld-bead-${b.k}`).props.onClick(); assert.deepEqual(calls.pop(), ["bead", b.k]); }
+  });
+  test("the chosen step is marked pressed and its detail is shown in a polite live region", () => {
+    for (const b of THREAD) {
+      const { vnode } = page({ selectedBead: b.k });
+      assert.equal(byId(vnode, `ld-bead-${b.k}`).props["aria-pressed"], "true");
+      assert.equal(THREAD.filter((o) => byId(vnode, `ld-bead-${o.k}`).props["aria-pressed"] === "true").length, 1);
+      const d = byId(vnode, "ld-thread-detail");
+      assert.equal(d.props["aria-live"], "polite");
+      assert.match(text(d), new RegExp(b.label));
+      assert.ok(text(d).includes(b.detail));
+    }
+  });
+  test("with nothing chosen, or an unknown choice, the default step is shown", () => {
+    for (const sel of [undefined, null, "nope"]) assert.equal(byId(page({ selectedBead: sel }).vnode, `ld-bead-${THREAD_DEFAULT}`).props["aria-pressed"], "true");
+  });
+  test("state is in words as well as shape: linked steps say linked, the missing one says missing", () => {
+    const t = byId(page().vnode, "ld-thread");
+    assert.equal(all(t, (n) => n.props && n.props.className === "ld-linked").length, 3);
+    assert.equal(all(t, (n) => n.props && n.props.className === "ld-missing").length, 1);
+    assert.match(THREAD.find((b) => b.state === "missing").detail, /Nothing is linked/);
+  });
+  test("choosing a step is remembered by the app and redraws the page", () => {
+    assert.match(appSource, /landingBead: null/);
+    assert.match(appSource, /onSelectBead: \(k\) => \{ uiState\.landingBead = k; render\(\); \}/);
   });
 });

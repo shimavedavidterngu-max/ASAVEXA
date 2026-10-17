@@ -1,3 +1,4 @@
+import { AuthAside } from "../components/AuthAside.js";
 import { h } from "../lib/vdom.js";
 import { PasswordField, PasswordRules, updateRulesList, clearFieldError } from "../components/PasswordField.js";
 import { normaliseCode } from "../lib/passwords.js";
@@ -11,11 +12,12 @@ import { normaliseCode } from "../lib/passwords.js";
 export const RECOVERY_STEPS = ["request", "verify", "reset", "done"];
 
 export function frame(children, { onBack } = {}) {
-  return h("div", { className: "login-screen", id: "recovery-screen", style: "min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--navy-950);" },
-    h("div", { className: "card auth-card", style: "width: 380px;" },
+  return h("div", { className: "login-screen auth-split", id: "recovery-screen" },
+    AuthAside(),
+    h("div", { className: "auth-main" }, h("div", { className: "card auth-card" },
       h("div", { className: "auth-brand", style: "font-family: var(--font-display); font-size:22px; margin-bottom:4px;" }, "ASAVEXA"),
       h("div", { style: "color: var(--ink-500); font-size:12.5px; margin-bottom:20px;" }, "Don't just report the number. Prove it."),
-      children));
+      children)));
 }
 
 export const alertError = (error) => (error ? h("div", { className: "alert alert-error", id: "rc-error", role: "alert", style: "margin-bottom:16px;" }, error) : null);

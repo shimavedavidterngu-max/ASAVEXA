@@ -134,6 +134,19 @@ export const FORBIDDEN_CLAIMS = [
   /\bISO\s*\d/i, /\bSOC\s*2/i, /\bGDPR[- ]compliant/i, /\btrusted by\b/i, /\btestimonial/i, /\bcustomers? love/i,
 ];
 
+
+/**
+ * The example proof thread in the hero. Four steps behind one sample figure; the last one is deliberately missing.
+ * `detail` says what a real record would hold at that step. No numbers, no names: this is an illustration and is labelled as one.
+ */
+export const THREAD = [
+  { k: "report", label: "Reported figure", note: "Revenue for the period", state: "ok", detail: "The figure as it appears in a report. In the product this number is computed from the ledger, never typed in." },
+  { k: "journal", label: "Journal", note: "Posted, with who approved it", state: "ok", detail: "The posted journal behind the figure, with who prepared it and who approved it. A posted journal is never edited; a correction is a reversal." },
+  { k: "evidence", label: "Evidence", note: "Invoice, fingerprinted when stored", state: "ok", detail: "The supporting document, fingerprinted when it was stored so a later change to the file can be detected." },
+  { k: "bank", label: "Bank statement", note: "No document linked yet", state: "missing", detail: "Nothing is linked at this step. ASAVEXA shows the gap as a gap, and a reviewer can see it before the period is closed." },
+];
+export const THREAD_DEFAULT = "evidence";
+
 /** All visible copy as one string, for the claims test. */
 export function allCopy() {
   const parts = [HERO.eyebrow, HERO.headline, HERO.message, HERO.primary, HERO.secondary, HERO.tagline, ABOUT.title, ABOUT.text, STATUS.title, FOOTER.disclosure];
@@ -144,6 +157,7 @@ export function allCopy() {
   TRUST.forEach((t) => parts.push(t.title, t.text));
   STATUS.lines.forEach((l) => parts.push(l));
   NAV.forEach((n) => parts.push(n.label));
+  THREAD.forEach((t) => parts.push(t.label, t.note, t.detail));
   FOOTER.notPublished.forEach((n) => parts.push(n.label, n.note));
   return parts.join("\n");
 }

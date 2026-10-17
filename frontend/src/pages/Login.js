@@ -1,4 +1,5 @@
 import { h } from "../lib/vdom.js";
+import { AuthAside } from "../components/AuthAside.js";
 import { PasswordField, PasswordRules, updateRulesList, clearFieldError } from "../components/PasswordField.js";
 
 /**
@@ -20,10 +21,11 @@ export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, 
   const fe = fieldErrors || {};
   return h(
     "div",
-    { className: "login-screen", id: "auth-screen", style: "min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--navy-950);" },
-    h(
+    { className: "login-screen auth-split", id: "auth-screen" },
+    AuthAside(),
+    h("div", { className: "auth-main" }, h(
       "div",
-      { className: "card auth-card", style: "width: 360px;" },
+      { className: "card auth-card" },
       onHome ? h("a", { href: "#/", id: "login-home", style: "display:inline-block; font-size:12.5px; margin-bottom:12px;", onClick: (e) => { e.preventDefault(); onHome(); } }, "\u2190 Back to the home page") : null,
       h("div", { className: "auth-brand", style: "font-family: var(--font-display); font-size:22px; margin-bottom:4px;" }, "ASAVEXA"),
       h("div", { style: "color: var(--ink-500); font-size:12.5px; margin-bottom:24px;" }, "Don't just report the number. Prove it."),
@@ -69,7 +71,7 @@ export function Login({ mode = "login", pending, error, onSubmit, onSwitchMode, 
         h("a", { href: "#", onClick: (e) => { e.preventDefault(); onSwitchMode(isRegister ? "login" : "register"); } },
           isRegister ? "Sign in" : "Create one")
       )
-    )
+    ))
   );
 }
 
@@ -85,10 +87,11 @@ function liveMatch() {
 export function MfaStep({ pending, error, onMfaSubmit, onMfaCancel }) {
   return h(
     "div",
-    { className: "login-screen", style: "min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--navy-950);" },
-    h(
+    { className: "login-screen auth-split" },
+    AuthAside(),
+    h("div", { className: "auth-main" }, h(
       "div",
-      { className: "card", style: "width: 360px;" },
+      { className: "card auth-card" },
       h("div", { style: "font-family: var(--font-display); font-size:22px; color: var(--navy-900); margin-bottom:4px;" }, "Check it is you"),
       h("div", { style: "color: var(--ink-500); font-size:12.5px; margin-bottom:20px;" },
         "Open your authenticator app and type the 6-digit code for ASAVEXA. Lost your phone? Use one of your recovery codes instead."),
@@ -109,7 +112,7 @@ export function MfaStep({ pending, error, onMfaSubmit, onMfaCancel }) {
       ),
       h("div", { style: "margin-top:16px; text-align:center; font-size:12.5px;" },
         h("a", { href: "#", onClick: (e) => { e.preventDefault(); onMfaCancel && onMfaCancel(); } }, "Back to sign in"))
-    )
+    ))
   );
 }
 

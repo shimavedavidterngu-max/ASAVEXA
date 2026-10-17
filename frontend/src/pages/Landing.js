@@ -1,6 +1,6 @@
 import { h } from "../lib/vdom.js";
 import { Seal } from "../components/AiDock.js";
-import { NAV, HERO, CAPABILITIES, WORKSPACES, ORG_TYPES, STEPS, TRUST, STATUS, ABOUT, FOOTER } from "../lib/landing.js";
+import { NAV, HERO, CAPABILITIES, WORKSPACES, ORG_TYPES, STEPS, TRUST, STATUS, ABOUT, FOOTER, THREAD, THREAD_DEFAULT } from "../lib/landing.js";
 
 /**
  * The public front page, shown to visitors who are not signed in.
@@ -24,25 +24,26 @@ function header({ menuOpen, onSignIn, onGetStarted, onJump, onToggleMenu }) {
           h("span", {}), h("span", {}), h("span", {})))));
 }
 
-/** The hero picture: one figure and the thread of proof behind it. A solid bead is a link that exists; a hollow bead is one that is missing. */
-function proofThread(animate) {
-  const beads = [
-    { k: "report", label: "Reported figure", note: "Revenue for the period", state: "ok" },
-    { k: "journal", label: "Journal", note: "Posted, with who approved it", state: "ok" },
-    { k: "evidence", label: "Evidence", note: "Invoice, fingerprinted when stored", state: "ok" },
-    { k: "bank", label: "Bank statement", note: "No document linked yet", state: "missing" },
-  ];
+/**
+ * The hero picture: one figure and the thread of proof behind it. Each step is a button; choosing one says what a real record holds there.
+ * A solid bead with a tick is a link that exists; a hollow dashed bead is one that is missing. State is shape AND words.
+ */
+function proofThread({ animate, selectedBead, onSelectBead }) {
+  const sel = THREAD.some((b) => b.k === selectedBead) ? selectedBead : THREAD_DEFAULT;
+  const cur = THREAD.find((b) => b.k === sel);
   return h("figure", { className: `ld-thread${animate ? " is-animated" : ""}`, id: "ld-thread", "aria-label": "Example of a proof thread" },
     h("div", { className: "ld-thread-head" }, h("span", { className: "ld-thread-tag" }, "Example"), h("span", {}, "Sample figures, not real data")),
-    h("ol", { className: "ld-beads" }, beads.map((b, i) => h("li", { className: `ld-bead is-${b.state}`, "data-bead": b.k, style: `--i:${i}` },
-      h("span", { className: "ld-dot", "aria-hidden": "true" }),
-      h("div", { className: "ld-bead-text" },
-        h("strong", {}, b.label, b.state === "missing" ? h("span", { className: "ld-missing" }, " missing") : null),
-        h("span", {}, b.note))))),
-    h("figcaption", {}, "Every figure shows the links behind it, and says plainly which ones are not there yet."));
+    h("ol", { className: "ld-beads" }, THREAD.map((b, i) => h("li", { className: `ld-bead is-${b.state}${b.k === sel ? " is-selected" : ""}`, "data-bead": b.k, style: `--i:${i}` },
+      h("button", { type: "button", className: "ld-bead-btn", id: `ld-bead-${b.k}`, "aria-pressed": b.k === sel ? "true" : "false", "aria-controls": "ld-thread-detail", onClick: () => onSelectBead(b.k) },
+        h("span", { className: "ld-dot", "aria-hidden": "true" }, b.state === "ok" ? "\u2713" : ""),
+        h("span", { className: "ld-bead-text" },
+          h("strong", {}, b.label, h("span", { className: b.state === "missing" ? "ld-missing" : "ld-linked" }, b.state === "missing" ? " missing" : " linked")),
+          h("span", {}, b.note)))))),
+    h("p", { className: "ld-thread-detail", id: "ld-thread-detail", "aria-live": "polite" }, h("strong", {}, cur.label, ": "), cur.detail),
+    h("figcaption", {}, "Every figure shows the links behind it, and says plainly which ones are not there yet. Choose a step to see what it holds."));
 }
 
-function hero({ onGetStarted, onJump, animate }) {
+function hero({ onGetStarted, onJump, animate, selectedBead, onSelectBead }) {
   return h("section", { className: "ld-hero", id: "ld-top", "aria-labelledby": "ld-h1" },
     h("div", { className: "ld-wrap ld-hero-grid" },
       h("div", { className: "ld-hero-copy" },
@@ -53,7 +54,7 @@ function hero({ onGetStarted, onJump, animate }) {
           h("button", { className: "ld-btn ld-btn-gold ld-btn-lg", id: "ld-start", onClick: () => onGetStarted() }, HERO.primary),
           h("button", { className: "ld-btn ld-btn-outline ld-btn-lg", id: "ld-explore", onClick: () => onJump("product") }, HERO.secondary)),
         h("p", { className: "ld-tagline" }, HERO.tagline)),
-      proofThread(animate)));
+      proofThread({ animate, selectedBead, onSelectBead: onSelectBead || (() => {}) })));
 }
 
 const sectionHead = (key, eyebrow, title, intro) => h("div", { className: "ld-sechead" }, h("div", { className: "ld-eyebrow ld-eyebrow-dark" }, eyebrow), h("h2", { id: `ld-h-${key}` }, title), intro ? h("p", {}, intro) : null);
